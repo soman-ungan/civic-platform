@@ -1,6 +1,7 @@
 pub mod config;
 pub mod db;
 pub mod routes;
+pub mod seed;
 
 use axum::Router;
 use sqlx::SqlitePool;

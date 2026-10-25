@@ -1,4 +1,6 @@
-use backend::{AppState, app, config::Config, db};
+use std::path::Path;
+
+use backend::{AppState, app, config::Config, db, seed};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -15,6 +17,13 @@ async fn main() -> anyhow::Result<()> {
     let pool = db::connect(&config.database_url).await?;
     db::MIGRATOR.run(&pool).await?;
     tracing::info!("migrations applied");
+
+    // `cargo run -- seed`: マスタ seed を投入して終了する
+    if std::env::args().nth(1).as_deref() == Some("seed") {
+        let files = seed::run(&pool, Path::new(&config.seeds_dir)).await?;
+        tracing::info!(count = files.len(), "seeding finished");
+        return Ok(());
+    }
 
     let listener = TcpListener::bind(&config.bind_addr).await?;
     tracing::info!("listening on http://{}", listener.local_addr()?);
