@@ -1,0 +1,21 @@
+civic-platform
+地方行政可視化＆市民参加プラットフォーム（Polis思想準拠・多自治体対応）
+
+Copyright (C) 2026 soman-ungan
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version. See the LICENSE file for details.
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+------------------------------------------------------------------------
+Polis 由来のコード・ロジック
+------------------------------------------------------------------------
+Polis (https://github.com/compdemocracy/polis) は AGPL-3.0 で公開されています。
+本プロジェクトはデータ構造・画面設計・数理ロジックの考え方を参考に独自実装しており、
+現時点で Polis のソースコードは含んでいません。
+取り込む場合は、元ファイルの出典と著作権表示を保持したうえで、以下に記載します。
+
+（記載なし）

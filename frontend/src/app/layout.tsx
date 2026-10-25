@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 

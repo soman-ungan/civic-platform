@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+
 -- コアスキーマ（docs/grand-design.md v2 §3、多自治体対応）
 -- SQLite / PostgreSQL の両方で動く構文のみを使う。
 -- ID は TEXT（UUID v7。行政区分マスタは公的コード）、日時はアプリ側で入れる ISO8601（UTC）文字列。

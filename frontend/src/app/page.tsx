@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 export default function Home() {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-8">

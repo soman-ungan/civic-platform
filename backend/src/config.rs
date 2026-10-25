@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 use std::env;
 
 const DEFAULT_DATABASE_URL: &str = "sqlite://../data/civic.db?mode=rwc";
