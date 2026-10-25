@@ -63,12 +63,16 @@ civic-platform/
 - 初回: `cp .env.example .env`（`.env` はルートに1つ。backend / sqlx-cli は親ディレクトリを遡って読む）
 - backend（`cd backend`）
   - `cargo run` — 起動時にマイグレーションも自動適用。`GET /health` で DB 込みの疎通確認
-  - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト
+  - `cargo run -- seed` — `data/seeds/*.sql` をファイル名順に投入して終了（冪等。初回とマスタ更新時に実行）
+  - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト（`data/seeds/` の適用テストも含む）
   - `sqlx migrate add <name>` / `sqlx migrate run` / `sqlx migrate info`
   - `migrations/` の変更は `build.rs` により自動で再ビルドされる
 - frontend（`cd frontend`）
   - `npm run dev` / `npm run lint` / `npm run typecheck` / `npm run build`
   - Next.js 16 系。書く前に `frontend/AGENTS.md` の指示どおり `node_modules/next/dist/docs/` を確認する
+- 自治体の追加: `data/seeds/010_municipality_<団体コード>_<slug>.sql` を1ファイル追加し、`cargo run -- seed`
+  - 書式は `010_municipality_092100_otawara.sql` に倣う。全 INSERT に `ON CONFLICT DO NOTHING` を付ける
+  - 地区 ID は `<団体コード>-<ローマ字>`。人口統計は出典 URL 付きで `municipality_stats` に入れる
 
 ## 開発フェーズ
 1. 土台: モノレポ雛形、DB マイグレーション（行政区分マスタ含む）、大田原市の seed、ヘルスチェック API、フロント雛形
