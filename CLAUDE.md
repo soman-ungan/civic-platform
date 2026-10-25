@@ -40,8 +40,15 @@ otawara-civic-platform/
 - テスト: backend は `cargo test`、frontend は lint と型チェックを通す。
 
 ## よく使うコマンド（整備され次第更新する）
-- backend: `cd backend && cargo run` / `cargo test` / `sqlx migrate run`
-- frontend: `cd frontend && npm run dev` / `npm run lint`
+- 初回: `cp .env.example .env`（`.env` はルートに1つ。backend / sqlx-cli は親ディレクトリを遡って読む）
+- backend（`cd backend`）
+  - `cargo run` — 起動時にマイグレーションも自動適用。`GET /health` で DB 込みの疎通確認
+  - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト
+  - `sqlx migrate add <name>` / `sqlx migrate run` / `sqlx migrate info`
+  - `migrations/` の変更は `build.rs` により自動で再ビルドされる
+- frontend（`cd frontend`）
+  - `npm run dev` / `npm run lint` / `npm run typecheck` / `npm run build`
+  - Next.js 16 系。書く前に `frontend/AGENTS.md` の指示どおり `node_modules/next/dist/docs/` を確認する
 
 ## 開発フェーズ
 1. 土台: モノレポ雛形、DB マイグレーション、ヘルスチェック API、フロント雛形
