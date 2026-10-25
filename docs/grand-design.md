@@ -1,104 +1,184 @@
-### 【グランドデザイン】大田原市・地方行政可視化＆市民参加プラットフォーム（Polis思想準拠）
+### 【グランドデザイン v2】地方行政可視化＆市民参加プラットフォーム（Polis思想準拠・多自治体対応）
+
+> v2 変更点：対象を大田原市に固定せず、行政区分（都道府県 → 市区町村 → 地区）を選択可能な構造に変更。大田原市を最初の対象自治体（パイロット）として扱う。
 
 ### 1. プロジェクトの思想と目的
 
-* **コア価値：** 栃木県大田原市の行政リソース（議事録・予算・決算）を直感的に可視化し、Polisの思想に基づいたクリーンかつ建設的な合意形成の場を全市民（特に10〜30代の若年層）に提供する。
-* **開発・運用方針：** 個人開発（ワンオペレーション運用を想定し、AIによる自動化を徹底する）。本家Polisのシステムを丸ごとフォークするのではなく、Polisの「データ構造」「画面設計」「数学的ロジック（主成分分析）」のDNAを、独自のRust×Next.js環境へ洗練された形で移植（フォーク）するアプローチを採用する。
-* **開発環境：** WSL（Linux/Ubuntu）上で、自律型CLIエージェント（Claude Code）による土台の一括生成を行い、視覚的な肉付け・ディテール開発をCursorで行う。
+* **コア価値：** 各自治体の行政リソース（議事録・予算・決算）を直感的に可視化し、Polisの思想に基づいたクリーンかつ建設的な合意形成の場を全市民（特に10〜30代の若年層）に提供する。
+* **展開方針：** 栃木県大田原市をパイロット自治体として立ち上げ、データ構造・クローラー・UIはすべて「自治体を差し替え可能」な形で設計する。新しい自治体の追加は「マスタデータ登録＋収集アダプタ追加」で完結し、アプリ本体の改修を不要とする。
+* **開発・運用方針：** 個人開発（ワンオペレーション運用を想定し、AIによる自動化を徹底する）。本家Polisのシステムを丸ごとフォークするのではなく、Polisの「データ構造」「画面設計」「数学的ロジック（主成分分析）」のDNAを、独自のRust×Next.js環境へ移植するアプローチを採用する。（Polis本家はAGPL-3.0のため、コードの直接流用はしない）
+* **開発環境：** WSL（Linux/Ubuntu）上で、Claude Codeによる土台の一括生成を行い、視覚的な肉付け・ディテール開発をCursorで行う。
 
 ### 2. アプリケーション構成（モノレポ構造）
 
-システム全体は、デプロイ（本番環境への公開）時の安定性と低インフラコストを両立するため、単一のフォルダで管理するモノレポ構成とする。 
-
-otawara-civic-platform/  (ルートフォルダ)
-├── backend/             (Rust / axum / sqlx) - 超軽量・高速なAPIサーバー
+```
+civic-platform/          (ルートフォルダ ※名称は自治体非依存に変更を検討)
+├── backend/             (Rust / axum / sqlx) - API サーバー＋収集バッチ
+│   └── src/collectors/  (自治体別の収集アダプタ)
 ├── frontend/            (Next.js / TypeScript / Tailwind CSS) - スマホ特化型UI
-└── data/                (SQLite) - 開発初期は軽量なファイルベースDB、将来はPostgreSQLへ移行
+├── data/                (SQLite) - 開発初期は軽量なファイルベースDB、将来はPostgreSQLへ移行
+│   └── seeds/           (自治体マスタ・地区マスタの初期データ)
+└── docs/
+```
 
 ### 3. データベース詳細設計 (SQLite / PostgreSQL準拠)
 
-Polisのコアである「トピック」「ステートメント」「投票」の関係性を保持し、属性分析とAIモデレーションを可能にする4つのコアテーブルを定義する。 
+Polisのコアである「トピック」「ステートメント」「投票」の関係に、行政区分の階層を追加する。
 
-### ① users （ユーザー属性情報テーブル）
+#### 行政区分の階層
 
-市民のプライバシーを守るため画面上は完全匿名（自動アバター）とするが、裏側で以下の属性をアカウントに紐付け、クロス集計やPolisマップのクラスター分析に活用する。 
+```
+prefectures（都道府県） 1 ── n municipalities（市区町村） 1 ── n districts（地区）
+                                         │
+                                         └── n topics ── n statements ── n votes
+```
+
+#### ① prefectures （都道府県マスタ）【新規】
+
+* code: TEXT / Primary Key (都道府県コード 2桁。例：'09' = 栃木県)
+* name: TEXT (例：栃木県)
+
+#### ② municipalities （市区町村マスタ）【新規】
+
+* id: TEXT / Primary Key (総務省「全国地方公共団体コード」6桁を採用し、全国で一意かつ公的に安定したIDとする)
+* prefecture_code: TEXT / Foreign Key
+* name: TEXT (例：大田原市)
+* name_kana: TEXT
+* slug: TEXT / UNIQUE (URL用。例：'otawara')
+* official_url: TEXT (公式HPトップ)
+* is_active: BOOLEAN (公開中の自治体のみ選択肢に表示)
+* created_at: TIMESTAMP
+
+#### ③ districts （地区マスタ）【新規】
+
+旧町村や地域区分など、自治体内のサブエリア。地域タグの正規化に使う。
+
+* id: TEXT / Primary Key
+* municipality_id: TEXT / Foreign Key
+* name: TEXT (例：黒羽、湯津上)
+* name_kana: TEXT
+* ※ (municipality_id, name) に UNIQUE 制約
+
+#### ④ municipality_stats （自治体の年度別統計）【新規】
+
+「市民1人あたり年間〇〇円」換算に使う人口などを年度別に保持する。
+
+* municipality_id: TEXT / Foreign Key
+* fiscal_year: INTEGER
+* population: INTEGER
+* households: INTEGER / Nullable
+* source_url: TEXT
+* ※ (municipality_id, fiscal_year) を複合主キーとする
+
+#### ⑤ users （ユーザー属性情報テーブル）【修正】
+
+画面上は完全匿名（自動アバター）。居住地属性は自治体ごとに異なるため、usersからは切り出す。
 
 * id: TEXT / Primary Key (SNS認証のユニークID)
 * age_group: TEXT (年代：10s, 20s, 30s...)
 * gender: TEXT (性別：male, female, other, prefer_not_to_say)
 * occupation: TEXT (職業：student, employee, self_employed...)
-* residency_type: TEXT (居住地属性：大田原市民、周辺住民、市外/関係人口)
+* home_municipality_id: TEXT / Foreign Key / Nullable (初期表示に使う「ホーム自治体」)
 * created_at: TIMESTAMP
+* ~~residency_type~~ → ⑥へ移動
 
-### ② topics （議論の場テーブル）
+#### ⑥ user_municipality_relations （ユーザーと自治体の関係）【新規】
 
-行政から自動収集された議案、または市民から提起された困りごとを1つのテーマとして扱う。 
+1人のユーザーが複数自治体の議論に参加でき、自治体ごとに関係性が異なる（A市の住民でありB市の通勤者、など）ことを表現する。
 
-* id: TEXT / Primary Key
-* title: TEXT (トピックのタイトル)
-* description: TEXT (議論の背景や概要)
-* source_type: TEXT (出所分類：'assembly' (議事録) / 'citizen' (市民提案))
-* source_url: TEXT (大田原市公式HPの元PDF/テキストへのリンク)
-* tags: TEXT (AIが自動生成した分類ハッシュタグ。JSON配列 ["子育て", "黒羽地域"] 形式)
-* created_at: TIMESTAMP
-
-### ③ statements （個々の意見テーブル）
-
-トピック内に配置される、140文字以内の短い意見。 
-
-* id: TEXT / Primary Key
-* topic_id: TEXT / Foreign Key
-* user_id: TEXT / Foreign Key / Nullable (NULLの場合は、議事録からAIが抽出した初期シード意見)
-* body: TEXT (140文字制限の意見文。他のユーザーからは発言者は完全非表示)
-* status: TEXT (モデレーション状態：'pending', 'approved', 'rejected', 'flagged')
-* created_at: TIMESTAMP
-
-### ④ votes （Polisコア投票テーブル）
-
-1人が1つの意見に対してジャッジした記録。レスバの物理的排除を司る。 
-
-* id: TEXT / Primary Key
 * user_id: TEXT / Foreign Key
-* statement_id: TEXT / Foreign Key
-* vote_value: INTEGER (ジャッジ値。1: 賛成 / -1: 反対 / 0: パス)
+* municipality_id: TEXT / Foreign Key
+* residency_type: TEXT ('resident' 住民 / 'neighbor' 周辺住民 / 'commuter' 通勤・通学 / 'related' 関係人口)
+* district_id: TEXT / Foreign Key / Nullable (住民の場合の任意の地区)
 * created_at: TIMESTAMP
-* ※ user_id と statement_id の複合ユニーク（UNIQUE）制約により、1人1回投票を厳密に担保。
+* ※ (user_id, municipality_id) を複合主キーとする
+* その自治体のトピックで初めて投票する際に1回だけ回答を求める。
+
+#### ⑦ topics （議論の場テーブル）【修正】
+
+* id: TEXT / Primary Key
+* municipality_id: TEXT / Foreign Key 【追加】
+* title: TEXT
+* description: TEXT
+* source_type: TEXT ('assembly' (議事録) / 'citizen' (市民提案))
+* source_url: TEXT (元PDF/テキストへのリンク)
+* created_at: TIMESTAMP
+* ~~tags~~ → ⑨へ正規化
+
+#### ⑧ statements （個々の意見テーブル）【変更なし】
+
+自治体はトピック経由で決まるため、カラム追加は不要。
+
+* id / topic_id / user_id (Nullable：AI抽出のシード意見) / body (140文字) / status ('pending', 'approved', 'rejected', 'flagged') / created_at
+
+#### ⑨ tags ／ topic_tags （タグの正規化）【新規】
+
+自治体をまたいだ絞り込み（例：全国の #子育て）と、自治体内の地区絞り込みを両立するため、JSON配列から正規化テーブルへ変更する。
+
+* tags: id / kind ('field' 分野 / 'district' 地区) / name / district_id (kind='district' の場合のみ)
+* topic_tags: topic_id / tag_id（複合主キー）
+* 分野タグ（#子育て, #防災 等）は全自治体共通の語彙、地区タグは districts に紐づく。
+
+#### ⑩ votes （Polisコア投票テーブル）【変更なし】
+
+* id / user_id / statement_id / vote_value (1: 賛成 / -1: 反対 / 0: パス) / created_at
+* ※ (user_id, statement_id) の UNIQUE 制約で1人1回投票を担保。
+
+#### ⑪ collector_sources （収集元設定）【新規】
+
+自治体ごとに議事録システム（会議録検索システムのベンダー）や決算資料の掲載形式が異なるため、収集設定をデータとして持つ。
+
+* id: TEXT / Primary Key
+* municipality_id: TEXT / Foreign Key
+* kind: TEXT ('minutes' 議事録 / 'settlement_card' 決算カード / 'budget' 予算)
+* adapter: TEXT (使用する収集アダプタ名。例：'generic_html', 'kaigiroku_system_x')
+* base_url: TEXT
+* config: TEXT (アダプタ固有設定をJSONで保持)
+* is_enabled: BOOLEAN
+* last_crawled_at: TIMESTAMP / Nullable
 
 ### 4. バックエンド処理・AIパイプライン仕様 (Rust / axum)
 
-### ① 行政データの自動収集と可視化ロジック
+#### ① 行政データの自動収集と可視化ロジック【修正】
 
-* Rustの定期バッチ処理（クローラー）が大田原市公式HPを巡回し、新着の議事録テキストや決算カード（総務省標準フォーマット）を検知。
-* 生成AI（LLM）に投入し、「発言者・質問・回答」の構造化データ、および億単位の決算を「市民1人あたり年間〇〇円」へ換算した数値を自動計算しDBに格納。
+* 定期バッチが collector_sources の有効な設定を順に処理する。
+* 収集処理は Rust の trait（例：`Collector`）として抽象化し、自治体・システムごとの差分はアダプタ実装に閉じ込める。共通形式（会議録検索システム等）は1アダプタで複数自治体に対応する。
+* 決算カードは総務省標準フォーマットのため、全自治体共通のパーサーで処理できる見込み。
+* 1人あたり換算は municipality_stats の該当年度人口を用いる。
+* 新規自治体の収集前に、robots.txt と各サイトの利用規約を確認する。
 
-### ② AI自動クレンジング（モデレーション）
+#### ② AI自動クレンジング（モデレーション）【変更なし】
 
-個人運用の負担（手動チェック）をゼロにするため、市民が新規ステートメントを投稿した瞬間、以下のホワイトリスト式パイプラインをリアルタイム実行する。 
+投稿直後は 'pending' → モデレーションAPI → 'approved' / 'rejected'（マイルドな代替表現案を提示）/ 'flagged'（管理者通知）。
 
-1. 投稿直後は status = 'pending'（非公開）でホールド。
-2. モデレーションAPIに自動投入。
-3. 【クリーン（問題なし）】 ──> status = 'approved' に変更し、即座に全体公開。
-4. 【有害・暴言・特定議員への誹謗中傷】 ──> status = 'rejected' に変更（非公開）。ユーザーの画面には「感情的な表現を抑え、客観的な意見に書き直しませんか？」とAIが自動生成したマイルドな代替表現案を提示して再投稿を促す。
-5. 【判定迷い】 ──> status = 'flagged' とし、管理者に手動チェックを通知。
+#### ③ AI自動タグ付け【修正】
 
-### ③ AI自動タグ付け（Polis 2.0思想の先取り）
+* 分野タグは全自治体共通の語彙リストから選ばせる（表記揺れ防止）。
+* 地区タグは「そのトピックの自治体の districts 一覧」をプロンプトに渡し、その中からのみ選ばせる。
 
-トピックやステートメントが生成された際、AIが自動で「分野タグ（#子育て, #防災 等）」と「地域タグ（#黒羽, #湯津上 等）」を抽出し、ハッシュタグとして付与する。 
+#### ④ Polis分析（PCA・クラスタリング・コンセンサス判定）
+
+* 分析単位はトピック。自治体をまたいだ集計は行わない。
+* 属性クロス集計では user_municipality_relations の residency_type を使い、「住民」と「関係人口」の意見差も可視化できるようにする。
 
 ### 5. フロントエンドUI/UX仕様 (Next.js / Tailwind CSS)
 
-若年層が普段使っているSNS（InstagramやX）の操作感を徹底的に再現する。 
-
-* **スマホ特化（モバイルファースト）：** PCではなくスマホ画面での視認性を最優先にする。
-* **タイムライン画面（トップ）：** AIが自動付与したハッシュタグ（#子育て #黒羽 など）をタップすることで、関連するトピック一覧がSNSのフィードカードのように瞬間フィルターされるUI。
-* **Polis風投票画面（詳細）：** 
-
-  * トピックの概要の下に、ステートメントが1件ずつ大きくカードで中央に表示される。
-  * ユーザーは画面下部の「賛成」「反対」「パス」の3択ボタンをポチポチ押すだけで、スワイプのように次の意見に切り替わる（コメント欄やリプライ返信ボタンは一切設置しない）。
-  * **コンセンサス・ハイライト：** 全グループで一貫して高い賛成率（80%以上）を獲得したステートメントを、タイムライン最上位に自動でピン留めし、合意点を可視化する。
+* **スマホ特化（モバイルファースト）**
+* **URL設計：** `/{slug}`（例：`/otawara`）を自治体のトップとし、`/{slug}/topics/{id}` を詳細とする。共有されたURLだけで自治体が確定する。
+* **自治体の選択：**
+  * 初回アクセス時は「都道府県 → 市区町村」の2段階で選択（is_active の自治体のみ表示）。
+  * 選択結果はホーム自治体として保存し、次回以降は直接そのタイムラインを開く。ヘッダーからいつでも切り替え可能。
+  * 対象自治体が1つの段階では選択画面を出さず、自動でパイロット自治体を開く。
+* **タイムライン画面：** 選択中の自治体のトピックを表示。分野タグ・地区タグのタップで瞬間フィルター。
+* **Polis風投票画面：** 変更なし（カード1件ずつ表示、賛成／反対／パスの3択、コメント欄・リプライなし）。
+* **コンセンサス・ハイライト：** 全グループで賛成率80%以上のステートメントを、その自治体のタイムライン最上位にピン留め。
 
 ### 6. セキュリティ・水増し対策と拡張ロードマップ
 
-* **初期フェーズ（MVP）：** Google、Apple、LINEなどの主要なSNS認証を必須とし、使い捨てアドレスによる1人複数アカウントの作成・水増しを防止する。
-* **拡張フェーズ（本番運用）：** 1人1アカウントを確実に担保するため、電話番号（SMS）認証を導入。
-* **アルゴリズムの防御力：** 万が一、水増しアカウントが同じ意見に群がって投票しても、Polisの数学的ロジック（主成分分析によるクラスタリング）により「1つの極端な集団（塊）」として処理されるため、全体の「全員が合意できるポイント（コンセンサス）」が歪みにくい防衛力をそのまま活かす。
+* **初期フェーズ（MVP）：** Google、Apple、LINEなどのSNS認証を必須とし、1人複数アカウントを抑止。
+* **拡張フェーズ：** 電話番号（SMS）認証を導入。
+* **アルゴリズムの防御力：** 水増しアカウントが群がっても、PCAによるクラスタリングで「1つの極端な集団」として処理されるため、コンセンサスが歪みにくい。
+* **多自治体展開のロードマップ：**
+  1. 大田原市のみで運用（選択UIは非表示、データ構造は多自治体対応済み）
+  2. 栃木県内の近隣自治体を追加（同じ議事録システムを使う自治体から優先）
+  3. 自治体追加の手順をドキュメント化（マスタ登録 → 地区登録 → 収集設定 → 人口データ登録）

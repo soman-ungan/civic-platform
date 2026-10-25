@@ -1,10 +1,11 @@
-# CLAUDE.md — 大田原市・行政可視化＆市民参加プラットフォーム
+# CLAUDE.md — 地方行政可視化＆市民参加プラットフォーム（多自治体対応）
 
 このファイルは Claude Code がこのリポジトリで作業する際の指針です。
 詳細な設計は `docs/grand-design.md` を参照すること（設計判断で迷ったら必ず読み直す）。
 
 ## プロジェクト概要
-- 栃木県大田原市の議事録・予算・決算を可視化し、Polis の思想に基づく合意形成の場を提供する Web アプリ。
+- 自治体の議事録・予算・決算を可視化し、Polis の思想に基づく合意形成の場を提供する Web アプリ。
+- **多自治体対応**: 行政区分（都道府県 → 市区町村 → 地区）を選択可能な構造。栃木県大田原市がパイロット自治体。
 - 主対象は 10〜30 代。スマホファースト。
 - 個人開発・ワンオペ運用。自動化と保守のしやすさを最優先する。
 - Polis のコードはフォークしない。データ構造・画面設計・数理ロジック（PCA + クラスタリング）の考え方のみを独自実装する。
@@ -12,25 +13,43 @@
 
 ## リポジトリ構成（モノレポ）
 ```
-otawara-civic-platform/
-├── backend/    Rust / axum / sqlx（API サーバー）
-├── frontend/   Next.js (App Router) / TypeScript / Tailwind CSS
-├── data/       SQLite ファイル（git 管理しない）
-└── docs/       設計書・ADR
+civic-platform/
+├── backend/              Rust / axum / sqlx（API サーバー＋収集バッチ）
+│   └── src/collectors/   自治体・議事録システム別の収集アダプタ
+├── frontend/             Next.js (App Router) / TypeScript / Tailwind CSS
+├── data/                 SQLite ファイル（*.db は git 管理しない）
+│   └── seeds/            自治体・地区マスタの初期データ（git 管理する）
+└── docs/                 設計書・ADR
 ```
+
+## 多自治体対応の原則（最重要）
+- **大田原市をコードにハードコードしない。** 自治体名・URL・地区名・人口はすべて DB のマスタ／seed から読む。
+- 新しい自治体の追加は「マスタ登録 + 地区登録 + 収集設定 + 人口データ」で完結し、アプリ本体の改修が不要であること。
+- 自治体 ID は総務省「全国地方公共団体コード」（6桁、TEXT）。URL には `slug` を使う（例: `/otawara`）。
+- 自治体に属するデータを取得する API・クエリは必ず `municipality_id` で絞り込む。
+- 収集処理は `Collector` trait で抽象化し、自治体ごとの差分はアダプタ + `collector_sources.config` に閉じ込める。
+- Polis 分析（PCA / クラスタリング / コンセンサス判定）はトピック単位。自治体をまたいで混ぜない。
 
 ## 技術方針
 - DB: 開発は SQLite、将来 PostgreSQL へ移行。
   - SQL は両方で動く書き方を優先（SQLite 固有関数を避ける）。
-  - ID は TEXT（UUID v7 推奨）。日時は ISO8601 文字列（UTC）。
+  - ID は TEXT（UUID v7 推奨。ただし行政区分マスタは公的コードを使用）。日時は ISO8601 文字列（UTC）。
   - マイグレーションは `backend/migrations/` に sqlx migrate 形式で置く。
-- コアテーブル: `users` / `topics` / `statements` / `votes`（定義は docs/grand-design.md §3）。
-  - `votes` は `(user_id, statement_id)` に UNIQUE 制約。
+- テーブル（定義は docs/grand-design.md §3）:
+  - 行政区分: `prefectures` / `municipalities` / `districts` / `municipality_stats`
+  - ユーザー: `users` / `user_municipality_relations`（居住地属性は自治体ごとにこちらで持つ）
+  - Polis コア: `topics`（`municipality_id` 必須）/ `statements` / `votes`
+  - タグ: `tags`（kind = `field` | `district`）/ `topic_tags`
+  - 収集: `collector_sources`
+- 制約:
+  - `votes` は `(user_id, statement_id)` に UNIQUE。
   - `statements.status` は `pending` / `approved` / `rejected` / `flagged`。
   - `statements.body` は 140 文字以内（API 側でも検証）。
 - 投稿者情報は API レスポンスに絶対に含めない（匿名性の担保）。
 - 外部 API キー（LLM 等）は `.env` で管理し、コミットしない。`.env.example` を用意する。
 - フロントは「コメント欄・リプライ」機能を作らない（Polis の原則）。
+- フロントのルーティング: `/[municipality]` がトップ、`/[municipality]/topics/[id]` が詳細。
+  - 有効な自治体が1つの間は選択画面を出さず、そのトップへ遷移する。
 
 ## 開発ルール
 - 作業は小さな単位で進め、各ステップの終わりに動作確認 → コミットする。
@@ -38,6 +57,7 @@ otawara-civic-platform/
 - 大きな変更の前には計画を提示し、承認を得てから実装する。
 - 新しい依存クレート / npm パッケージを追加する場合は理由を一言添える。
 - テスト: backend は `cargo test`、frontend は lint と型チェックを通す。
+  - 自治体の取り違えを防ぐため、テスト用 seed には最低2自治体を入れる。
 
 ## よく使うコマンド（整備され次第更新する）
 - 初回: `cp .env.example .env`（`.env` はルートに1つ。backend / sqlx-cli は親ディレクトリを遡って読む）
@@ -51,9 +71,10 @@ otawara-civic-platform/
   - Next.js 16 系。書く前に `frontend/AGENTS.md` の指示どおり `node_modules/next/dist/docs/` を確認する
 
 ## 開発フェーズ
-1. 土台: モノレポ雛形、DB マイグレーション、ヘルスチェック API、フロント雛形
-2. コア: トピック一覧・詳細、ステートメント投稿、投票 API、Polis 風投票 UI
+1. 土台: モノレポ雛形、DB マイグレーション（行政区分マスタ含む）、大田原市の seed、ヘルスチェック API、フロント雛形
+2. コア: 自治体別トピック一覧・詳細、ステートメント投稿、投票 API、Polis 風投票 UI
 3. 分析: 投票行列からの PCA / クラスタリング、コンセンサス判定（全グループ賛成率 80% 以上）
-4. AI: モデレーション、自動タグ付け
-5. 収集: 大田原市公式 HP の議事録・決算カードのクローラー（robots.txt と利用規約を確認してから）
+4. AI: モデレーション、自動タグ付け（分野は共通語彙、地区はその自治体の districts から選択）
+5. 収集: `Collector` trait と大田原市用アダプタ、決算カード共通パーサー（robots.txt と利用規約を確認してから）
 6. 認証: SNS ログイン（Google / Apple / LINE）→ 後に SMS 認証
+7. 展開: 自治体選択 UI の有効化、近隣自治体の追加、自治体追加手順のドキュメント化
