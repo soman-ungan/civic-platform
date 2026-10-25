@@ -69,7 +69,8 @@ civic-platform/
   - 自治体の取り違えを防ぐため、テスト用 seed には最低2自治体を入れる。
 
 ## よく使うコマンド（整備され次第更新する）
-- 初回: `cp .env.example .env`（`.env` はルートに1つ。backend / sqlx-cli は親ディレクトリを遡って読む）
+- 初回: `cp .env.example .env`（`.env` はルートに1つ。backend / sqlx-cli は親ディレクトリを遡って読み、frontend は `next.config.ts` でルートの `.env` を読む）
+  - `.env.example` に変数が増えたら手元の `.env` にも追記する（`NEXT_PUBLIC_SOURCE_URL` が無いと本番ビルドが失敗する）
 - backend（`cd backend`）
   - `cargo run` — 起動時にマイグレーションも自動適用。`GET /health` で DB 込みの疎通確認
   - `cargo run -- seed` — `data/seeds/*.sql` をファイル名順に投入して終了（冪等。初回とマスタ更新時に実行）
