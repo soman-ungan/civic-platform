@@ -1,0 +1,16 @@
+# SQLite（WAL ファイル含む）
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# 環境変数
+.env
+.env.*
+!.env.example
+
+# ビルド成果物・依存
+target/
+node_modules/
+.next/
+
+.DS_Store
