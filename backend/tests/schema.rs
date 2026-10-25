@@ -2,25 +2,10 @@ mod common;
 
 use sqlx::SqlitePool;
 
-const NOW: &str = "2026-10-25T00:00:00Z";
+const NOW: &str = "2026-10-26T00:00:00Z";
 
-/// topic / user / statement を 1 件ずつ入れる。
-async fn seed(pool: &SqlitePool) {
-    sqlx::query("INSERT INTO users (id, created_at) VALUES ('u1', ?)")
-        .bind(NOW)
-        .execute(pool)
-        .await
-        .unwrap();
-    sqlx::query("INSERT INTO topics (id, title, source_type, created_at) VALUES ('t1', 'テスト', 'citizen', ?)")
-        .bind(NOW)
-        .execute(pool)
-        .await
-        .unwrap();
-    sqlx::query("INSERT INTO statements (id, topic_id, user_id, body, created_at) VALUES ('s1', 't1', 'u1', '意見', ?)")
-        .bind(NOW)
-        .execute(pool)
-        .await
-        .unwrap();
+async fn exec(pool: &SqlitePool, sql: &str) -> sqlx::Result<()> {
+    sqlx::query(sql).execute(pool).await.map(|_| ())
 }
 
 async fn insert_statement(
@@ -57,22 +42,187 @@ async fn insert_vote(
         .map(|_| ())
 }
 
+async fn insert_relation(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    residency_type: &str,
+    district_id: Option<&str>,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "INSERT INTO user_municipality_relations (user_id, municipality_id, residency_type, district_id, created_at) VALUES ('u1', ?, ?, ?, ?)",
+    )
+    .bind(municipality_id)
+    .bind(residency_type)
+    .bind(district_id)
+    .bind(NOW)
+    .execute(pool)
+    .await
+    .map(|_| ())
+}
+
 #[tokio::test]
-async fn core_tables_exist() {
+async fn all_tables_exist() {
     let pool = common::test_pool().await;
     let tables: Vec<String> = sqlx::query_scalar(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('users', 'topics', 'statements', 'votes') ORDER BY name",
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite%' ORDER BY name",
     )
     .fetch_all(&pool)
     .await
     .unwrap();
-    assert_eq!(tables, ["statements", "topics", "users", "votes"]);
+    assert_eq!(
+        tables,
+        [
+            "collector_sources",
+            "districts",
+            "municipalities",
+            "municipality_stats",
+            "prefectures",
+            "statements",
+            "tags",
+            "topic_tags",
+            "topics",
+            "user_municipality_relations",
+            "users",
+            "votes",
+        ]
+    );
 }
+
+// ===== 行政区分 =====
+
+#[tokio::test]
+async fn municipality_slug_is_unique() {
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    let res = exec(
+        &pool,
+        "INSERT INTO municipalities (id, prefecture_code, name, name_kana, slug, created_at) VALUES ('092011', '09', '宇都宮市', 'うつのみやし', 'otawara', '2026-10-26T00:00:00Z')",
+    )
+    .await;
+    assert!(res.is_err());
+}
+
+#[tokio::test]
+async fn municipality_requires_existing_prefecture() {
+    let pool = common::test_pool().await;
+    let res = exec(
+        &pool,
+        "INSERT INTO municipalities (id, prefecture_code, name, name_kana, slug, created_at) VALUES ('092100', '09', '大田原市', 'おおたわらし', 'otawara', '2026-10-26T00:00:00Z')",
+    )
+    .await;
+    assert!(res.is_err());
+}
+
+#[tokio::test]
+async fn district_name_is_unique_within_municipality_only() {
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    // 同じ自治体に同名の地区は入らない
+    let dup = exec(
+        &pool,
+        "INSERT INTO districts (id, municipality_id, name, name_kana) VALUES ('092100-kurobane2', '092100', '黒羽', 'くろばね')",
+    )
+    .await;
+    assert!(dup.is_err());
+    // 別の自治体なら同名でもよい
+    let other = exec(
+        &pool,
+        "INSERT INTO districts (id, municipality_id, name, name_kana) VALUES ('092134-kurobane', '092134', '黒羽', 'くろばね')",
+    )
+    .await;
+    assert!(other.is_ok());
+}
+
+// ===== ユーザーと自治体の関係 =====
+
+#[tokio::test]
+async fn relation_accepts_district_of_same_municipality() {
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    assert!(
+        insert_relation(&pool, "092100", "resident", Some("092100-kurobane"))
+            .await
+            .is_ok()
+    );
+}
+
+#[tokio::test]
+async fn relation_rejects_district_of_other_municipality() {
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    // 大田原市との関係に那須塩原市の地区は指定できない
+    assert!(
+        insert_relation(&pool, "092100", "resident", Some("092134-shiobara"))
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn relation_residency_type_is_restricted() {
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    assert!(
+        insert_relation(&pool, "092100", "commuter", None)
+            .await
+            .is_ok()
+    );
+    // v1 の値 'external' は廃止
+    assert!(
+        insert_relation(&pool, "092134", "external", None)
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn relation_is_unique_per_user_and_municipality() {
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    assert!(
+        insert_relation(&pool, "092100", "resident", None)
+            .await
+            .is_ok()
+    );
+    assert!(
+        insert_relation(&pool, "092100", "related", None)
+            .await
+            .is_err()
+    );
+    // 別の自治体とは別の関係を持てる
+    assert!(
+        insert_relation(&pool, "092134", "commuter", None)
+            .await
+            .is_ok()
+    );
+}
+
+// ===== トピック =====
+
+#[tokio::test]
+async fn topic_requires_existing_municipality() {
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    let missing = exec(
+        &pool,
+        "INSERT INTO topics (id, municipality_id, title, source_type, created_at) VALUES ('t9', '999999', 'x', 'citizen', '2026-10-26T00:00:00Z')",
+    )
+    .await;
+    assert!(missing.is_err());
+    let none = exec(
+        &pool,
+        "INSERT INTO topics (id, title, source_type, created_at) VALUES ('t9', 'x', 'citizen', '2026-10-26T00:00:00Z')",
+    )
+    .await;
+    assert!(none.is_err());
+}
+
+// ===== ステートメント・投票 =====
 
 #[tokio::test]
 async fn statement_defaults_to_pending() {
     let pool = common::test_pool().await;
-    seed(&pool).await;
+    common::seed_fixture(&pool).await;
     let status: String = sqlx::query_scalar("SELECT status FROM statements WHERE id = 's1'")
         .fetch_one(&pool)
         .await
@@ -83,7 +233,7 @@ async fn statement_defaults_to_pending() {
 #[tokio::test]
 async fn statement_body_is_limited_to_140_chars() {
     let pool = common::test_pool().await;
-    seed(&pool).await;
+    common::seed_fixture(&pool).await;
     // マルチバイト文字でバイト数ではなく文字数で数えていることを確認する
     assert!(
         insert_statement(&pool, "ok", &"あ".repeat(140), "approved")
@@ -105,24 +255,25 @@ async fn statement_body_is_limited_to_140_chars() {
 #[tokio::test]
 async fn statement_status_is_restricted() {
     let pool = common::test_pool().await;
-    seed(&pool).await;
+    common::seed_fixture(&pool).await;
     assert!(insert_statement(&pool, "bad", "意見", "foo").await.is_err());
 }
 
 #[tokio::test]
 async fn statement_requires_existing_topic() {
     let pool = common::test_pool().await;
-    let res = sqlx::query("INSERT INTO statements (id, topic_id, body, created_at) VALUES ('s', 'missing', '意見', ?)")
-        .bind(NOW)
-        .execute(&pool)
-        .await;
+    let res = exec(
+        &pool,
+        "INSERT INTO statements (id, topic_id, body, created_at) VALUES ('s', 'missing', '意見', '2026-10-26T00:00:00Z')",
+    )
+    .await;
     assert!(res.is_err());
 }
 
 #[tokio::test]
 async fn vote_is_unique_per_user_and_statement() {
     let pool = common::test_pool().await;
-    seed(&pool).await;
+    common::seed_fixture(&pool).await;
     assert!(insert_vote(&pool, "v1", "s1", 1).await.is_ok());
     assert!(insert_vote(&pool, "v2", "s1", -1).await.is_err());
 }
@@ -130,6 +281,98 @@ async fn vote_is_unique_per_user_and_statement() {
 #[tokio::test]
 async fn vote_value_is_restricted() {
     let pool = common::test_pool().await;
-    seed(&pool).await;
+    common::seed_fixture(&pool).await;
     assert!(insert_vote(&pool, "v1", "s1", 2).await.is_err());
+}
+
+// ===== タグ =====
+
+#[tokio::test]
+async fn field_tag_name_is_unique() {
+    let pool = common::test_pool().await;
+    assert!(
+        exec(
+            &pool,
+            "INSERT INTO tags (id, kind, name) VALUES ('g1', 'field', '子育て')"
+        )
+        .await
+        .is_ok()
+    );
+    assert!(
+        exec(
+            &pool,
+            "INSERT INTO tags (id, kind, name) VALUES ('g2', 'field', '子育て')"
+        )
+        .await
+        .is_err()
+    );
+}
+
+#[tokio::test]
+async fn district_tag_requires_district_and_is_unique_per_district() {
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    // 地区タグには district_id が必須
+    assert!(
+        exec(
+            &pool,
+            "INSERT INTO tags (id, kind, name) VALUES ('d0', 'district', '黒羽')"
+        )
+        .await
+        .is_err()
+    );
+    // 分野タグに district_id は付けられない
+    assert!(
+        exec(&pool, "INSERT INTO tags (id, kind, name, district_id) VALUES ('f0', 'field', '防災', '092100-kurobane')")
+            .await
+            .is_err()
+    );
+    assert!(
+        exec(&pool, "INSERT INTO tags (id, kind, name, district_id) VALUES ('d1', 'district', '黒羽', '092100-kurobane')")
+            .await
+            .is_ok()
+    );
+    // 1 地区につき地区タグは 1 つ
+    assert!(
+        exec(&pool, "INSERT INTO tags (id, kind, name, district_id) VALUES ('d2', 'district', '黒羽地区', '092100-kurobane')")
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn topic_tag_is_unique_per_topic_and_tag() {
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    exec(
+        &pool,
+        "INSERT INTO tags (id, kind, name) VALUES ('g1', 'field', '子育て')",
+    )
+    .await
+    .unwrap();
+    assert!(
+        exec(
+            &pool,
+            "INSERT INTO topic_tags (topic_id, tag_id) VALUES ('t1', 'g1')"
+        )
+        .await
+        .is_ok()
+    );
+    assert!(
+        exec(
+            &pool,
+            "INSERT INTO topic_tags (topic_id, tag_id) VALUES ('t1', 'g1')"
+        )
+        .await
+        .is_err()
+    );
+    // 分野タグは自治体をまたいで使える
+    assert!(
+        exec(
+            &pool,
+            "INSERT INTO topic_tags (topic_id, tag_id) VALUES ('t2', 'g1')"
+        )
+        .await
+        .is_ok()
+    );
 }
