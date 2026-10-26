@@ -163,7 +163,10 @@ pub async fn run_topic(
                 statements,
             })?,
             // データ不足のときは前回の状態を残す
-            previous.map(|r| r.state).unwrap_or_else(|| "{}".to_owned()),
+            match previous {
+                Some(r) => r.state,
+                None => serde_json::to_string(&ConvState::default())?,
+            },
         ),
     };
 

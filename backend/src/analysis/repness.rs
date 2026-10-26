@@ -118,6 +118,10 @@ pub struct RepComment {
     /// best-agree として先頭に入れたもの
     #[serde(default)]
     pub best_agree: bool,
+    /// best-agree のときの賛成数（Polis の `:n-agree`）。finalize で反対側に分類されても、
+    /// 画面では賛成として表示できるようにするため
+    #[serde(default)]
+    pub n_agree: Option<f64>,
 }
 
 fn finalize(tid: &str, s: &ComparativeStats) -> RepComment {
@@ -150,6 +154,7 @@ fn finalize(tid: &str, s: &ComparativeStats) -> RepComment {
         repness_test: f64::from(repness_test as f32),
         repful_for,
         best_agree: false,
+        n_agree: None,
     }
 }
 
@@ -224,6 +229,7 @@ pub fn select_rep_comments(
         .map(|a| {
             let best_agree = a.best_agree.map(|(tid, s)| RepComment {
                 best_agree: true,
+                n_agree: Some(s.base.na),
                 ..finalize(tid, &s)
             });
             if a.sufficient.is_empty() {

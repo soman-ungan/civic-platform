@@ -329,11 +329,16 @@ pub async fn topic_analysis(
                 .into_iter()
                 .flatten()
                 .filter_map(|c| {
+                    // best-agree は賛成として表示する（Polis のクライアントが n-agree を使うのと同じ）
+                    let (repful_for, n_success) = match c.n_agree {
+                        Some(na) if c.best_agree => (RepfulFor::Agree, na),
+                        _ => (c.repful_for, c.n_success),
+                    };
                     Some(RepresentativeOut {
                         body: bodies.get(&c.tid)?.clone(),
                         statement_id: c.tid.clone(),
-                        repful_for: c.repful_for,
-                        n_success: c.n_success,
+                        repful_for,
+                        n_success,
                         n_trials: c.n_trials,
                     })
                 })

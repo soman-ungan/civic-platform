@@ -59,6 +59,7 @@ pub struct KSmoother {
 
 /// 次回の計算に引き継ぐ状態（Polis の conv の一部）
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ConvState {
     /// 行（参加者）と列（意見）の並び。最初に投票された順
     pub row_order: Vec<String>,

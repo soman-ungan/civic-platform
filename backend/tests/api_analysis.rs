@@ -218,3 +218,16 @@ async fn next_statement_still_returns_only_unvoted_approved() {
         );
     }
 }
+
+#[tokio::test]
+async fn best_agree_is_shown_as_agree() {
+    let (pool, state) = setup().await;
+    run_topic(&pool, "t1", false).await.unwrap();
+    let j = get(&state, &format!("{T1}/analysis"), None).await.json;
+    // どのグループの代表意見にも「0人が反対」のような表示は出ない
+    for g in j["groups"].as_array().unwrap() {
+        for r in g["representative"].as_array().unwrap() {
+            assert!(r["n_success"].as_f64().unwrap() > 0.0, "{r}");
+        }
+    }
+}

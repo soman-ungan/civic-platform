@@ -107,3 +107,48 @@ async fn run_all_only_computes_changed_topics() {
     assert_eq!(run_all(&pool, false).await.unwrap(), 2);
     assert_eq!(run_all(&pool, false).await.unwrap(), 0);
 }
+
+#[tokio::test]
+async fn insufficient_then_enough_votes_is_computed() {
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    run_topic(&pool, "t1", false).await.unwrap();
+    assert!(matches!(
+        load(&pool, "t1").await.unwrap(),
+        Some(Stored::Insufficient { .. })
+    ));
+
+    // 投票が集まったら、前回が insufficient でも計算できる
+    sqlx::raw_sql("DELETE FROM statements WHERE id = 's1'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    // 意見と投票を足す
+    for i in 0..3 {
+        sqlx::query("INSERT INTO statements (id, topic_id, body, status, created_at) VALUES ($1, 't1', 'x', 'approved', '2026-10-26T00:00:00Z')")
+            .bind(format!("b{i}"))
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    for (n, uid) in ["u1", "u2"].iter().enumerate() {
+        for i in 0..3 {
+            insert_vote(
+                &pool,
+                uid,
+                &format!("b{i}"),
+                1,
+                &format!("2026-10-26T01:0{n}:0{i}.000Z"),
+            )
+            .await;
+        }
+    }
+    assert_eq!(
+        run_topic(&pool, "t1", false).await.unwrap(),
+        RunOutcome::Computed
+    );
+    assert!(matches!(
+        load(&pool, "t1").await.unwrap(),
+        Some(Stored::Ready { .. })
+    ));
+}
