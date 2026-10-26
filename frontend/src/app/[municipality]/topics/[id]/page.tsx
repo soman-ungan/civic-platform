@@ -77,11 +77,7 @@ async function TopicView({
         )}
       </article>
 
-      <TopicInteraction
-        slug={municipality.slug}
-        topicId={topic.id}
-        districts={municipality.districts}
-      />
+      <TopicInteraction slug={municipality.slug} topicId={topic.id} />
     </>
   );
 }

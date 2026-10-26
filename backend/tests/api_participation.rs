@@ -70,8 +70,9 @@ async fn next(state: &AppState, cookie: Option<&str>) -> Value {
 // ===== 居住地属性 =====
 
 #[tokio::test]
-async fn relation_accepts_district_of_same_municipality() {
-    let (_pool, state) = setup().await;
+async fn relation_does_not_collect_district() {
+    let (pool, state) = setup().await;
+    // 古いクライアントが地区を送ってきても、受け取らず保存もしない（ADR 0002）
     let res = request(
         &state,
         "PUT",
@@ -81,25 +82,13 @@ async fn relation_accepts_district_of_same_municipality() {
     )
     .await;
     assert_eq!(res.status, StatusCode::OK);
-    assert_eq!(
-        res.json,
-        json!({ "residency_type": "resident", "district_id": "092100-kurobane" })
-    );
-}
-
-#[tokio::test]
-async fn relation_rejects_district_of_other_municipality() {
-    let (_pool, state) = setup().await;
-    let res = request(
-        &state,
-        "PUT",
-        "/api/municipalities/otawara/relation",
-        None,
-        Some(json!({ "residency_type": "resident", "district_id": "092134-shiobara" })),
-    )
-    .await;
-    assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(res.json["error"]["code"], "invalid_district");
+    assert_eq!(res.json, json!({ "residency_type": "resident" }));
+    let districts: Vec<Option<String>> =
+        sqlx::query_scalar("SELECT district_id FROM user_municipality_relations")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(districts, [None]);
 }
 
 #[tokio::test]

@@ -37,21 +37,21 @@ async fn has_relation(
     Ok(found.is_some())
 }
 
-// ===== 居住地属性 =====
+// ===== 居住地属性（このまちとの関わり方） =====
 
+/// 地区は受け取らない。市民を地区で分けると分断を煽るため、集めない（ADR 0002）。
+/// 古いクライアントが `district_id` を送ってきても、serde の既定の挙動で無視される
 #[derive(Debug, Deserialize)]
 pub struct RelationInput {
     pub residency_type: String,
-    pub district_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Relation {
     pub residency_type: String,
-    pub district_id: Option<String>,
 }
 
-/// PUT /api/municipalities/{slug}/relation — その自治体との関係を登録・更新する
+/// PUT /api/municipalities/{slug}/relation — その自治体との関わり方を登録・更新する
 pub async fn put_relation(
     State(state): State<AppState>,
     Path(slug): Path<String>,
@@ -66,33 +66,18 @@ pub async fn put_relation(
             "residency_type は resident / neighbor / commuter / related のいずれかです",
         ));
     }
-    if let Some(district_id) = &input.district_id {
-        let found: Option<String> =
-            sqlx::query_scalar("SELECT id FROM districts WHERE id = $1 AND municipality_id = $2")
-                .bind(district_id)
-                .bind(&municipality.id)
-                .fetch_optional(&state.pool)
-                .await?;
-        if found.is_none() {
-            return Err(ApiError::validation(
-                "invalid_district",
-                "この自治体の地区ではありません",
-            ));
-        }
-    }
 
     let participant = Participant::ensure(&state, existing).await?;
     sqlx::query(
         "INSERT INTO user_municipality_relations
             (user_id, municipality_id, residency_type, district_id, created_at)
-         VALUES ($1, $2, $3, $4, $5)
+         VALUES ($1, $2, $3, NULL, $4)
          ON CONFLICT (user_id, municipality_id) DO UPDATE
-            SET residency_type = excluded.residency_type, district_id = excluded.district_id",
+            SET residency_type = excluded.residency_type, district_id = NULL",
     )
     .bind(&participant.user_id)
     .bind(&municipality.id)
     .bind(&input.residency_type)
-    .bind(&input.district_id)
     .bind(now_iso())
     .execute(&state.pool)
     .await?;
@@ -101,7 +86,6 @@ pub async fn put_relation(
         participant,
         Json(Relation {
             residency_type: input.residency_type,
-            district_id: input.district_id,
         }),
     ))
 }

@@ -19,9 +19,9 @@ NOISE_FLIP = 0.03
 NOISE_SKIP = 0.03
 AGREE, DISAGREE, PASS = 1, -1, 0
 
-# 居住地属性（40人分）。住民には地区も付ける。比較表に出るよう、どの区分も5人以上にする
+# このまちとの関わり方（40人分）。比較表に出るよう、どの区分も5人以上にする。
+# 地区は付けない（市民を地区で分けると分断を煽るため集めない。docs/adr/0002-participant-attributes.md）
 RESIDENCY = (["resident"] * 22) + (["neighbor"] * 6) + (["commuter"] * 7) + (["related"] * 5)
-DISTRICTS = ["092100-otawara", "092100-kurobane", "092100-yuzukami", None]
 
 # トピックごとの、グループの人数と各意見への傾向（A=賛成、D=反対、P=パス）
 TOPICS = {
@@ -61,11 +61,10 @@ def main() -> None:
         "",
         "INSERT INTO user_municipality_relations (user_id, municipality_id, residency_type, district_id, created_at) VALUES",
     ]
-    relations = []
-    for v, rtype in zip(voters, RESIDENCY):
-        district = rng.choice(DISTRICTS) if rtype == "resident" else None
-        district_sql = f"'{district}'" if district else "NULL"
-        relations.append(f"    ('{v}', '092100', '{rtype}', {district_sql}, '2026-10-20T00:00:00.000Z')")
+    relations = [
+        f"    ('{v}', '092100', '{rtype}', NULL, '2026-10-20T00:00:00.000Z')"
+        for v, rtype in zip(voters, RESIDENCY)
+    ]
     out += [",\n".join(relations), "ON CONFLICT DO NOTHING;", ""]
 
     for t_index, (topic_id, groups) in enumerate(TOPICS.items()):

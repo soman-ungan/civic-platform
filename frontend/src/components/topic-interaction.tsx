@@ -6,7 +6,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { AnalysisPanel } from "@/components/analysis-panel";
 import { VotingPanel } from "@/components/voting-panel";
-import type { District, NextStatement } from "@/lib/types";
+import type { NextStatement } from "@/lib/types";
 
 /**
  * 投票と「みんなの意見」をつなぐ。すべての意見に投票し終えたら分析を読み込み直し、
@@ -15,11 +15,9 @@ import type { District, NextStatement } from "@/lib/types";
 export function TopicInteraction({
   slug,
   topicId,
-  districts,
 }: {
   slug: string;
   topicId: string;
-  districts: District[];
 }) {
   const [refreshKey, setRefreshKey] = useState(0);
   // 直前の「投票し終えているか」。最初の報告では読み込み直さない（分析側が自分で読み込む）
@@ -35,12 +33,7 @@ export function TopicInteraction({
 
   return (
     <>
-      <VotingPanel
-        slug={slug}
-        topicId={topicId}
-        districts={districts}
-        onProgress={onProgress}
-      />
+      <VotingPanel slug={slug} topicId={topicId} onProgress={onProgress} />
       <AnalysisPanel slug={slug} topicId={topicId} refreshKey={refreshKey} />
     </>
   );

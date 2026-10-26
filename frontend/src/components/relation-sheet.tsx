@@ -6,24 +6,24 @@ import { useState } from "react";
 
 import { ApiError, apiFetch } from "@/lib/api-client";
 import { RESIDENCY_LABELS } from "@/lib/labels";
-import type { District, ResidencyType } from "@/lib/types";
+import type { ResidencyType } from "@/lib/types";
 
 const RESIDENCY_TYPES = Object.keys(RESIDENCY_LABELS) as ResidencyType[];
 
-/** その自治体で初めて投票する前に、1回だけ自治体との関係を聞くボトムシート */
+/**
+ * その自治体で初めて投票する前に、1回だけ自治体との関わり方を聞くボトムシート。
+ * 地区は聞かない（市民を地区で分けると分断を煽るため。docs/adr/0002-participant-attributes.md）
+ */
 export function RelationSheet({
   slug,
-  districts,
   onClose,
   onSaved,
 }: {
   slug: string;
-  districts: District[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [residency, setResidency] = useState<ResidencyType | null>(null);
-  const [districtId, setDistrictId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,11 +37,7 @@ export function RelationSheet({
         `/api/municipalities/${encodeURIComponent(slug)}/relation`,
         {
           method: "PUT",
-          body: {
-            residency_type: residency,
-            district_id:
-              residency === "resident" && districtId ? districtId : null,
-          },
+          body: { residency_type: residency },
         },
       );
       onSaved();
@@ -68,7 +64,7 @@ export function RelationSheet({
           このまちとの関わりを教えてください
         </h2>
         <p className="mt-1 text-xs leading-5 text-zinc-500">
-          最初の1回だけ聞きます。住民と関係人口などで意見の傾向を比べるために使い、個人が分かる形では公開しません。
+          最初の1回だけ聞きます。意見グループの中に、どんな関わり方の人がいるかを示すために使い、個人が分かる形では公開しません。
         </p>
 
         <fieldset className="mt-4 flex flex-col gap-2">
@@ -93,24 +89,6 @@ export function RelationSheet({
             </label>
           ))}
         </fieldset>
-
-        {residency === "resident" && districts.length > 0 && (
-          <label className="mt-4 block text-sm">
-            お住まいの地区（任意）
-            <select
-              value={districtId}
-              onChange={(e) => setDistrictId(e.target.value)}
-              className="mt-1 h-12 w-full rounded-xl border border-zinc-200 bg-white px-3 dark:border-zinc-700 dark:bg-zinc-900"
-            >
-              <option value="">選ばない</option>
-              {districts.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
 
         {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
 

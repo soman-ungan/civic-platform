@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { RelationSheet } from "@/components/relation-sheet";
 import { StatementForm } from "@/components/statement-form";
 import { ApiError, apiFetch } from "@/lib/api-client";
-import type { District, NextStatement, VoteValue } from "@/lib/types";
+import type { NextStatement, VoteValue } from "@/lib/types";
 
 const VOTE_BUTTONS: { value: VoteValue; label: string; className: string }[] = [
   {
@@ -35,12 +35,10 @@ const VOTE_BUTTONS: { value: VoteValue; label: string; className: string }[] = [
 export function VotingPanel({
   slug,
   topicId,
-  districts,
   onProgress,
 }: {
   slug: string;
   topicId: string;
-  districts: District[];
   /** 次の意見を読み込むたびに、投票の進捗を知らせる */
   onProgress?: (progress: NextStatement["progress"]) => void;
 }) {
@@ -225,7 +223,6 @@ export function VotingPanel({
       {pendingVote !== null && (
         <RelationSheet
           slug={slug}
-          districts={districts}
           onClose={() => setPendingVote(null)}
           onSaved={onRelationSaved}
         />
