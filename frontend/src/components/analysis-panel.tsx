@@ -24,9 +24,12 @@ const RESIDENCY_ORDER: ResidencyType[] = [
 export function AnalysisPanel({
   slug,
   topicId,
+  refreshKey,
 }: {
   slug: string;
   topicId: string;
+  /** 値が変わると読み込み直す（すべての意見に投票し終えたときなど） */
+  refreshKey: number;
 }) {
   const endpoint = `/api/municipalities/${encodeURIComponent(slug)}/topics/${encodeURIComponent(topicId)}/analysis`;
   const [view, setView] = useState<AnalysisView | null>(null);
@@ -45,7 +48,7 @@ export function AnalysisPanel({
     return () => {
       ignore = true;
     };
-  }, [endpoint]);
+  }, [endpoint, refreshKey]);
 
   async function reload() {
     setReloading(true);
@@ -68,14 +71,16 @@ export function AnalysisPanel({
         <h2 id="analysis-title" className="text-lg font-bold">
           みんなの意見
         </h2>
-        <button
-          type="button"
-          onClick={() => void reload()}
-          disabled={reloading}
-          className="h-9 rounded-full border border-zinc-300 px-3 text-xs disabled:opacity-50 dark:border-zinc-700"
-        >
-          {reloading ? "更新中…" : "最新の分析を見る"}
-        </button>
+        {view?.status !== "locked" && (
+          <button
+            type="button"
+            onClick={() => void reload()}
+            disabled={reloading}
+            className="h-9 rounded-full border border-zinc-300 px-3 text-xs disabled:opacity-50 dark:border-zinc-700"
+          >
+            {reloading ? "更新中…" : "最新の分析を見る"}
+          </button>
+        )}
       </div>
 
       {error && (
@@ -86,6 +91,19 @@ export function AnalysisPanel({
           aria-hidden
           className="aspect-square animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-900"
         />
+      )}
+      {view?.status === "locked" && (
+        <div className="rounded-2xl border border-dashed border-zinc-300 p-5 text-center dark:border-zinc-700">
+          <p className="font-semibold">
+            すべての意見に投票すると、みんなの意見が見られます
+          </p>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            残り {view.remaining} 件（全 {view.total} 件）
+          </p>
+          <p className="mt-2 text-xs leading-5 text-zinc-500">
+            全体の傾向に左右されず、自分の考えで投票してもらうため、投票が終わるまでは表示しません。パスでも投票済みになります。
+          </p>
+        </div>
       )}
       {view?.status === "pending" && (
         <p className="text-sm text-zinc-600 dark:text-zinc-400">

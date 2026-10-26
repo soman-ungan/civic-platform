@@ -36,10 +36,13 @@ export function VotingPanel({
   slug,
   topicId,
   districts,
+  onProgress,
 }: {
   slug: string;
   topicId: string;
   districts: District[];
+  /** 次の意見を読み込むたびに、投票の進捗を知らせる */
+  onProgress?: (progress: NextStatement["progress"]) => void;
 }) {
   const base = `/api/municipalities/${encodeURIComponent(slug)}/topics/${encodeURIComponent(topicId)}`;
 
@@ -52,12 +55,14 @@ export function VotingPanel({
 
   const load = useCallback(async () => {
     try {
-      setData(await apiFetch<NextStatement>(`${base}/next-statement`));
+      const next = await apiFetch<NextStatement>(`${base}/next-statement`);
+      setData(next);
       setLoadError(false);
+      onProgress?.(next.progress);
     } catch {
       setLoadError(true);
     }
-  }, [base]);
+  }, [base, onProgress]);
 
   // 初回の読み込み。投票後の再読み込みはイベントハンドラーから load() を呼ぶ
   useEffect(() => {
@@ -67,6 +72,7 @@ export function VotingPanel({
         if (!ignore) {
           setData(next);
           setLoadError(false);
+          onProgress?.(next.progress);
         }
       })
       .catch(() => {
@@ -75,7 +81,7 @@ export function VotingPanel({
     return () => {
       ignore = true;
     };
-  }, [base]);
+  }, [base, onProgress]);
 
   async function sendVote(statementId: string, value: VoteValue) {
     setBusy(true);

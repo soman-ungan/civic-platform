@@ -25,7 +25,12 @@ async fn get(state: &AppState, path: &str, cookie: Option<&str>) -> common::Test
 #[tokio::test]
 async fn pending_before_first_computation() {
     let (_pool, state) = setup().await;
-    let res = get(&state, &format!("{T1}/analysis"), None).await;
+    let res = get(
+        &state,
+        &format!("{T1}/analysis"),
+        Some(&common::cookie_for(&state, "v00")),
+    )
+    .await;
     assert_eq!(res.status, StatusCode::OK);
     assert_eq!(res.json, json!({ "status": "pending" }));
 }
@@ -35,7 +40,12 @@ async fn ready_analysis_has_groups_consensus_and_map() {
     let (pool, state) = setup().await;
     run_topic(&pool, "t1", false).await.unwrap();
 
-    let res = get(&state, &format!("{T1}/analysis"), None).await;
+    let res = get(
+        &state,
+        &format!("{T1}/analysis"),
+        Some(&common::cookie_for(&state, "v00")),
+    )
+    .await;
     assert_eq!(res.status, StatusCode::OK);
     let j = &res.json;
     assert_eq!(j["status"], "ready");
@@ -68,7 +78,8 @@ async fn ready_analysis_has_groups_consensus_and_map() {
     assert_eq!(total, 20);
     assert!(base.iter().all(|b| b.get("members").is_none()));
     assert_eq!(j["map"]["statements"].as_array().unwrap().len(), 7);
-    assert_eq!(j["map"]["you"], Value::Null);
+    // v00（賛成派）の位置とグループが返る
+    assert!(j["map"]["you"]["group_id"].is_number());
 
     assert_no_key(j, "user_id");
     assert_no_key(j, "members");
@@ -144,7 +155,13 @@ async fn residency_cells_with_few_people_are_hidden() {
     }
     run_topic(&pool, "t1", false).await.unwrap();
 
-    let j = get(&state, &format!("{T1}/analysis"), None).await.json;
+    let j = get(
+        &state,
+        &format!("{T1}/analysis"),
+        Some(&common::cookie_for(&state, "v00")),
+    )
+    .await
+    .json;
     let rows = j["residency"].as_array().unwrap();
     let common = rows.iter().find(|r| r["statement_id"] == "common").unwrap();
     assert_eq!(
@@ -162,7 +179,13 @@ async fn too_few_participants_is_insufficient() {
     common::seed_fixture(&pool).await;
     let state = common::test_state(pool.clone());
     run_topic(&pool, "t1", false).await.unwrap();
-    let j = get(&state, &format!("{T1}/analysis"), None).await.json;
+    let j = get(
+        &state,
+        &format!("{T1}/analysis"),
+        Some(&common::cookie_for(&state, "v00")),
+    )
+    .await
+    .json;
     assert_eq!(j["status"], "insufficient");
     assert_eq!(j["required"], 5);
 }
@@ -184,7 +207,12 @@ async fn analysis_of_other_municipality_topic_is_404() {
 async fn municipality_consensus_lists_pinned_statements() {
     let (pool, state) = setup().await;
     run_topic(&pool, "t1", false).await.unwrap();
-    let res = get(&state, "/api/municipalities/otawara/consensus", None).await;
+    // Cookie が無い人には何も返さない（投票前に全体の傾向を見せないため）
+    let anonymous = get(&state, "/api/municipalities/otawara/consensus", None).await;
+    assert_eq!(anonymous.json, json!([]));
+
+    let v00 = common::cookie_for(&state, "v00");
+    let res = get(&state, "/api/municipalities/otawara/consensus", Some(&v00)).await;
     assert_eq!(res.status, StatusCode::OK);
     assert_eq!(
         res.json,
@@ -198,7 +226,12 @@ async fn municipality_consensus_lists_pinned_statements() {
     );
     // 別の自治体の合意点は混ざらない
     common::activate_second_municipality(&pool).await;
-    let nasu = get(&state, "/api/municipalities/nasushiobara/consensus", None).await;
+    let nasu = get(
+        &state,
+        "/api/municipalities/nasushiobara/consensus",
+        Some(&v00),
+    )
+    .await;
     assert_eq!(nasu.json, json!([]));
 }
 
@@ -223,7 +256,13 @@ async fn next_statement_still_returns_only_unvoted_approved() {
 async fn best_agree_is_shown_as_agree() {
     let (pool, state) = setup().await;
     run_topic(&pool, "t1", false).await.unwrap();
-    let j = get(&state, &format!("{T1}/analysis"), None).await.json;
+    let j = get(
+        &state,
+        &format!("{T1}/analysis"),
+        Some(&common::cookie_for(&state, "v00")),
+    )
+    .await
+    .json;
     // どのグループの代表意見にも「0人が反対」のような表示は出ない
     for g in j["groups"].as_array().unwrap() {
         for r in g["representative"].as_array().unwrap() {
@@ -242,7 +281,13 @@ async fn statements_by_group_lists_every_approved_statement() {
         .await
         .unwrap();
 
-    let j = get(&state, &format!("{T1}/analysis"), None).await.json;
+    let j = get(
+        &state,
+        &format!("{T1}/analysis"),
+        Some(&common::cookie_for(&state, "v00")),
+    )
+    .await
+    .json;
     let rows = j["statements_by_group"].as_array().unwrap();
     let ids: Vec<&str> = rows
         .iter()
@@ -289,4 +334,80 @@ async fn statements_by_group_lists_every_approved_statement() {
     agrees.sort();
     assert_eq!(agrees, [0, 10]);
     assert_no_key(&j, "user_id");
+}
+
+#[tokio::test]
+async fn analysis_is_locked_until_every_statement_is_voted() {
+    let (pool, state) = setup().await;
+    run_topic(&pool, "t1", false).await.unwrap();
+
+    // Cookie が無い人
+    let j = get(&state, &format!("{T1}/analysis"), None).await.json;
+    assert_eq!(j, json!({ "status": "locked", "remaining": 7, "total": 7 }));
+
+    // 一部だけ投票した人
+    let cookie = request(
+        &state,
+        "PUT",
+        "/api/municipalities/otawara/relation",
+        None,
+        Some(json!({ "residency_type": "resident" })),
+    )
+    .await
+    .cookie
+    .unwrap();
+    let vote = |sid: &'static str| {
+        let (state, cookie) = (state.clone(), cookie.clone());
+        async move {
+            request(
+                &state,
+                "POST",
+                &format!("{T1}/statements/{sid}/votes"),
+                Some(&cookie),
+                Some(json!({ "value": 0 })),
+            )
+            .await
+        }
+    };
+    for sid in ["a0", "a1", "a2", "a3", "a4", "a5"] {
+        vote(sid).await;
+    }
+    let j = get(&state, &format!("{T1}/analysis"), Some(&cookie))
+        .await
+        .json;
+    assert_eq!(j, json!({ "status": "locked", "remaining": 1, "total": 7 }));
+    // ロック中は合意点も返らない
+    let pins = get(
+        &state,
+        "/api/municipalities/otawara/consensus",
+        Some(&cookie),
+    )
+    .await
+    .json;
+    assert_eq!(pins, json!([]));
+
+    // 最後の1件に投票すると見られる（パスでもよい）
+    vote("common").await;
+    let j = get(&state, &format!("{T1}/analysis"), Some(&cookie))
+        .await
+        .json;
+    assert_eq!(j["status"], "ready");
+    let pins = get(
+        &state,
+        "/api/municipalities/otawara/consensus",
+        Some(&cookie),
+    )
+    .await
+    .json;
+    assert_eq!(pins.as_array().unwrap().len(), 1);
+
+    // 意見が増えたら、また投票が必要になる
+    sqlx::query("INSERT INTO statements (id, topic_id, body, status, created_at) VALUES ('new', 't1', '新しい意見', 'approved', '2026-10-27T00:00:00Z')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let j = get(&state, &format!("{T1}/analysis"), Some(&cookie))
+        .await
+        .json;
+    assert_eq!(j, json!({ "status": "locked", "remaining": 1, "total": 8 }));
 }

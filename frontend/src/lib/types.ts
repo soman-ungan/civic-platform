@@ -109,6 +109,7 @@ export type ResidencyRow = {
 };
 
 export type AnalysisView =
+  | { status: "locked"; remaining: number; total: number }
   | { status: "pending" }
   | { status: "insufficient"; participant_count: number; required: number }
   | {

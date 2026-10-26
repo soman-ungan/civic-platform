@@ -4,8 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { AnalysisPanel } from "@/components/analysis-panel";
-import { VotingPanel } from "@/components/voting-panel";
+import { TopicInteraction } from "@/components/topic-interaction";
 import { apiGet } from "@/lib/api-server";
 import { SOURCE_LABELS } from "@/lib/labels";
 import type { MunicipalityDetail, Topic } from "@/lib/types";
@@ -78,13 +77,11 @@ async function TopicView({
         )}
       </article>
 
-      <VotingPanel
+      <TopicInteraction
         slug={municipality.slug}
         topicId={topic.id}
         districts={municipality.districts}
       />
-
-      <AnalysisPanel slug={municipality.slug} topicId={topic.id} />
     </>
   );
 }

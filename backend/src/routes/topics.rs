@@ -151,6 +151,35 @@ async fn voted_counts(
     Ok(rows.into_iter().collect())
 }
 
+/// 参加者がトピックで投票した承認済みの意見の数と、承認済みの意見の総数
+pub async fn progress(
+    pool: &SqlitePool,
+    topic_id: &str,
+    user_id: Option<&str>,
+) -> Result<(i64, i64), ApiError> {
+    let total: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM statements WHERE topic_id = $1 AND status = 'approved'",
+    )
+    .bind(topic_id)
+    .fetch_one(pool)
+    .await?;
+    let voted: i64 = match user_id {
+        Some(uid) => {
+            sqlx::query_scalar(
+                "SELECT count(*) FROM votes v
+                 JOIN statements s ON s.id = v.statement_id
+                 WHERE s.topic_id = $1 AND s.status = 'approved' AND v.user_id = $2",
+            )
+            .bind(topic_id)
+            .bind(uid)
+            .fetch_one(pool)
+            .await?
+        }
+        None => 0,
+    };
+    Ok((voted, total))
+}
+
 fn into_topic(row: TopicRow, tags: Vec<Tag>, voted_count: i64) -> Topic {
     Topic {
         participation: Participation::from_counts(voted_count, row.statement_count),

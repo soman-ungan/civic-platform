@@ -125,6 +125,12 @@ pub struct ResidencyRow {
 #[derive(Debug, Serialize)]
 #[serde(tag = "status", rename_all = "lowercase")]
 pub enum AnalysisView {
+    /// 未投票の意見が残っているので見せない（全体の傾向に投票が左右されないようにするため）
+    Locked {
+        /// 残りの未投票の意見の数
+        remaining: i64,
+        total: i64,
+    },
     /// まだ計算されていない
     Pending,
     Insufficient {
@@ -344,6 +350,15 @@ pub async fn topic_analysis(
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
     topics::ensure_in_municipality(&state.pool, &municipality.id, &topic_id).await?;
 
+    // すべての承認済みの意見に投票するまでは見せない（意見が増えれば、また投票が必要になる）
+    let (voted, total) = topics::progress(&state.pool, &topic_id, user_id.as_deref()).await?;
+    if voted < total {
+        return Ok(Json(AnalysisView::Locked {
+            remaining: total - voted,
+            total,
+        }));
+    }
+
     let stored = store::load(&state.pool, &topic_id).await?;
     let (result, conv_state, computed_at) = match stored {
         None => return Ok(Json(AnalysisView::Pending)),
@@ -461,11 +476,16 @@ pub struct MunicipalityConsensus {
 /// タイムラインにピン留めする件数の上限（画面では最初の数件だけを出し、残りは「もっと見る」）
 const MAX_PINNED: usize = 20;
 
-/// GET /api/municipalities/{slug}/consensus — 自治体内の全トピックの合意点（ピン留め用）
+/// GET /api/municipalities/{slug}/consensus — 自治体内の合意点（ピン留め用）。
+/// 分析と同じく、その参加者がすべての意見に投票したトピックの合意点だけを返す
 pub async fn municipality_consensus(
     State(state): State<AppState>,
     Path(slug): Path<String>,
+    MaybeParticipant(user_id): MaybeParticipant,
 ) -> Result<Json<Vec<MunicipalityConsensus>>, ApiError> {
+    let Some(user_id) = user_id else {
+        return Ok(Json(Vec::new()));
+    };
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
     let topics: Vec<(String, String)> =
         sqlx::query_as("SELECT id, title FROM topics WHERE municipality_id = $1")
@@ -475,6 +495,10 @@ pub async fn municipality_consensus(
 
     let mut out = Vec::new();
     for (topic_id, title) in topics {
+        let (voted, total) = topics::progress(&state.pool, &topic_id, Some(&user_id)).await?;
+        if total == 0 || voted < total {
+            continue;
+        }
         let Some(Stored::Ready { result, .. }) = store::load(&state.pool, &topic_id).await? else {
             continue;
         };

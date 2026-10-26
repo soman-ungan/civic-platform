@@ -203,3 +203,17 @@ pub async fn insert_vote(pool: &SqlitePool, uid: &str, sid: &str, value: i64, at
     .await
     .unwrap();
 }
+
+/// 既存のユーザーの、署名付き参加者 Cookie（`name=value`）を作る
+#[allow(dead_code)]
+pub fn cookie_for(state: &AppState, user_id: &str) -> String {
+    let mut jar = cookie::CookieJar::new();
+    jar.signed_mut(&state.cookie_key).add(cookie::Cookie::new(
+        backend::participant::COOKIE_NAME,
+        user_id.to_owned(),
+    ));
+    jar.get(backend::participant::COOKIE_NAME)
+        .unwrap()
+        .encoded()
+        .to_string()
+}

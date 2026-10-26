@@ -118,15 +118,30 @@ async fn dev_seeds_are_enough_for_analysis() {
         .fetch_all(&pool)
         .await
         .unwrap();
+    let mut completed_cookie = None;
     for topic in &topics {
+        // 分析はすべての意見に投票した人にだけ見える。全件に投票したサンプル参加者で確かめる
+        let voter: String = sqlx::query_scalar(
+            "SELECT v.user_id FROM votes v JOIN statements s ON s.id = v.statement_id
+             WHERE s.topic_id = $1 AND s.status = 'approved'
+             GROUP BY v.user_id
+             HAVING count(*) = (SELECT count(*) FROM statements WHERE topic_id = $1 AND status = 'approved')
+             ORDER BY v.user_id LIMIT 1",
+        )
+        .bind(topic)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let cookie = common::cookie_for(&state, &voter);
         let res = common::request(
             &state,
             "GET",
             &format!("/api/municipalities/otawara/topics/{topic}/analysis"),
-            None,
+            Some(&cookie),
             None,
         )
         .await;
+        completed_cookie = Some(cookie);
         assert_eq!(res.status, StatusCode::OK);
         let j = &res.json;
         assert_eq!(j["status"], "ready", "{topic}: {j}");
@@ -151,7 +166,7 @@ async fn dev_seeds_are_enough_for_analysis() {
         &state,
         "GET",
         "/api/municipalities/otawara/consensus",
-        None,
+        completed_cookie.as_deref(),
         None,
     )
     .await;

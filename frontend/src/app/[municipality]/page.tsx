@@ -33,12 +33,12 @@ async function Timeline({
   const { municipality: slug } = await params;
   const { tag } = await searchParams;
   const path = `/api/municipalities/${encodeURIComponent(slug)}`;
-  // 参加状態（未参加・参加中・投票済み）は参加者ごとに違うので、Cookie を backend に渡す
+  // 参加状態と、合意点（投票を終えたトピックの分だけ見える）は参加者ごとに違うので、Cookie を backend に渡す
   const cookie = (await headers()).get("cookie");
   const [municipality, list, consensus] = await Promise.all([
     apiGet<MunicipalityDetail>(path),
     apiGet<TopicList>(`${path}/topics`, { cookie }),
-    apiGet<MunicipalityConsensus[]>(`${path}/consensus`),
+    apiGet<MunicipalityConsensus[]>(`${path}/consensus`, { cookie }),
   ]);
   if (!municipality || !list) {
     notFound();
