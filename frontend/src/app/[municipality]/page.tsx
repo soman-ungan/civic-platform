@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { TopicFeed } from "@/components/topic-feed";
 import { apiGet } from "@/lib/api-server";
-import type { MunicipalityDetail, TopicList } from "@/lib/types";
+import type {
+  MunicipalityConsensus,
+  MunicipalityDetail,
+  TopicList,
+} from "@/lib/types";
 
 export default function MunicipalityPage({
   params,
@@ -27,9 +32,10 @@ async function Timeline({
   const { municipality: slug } = await params;
   const { tag } = await searchParams;
   const path = `/api/municipalities/${encodeURIComponent(slug)}`;
-  const [municipality, list] = await Promise.all([
+  const [municipality, list, consensus] = await Promise.all([
     apiGet<MunicipalityDetail>(path),
     apiGet<TopicList>(`${path}/topics`),
+    apiGet<MunicipalityConsensus[]>(`${path}/consensus`),
   ]);
   if (!municipality || !list) {
     notFound();
@@ -43,6 +49,9 @@ async function Timeline({
           {municipality.name}
         </h1>
       </header>
+      {consensus && consensus.length > 0 && (
+        <ConsensusPins slug={municipality.slug} items={consensus} />
+      )}
       <TopicFeed
         slug={municipality.slug}
         topics={list.topics}
@@ -50,6 +59,45 @@ async function Timeline({
         initialTag={typeof tag === "string" ? tag : null}
       />
     </>
+  );
+}
+
+/** タイムライン最上位の「合意点」。全グループの8割以上が賛成している意見 */
+function ConsensusPins({
+  slug,
+  items,
+}: {
+  slug: string;
+  items: MunicipalityConsensus[];
+}) {
+  return (
+    <section
+      aria-labelledby="pins-title"
+      className="mb-5 rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-950/40"
+    >
+      <h2
+        id="pins-title"
+        className="text-sm font-bold text-emerald-900 dark:text-emerald-200"
+      >
+        <span aria-hidden>📌 </span>
+        みんなの合意点
+      </h2>
+      <p className="mb-3 text-xs text-emerald-800 dark:text-emerald-300">
+        意見の違うグループのどれでも、8割以上が賛成している意見です。
+      </p>
+      <ul className="flex flex-col gap-3">
+        {items.map((c) => (
+          <li key={c.statement_id}>
+            <Link href={`/${slug}/topics/${c.topic_id}`} className="block">
+              <p className="leading-7">{c.body}</p>
+              <p className="text-xs text-emerald-800 underline underline-offset-2 dark:text-emerald-300">
+                {c.topic_title}
+              </p>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { AnalysisPanel } from "@/components/analysis-panel";
 import { VotingPanel } from "@/components/voting-panel";
 import { apiGet } from "@/lib/api-server";
 import { SOURCE_LABELS } from "@/lib/labels";
@@ -82,6 +83,8 @@ async function TopicView({
         topicId={topic.id}
         districts={municipality.districts}
       />
+
+      <AnalysisPanel slug={municipality.slug} topicId={topic.id} />
     </>
   );
 }
