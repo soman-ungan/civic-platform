@@ -2,6 +2,7 @@
 
 use std::str::FromStr;
 
+use backend::AppState;
 use backend::db::MIGRATOR;
 use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
@@ -19,6 +20,14 @@ pub async fn test_pool() -> SqlitePool {
         .unwrap();
     MIGRATOR.run(&pool).await.unwrap();
     pool
+}
+
+/// テスト用の署名鍵（32 バイト以上）
+pub const TEST_SECRET: &str = "test-secret-test-secret-test-secret-0123456789";
+
+#[allow(dead_code)] // テストクレートごとに使う関数が異なるため
+pub fn test_state(pool: SqlitePool) -> AppState {
+    AppState::new(pool, TEST_SECRET, false).unwrap()
 }
 
 /// テスト用の最小データ。自治体の取り違えを検出できるよう 2 自治体を入れる。

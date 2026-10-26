@@ -10,15 +10,23 @@ pub struct Config {
     pub database_url: String,
     pub bind_addr: String,
     pub seeds_dir: String,
+    pub session_secret: String,
+    pub cookie_secure: bool,
 }
 
 impl Config {
     /// 環境変数から読み込む。未設定の項目は開発用のデフォルト値を使う。
-    pub fn from_env() -> Self {
-        Self {
+    /// `SESSION_SECRET` だけは既定値を持たず、未設定ならエラーにする。
+    pub fn from_env() -> anyhow::Result<Self> {
+        let session_secret = env::var("SESSION_SECRET").map_err(|_| {
+            anyhow::anyhow!("SESSION_SECRET が設定されていません（.env.example を参照）")
+        })?;
+        Ok(Self {
             database_url: env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.into()),
             bind_addr: env::var("BIND_ADDR").unwrap_or_else(|_| DEFAULT_BIND_ADDR.into()),
             seeds_dir: env::var("SEEDS_DIR").unwrap_or_else(|_| DEFAULT_SEEDS_DIR.into()),
-        }
+            session_secret,
+            cookie_secure: env::var("COOKIE_SECURE").is_ok_and(|v| v == "true"),
+        })
     }
 }
