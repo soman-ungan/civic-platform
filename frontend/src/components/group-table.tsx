@@ -12,6 +12,13 @@ const ROW_LINE = "border-b border-b-zinc-200 dark:border-b-zinc-800";
 const MY_TOP = "border-t-2 border-t-sky-500 dark:border-t-sky-400";
 const MY_BOTTOM = "border-b-2 border-b-sky-500 dark:border-b-sky-400";
 
+/** 合意点のかたまりを囲む金色の枠（外側だけ） */
+const GOLD_BORDER = "border-amber-500 dark:border-amber-400";
+const GOLD_TOP = "border-t-2 border-t-amber-500 dark:border-t-amber-400";
+const GOLD_BOTTOM = "border-b-2 border-b-amber-500 dark:border-b-amber-400";
+const GOLD_LEFT = "border-l-2 border-l-amber-500 dark:border-l-amber-400";
+const GOLD_RIGHT = "border-r-2 border-r-amber-500 dark:border-r-amber-400";
+
 /** 代表意見のセルの塗り（そのグループの特徴が賛成向きか反対向きか） */
 const HIGHLIGHT: Record<RepfulFor, string> = {
   agree: "bg-emerald-100 dark:bg-emerald-900/40",
@@ -22,15 +29,19 @@ const HIGHLIGHT: Record<RepfulFor, string> = {
  * グループごとの特徴: 行 = 意見、列 = グループ。各グループの賛成・反対の割合を一覧する。
  * Polis が代表意見に選んだセルは、賛成向きなら緑、反対向きなら赤で塗る。
  * スマホでは横にスクロールでき、意見の列は左端に固定する。自分のグループの列は青い枠で囲む。
+ * 合意点の行は先頭にまとめ、そのかたまりを金色の枠で囲む。
  */
 export function GroupTable({
   groups,
   rows,
   myGroupId,
+  consensusIds,
 }: {
   groups: GroupView[];
   rows: StatementByGroup[];
   myGroupId: number | null;
+  /** 合意点の意見（group-aware consensus の大きい順） */
+  consensusIds: string[];
 }) {
   // グループ → 意見 → 代表意見としての向き
   const representative = new Map(
@@ -39,6 +50,46 @@ export function GroupTable({
       new Map(g.representative.map((r) => [r.statement_id, r.repful_for])),
     ]),
   );
+
+  // 合意点の行を先頭に（合意の度合いが大きい順）、残りは投稿順のまま
+  const byId = new Map(rows.map((r) => [r.statement_id, r]));
+  const consensusRows = consensusIds.flatMap((id) => byId.get(id) ?? []);
+  const consensusSet = new Set(consensusRows.map((r) => r.statement_id));
+  const ordered = [
+    ...consensusRows,
+    ...rows.filter((r) => !consensusSet.has(r.statement_id)),
+  ];
+  const blockEnd = consensusRows.length - 1; // 合意点のかたまりの最後の行（無ければ -1）
+  const lastCol = groups.length; // 0 = 意見の列
+
+  /**
+   * 本文のセルの枠線。左右は「あなたのグループ」の青い列の枠、上下は合意点の金色の枠を優先する。
+   * それ以外は、他の行と同じ灰色の行区切り
+   */
+  function cellBorder(rowIndex: number, colIndex: number, mine: boolean) {
+    const inBlock = rowIndex <= blockEnd;
+    const classes: string[] = [];
+    if (mine) {
+      classes.push(MY_SIDES);
+    } else if (inBlock && colIndex === 0) {
+      classes.push(GOLD_LEFT);
+    } else if (inBlock && colIndex === lastCol) {
+      classes.push(GOLD_RIGHT);
+    }
+    if (inBlock && rowIndex === 0) {
+      classes.push(GOLD_TOP);
+    }
+    if (rowIndex === blockEnd) {
+      classes.push(GOLD_BOTTOM);
+    } else if (mine && rowIndex === ordered.length - 1) {
+      classes.push(MY_BOTTOM);
+    } else {
+      classes.push(ROW_LINE);
+    }
+    return classes.join(" ");
+  }
+  // 見出しの下の灰色の線は、金色の枠の上端と二重にならないよう、合意点があるときは引かない
+  const headerLine = blockEnd >= 0 ? "" : ROW_LINE;
 
   return (
     <div>
@@ -60,6 +111,15 @@ export function GroupTable({
             />
             そのグループの特徴（反対が特に多い）
           </span>
+          {consensusRows.length > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <span
+                aria-hidden
+                className={`inline-block size-3 rounded-sm border-2 ${GOLD_BORDER}`}
+              />
+              合意点（どのグループでも8割以上が賛成）
+            </span>
+          )}
           {myGroupId !== null && (
             <span className="inline-flex items-center gap-1">
               <span
@@ -70,6 +130,9 @@ export function GroupTable({
             </span>
           )}
         </p>
+        {consensusRows.length === 0 && (
+          <p>まだ、すべてのグループの8割以上が賛成している意見はありません。</p>
+        )}
         <p>表は横にスクロールできます。</p>
       </div>
       <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
@@ -78,7 +141,7 @@ export function GroupTable({
             <tr>
               <th
                 scope="col"
-                className="sticky left-0 z-10 w-40 min-w-40 border-b border-zinc-200 bg-background px-3 py-2 font-normal text-zinc-500 dark:border-zinc-800"
+                className={`sticky left-0 z-10 w-40 min-w-40 bg-background px-3 py-2 font-normal text-zinc-500 ${headerLine}`}
               >
                 意見
               </th>
@@ -90,9 +153,9 @@ export function GroupTable({
                     scope="col"
                     className={`w-24 min-w-24 px-2 py-2 text-center align-bottom ${
                       mine
-                        ? // 青い枠は列の外側だけ。見出しの下は他の列と同じ灰色の線
-                          `${MY_SIDES} ${MY_TOP} ${ROW_LINE}`
-                        : "border-b border-zinc-200 dark:border-zinc-800"
+                        ? // 青い枠は列の外側だけ
+                          `${MY_SIDES} ${MY_TOP} ${headerLine}`
+                        : headerLine
                     }`}
                   >
                     {mine && (
@@ -120,25 +183,27 @@ export function GroupTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, rowIndex) => {
-              const last = rowIndex === rows.length - 1;
+            {ordered.map((row, rowIndex) => {
+              const isConsensus = rowIndex <= blockEnd;
               return (
                 <tr key={row.statement_id}>
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 w-40 min-w-40 border-b border-zinc-200 bg-background px-3 py-2 align-top font-normal leading-5 dark:border-zinc-800"
+                    className={`sticky left-0 z-10 w-40 min-w-40 bg-background px-3 py-2 align-top font-normal leading-5 ${cellBorder(rowIndex, 0, false)}`}
                   >
-                    {row.body}
+                    {isConsensus && (
+                      <span className="mb-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
+                        <span aria-hidden>🤝 </span>合意点
+                      </span>
+                    )}
+                    <span className="block">{row.body}</span>
                   </th>
-                  {row.groups.map((cell) => {
+                  {row.groups.map((cell, i) => {
                     const mine = cell.group_id === myGroupId;
                     const rep = representative
                       .get(cell.group_id)
                       ?.get(row.statement_id);
-                    // 自分の列: 青い枠は外側だけ、行の区切りは灰色（最後の行の下端だけ青）
-                    const border = mine
-                      ? `${MY_SIDES} ${last ? MY_BOTTOM : ROW_LINE}`
-                      : "border-b border-zinc-200 dark:border-zinc-800";
+                    const border = cellBorder(rowIndex, i + 1, mine);
                     return (
                       <td
                         key={cell.group_id}

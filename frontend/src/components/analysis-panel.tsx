@@ -137,38 +137,11 @@ function ReadyView({
         </p>
       </div>
 
-      <div>
-        <h3 className="mb-2 font-semibold">合意点</h3>
-        {view.consensus.length === 0 ? (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            まだ、すべてのグループの8割以上が賛成している意見はありません。
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {view.consensus.map((c) => (
-              <li
-                key={c.statement_id}
-                className="rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-950/40"
-              >
-                <p className="leading-7">{c.body}</p>
-                <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-300">
-                  {c.groups
-                    .map(
-                      (g) => `グループ${g.label}: ${percent(g.agree, g.seen)}%`,
-                    )
-                    .join(" ・ ")}{" "}
-                  が賛成
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
       <GroupTable
         groups={view.groups}
         rows={view.statements_by_group}
         myGroupId={view.map.you?.group_id ?? null}
+        consensusIds={view.consensus.map((c) => c.statement_id)}
       />
 
       <ResidencyTable rows={view.residency} />
