@@ -9,6 +9,7 @@
 - 主対象は 10〜30 代。スマホファースト。
 - 個人開発・ワンオペ運用。自動化と保守のしやすさを最優先する。
 - Polis を丸ごとフォークはせず、データ構造・画面設計・数理ロジック（PCA + クラスタリング）を Rust × Next.js に移植する。
+  - 数理・統計処理は Polis の正式なアルゴリズム（Clojure 実装）を移植したもの（`backend/src/analysis/`）。方針・Polis との違い・一致テストの結果は `docs/polis-math.md`。変更するときは `cargo test --test polis_parity` で Polis との一致を確かめる。
 
 ## ライセンス（AGPL-3.0-only）
 - 本プロジェクトは「行政の透明性」を掲げるため、サービス自体も透明であることを最優先し、**GNU AGPL v3（AGPL-3.0-only）** とする。本家 Polis（AGPL-3.0-only）と揃え、Polis の数理処理を移植できるようにするため（「or later」は付けない）。
@@ -80,6 +81,7 @@ civic-platform/
   - `cargo run` — 起動時にマイグレーションも自動適用。`GET /api/health` で DB 込みの疎通確認
   - `cargo run -- seed` — `data/seeds/*.sql` をファイル名順に投入して終了（冪等。初回とマスタ更新時に実行）
   - `cargo run -- seed --dev` — 続けて `data/dev-seeds/`（【サンプル】の架空データ）も投入する。開発用で、本番では使わない
+  - `cargo run -- analyze [--topic <id>] [--force]` — 分析を今すぐ再計算する（通常は `ANALYSIS_INTERVAL_SECS`（既定 10 秒）ごとにバックグラウンドで、投票が変わったトピックだけ再計算される）
   - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト（`data/seeds/` の適用テストも含む）
   - `sqlx migrate add <name>` / `sqlx migrate run` / `sqlx migrate info`
   - `migrations/` の変更は `build.rs` により自動で再ビルドされる
@@ -90,7 +92,9 @@ civic-platform/
   - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）
   - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}`
   - `PUT /municipalities/{slug}/relation` — 居住地属性（投票の前に必要）
-  - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗
+  - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗（Polis の優先度で重み付けした抽選）
+  - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・居住地属性ごとの集計（分析対象が5人未満なら insufficient）
+  - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）
   - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`
   - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）
   - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別（認証はフェーズ6）。CI は `.github/workflows/ci.yml`
