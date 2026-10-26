@@ -100,3 +100,60 @@ async fn dev_seeds_apply_after_master_seeds() {
     .unwrap();
     assert_eq!(foreign, 0);
 }
+
+/// 開発用サンプルだけで、どのトピックでも分析（グループと合意点）が画面に出ること。
+/// DB を初期化して `seed --dev` したあと、すぐに動作確認できることを保証する
+#[tokio::test]
+async fn dev_seeds_are_enough_for_analysis() {
+    use axum::http::StatusCode;
+    use backend::analysis::store::run_all;
+
+    let pool = common::test_pool().await;
+    seed::run(&pool, seeds_dir()).await.unwrap();
+    seed::run(&pool, dev_seeds_dir()).await.unwrap();
+    assert_eq!(run_all(&pool, false).await.unwrap(), 3);
+
+    let state = common::test_state(pool.clone());
+    let topics: Vec<String> = sqlx::query_scalar("SELECT id FROM topics ORDER BY id")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+    for topic in &topics {
+        let res = common::request(
+            &state,
+            "GET",
+            &format!("/api/municipalities/otawara/topics/{topic}/analysis"),
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(res.status, StatusCode::OK);
+        let j = &res.json;
+        assert_eq!(j["status"], "ready", "{topic}: {j}");
+        assert!(
+            j["groups"].as_array().unwrap().len() >= 2,
+            "{topic}: グループが2つ以上"
+        );
+        assert!(
+            !j["consensus"].as_array().unwrap().is_empty(),
+            "{topic}: 合意点がある"
+        );
+        // 居住地属性の比較表に出せる意見がある（5人以上の区分が2つ以上）
+        assert!(
+            !j["residency"].as_array().unwrap().is_empty(),
+            "{topic}: 居住地属性の集計がある"
+        );
+        common::assert_no_key(j, "user_id");
+    }
+
+    // タイムラインのピン留めにも出る
+    let pins = common::request(
+        &state,
+        "GET",
+        "/api/municipalities/otawara/consensus",
+        None,
+        None,
+    )
+    .await;
+    assert!(!pins.json.as_array().unwrap().is_empty());
+}
