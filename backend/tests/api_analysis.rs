@@ -128,31 +128,45 @@ async fn you_are_placed_in_your_group() {
     assert_no_key(&j, "user_id");
 }
 
-#[tokio::test]
-async fn residency_cells_with_few_people_are_hidden() {
-    let (pool, state) = setup().await;
-    // 住民 6 人（v00〜v05）、通勤・通学 3 人（v10〜v12）
-    for (uid, rtype) in [
-        ("v00", "resident"),
-        ("v01", "resident"),
-        ("v02", "resident"),
-        ("v03", "resident"),
-        ("v04", "resident"),
-        ("v05", "resident"),
-        ("v10", "commuter"),
-        ("v11", "commuter"),
-        ("v12", "commuter"),
-    ] {
+/// fixture の参加者に関わり方を登録する
+async fn add_relations(pool: &SqlitePool, rows: &[(&str, &str)]) {
+    for (uid, rtype) in rows {
         sqlx::query(
             "INSERT INTO user_municipality_relations (user_id, municipality_id, residency_type, created_at)
              VALUES ($1, '092100', $2, '2026-10-26T00:00:00Z')",
         )
         .bind(uid)
         .bind(rtype)
-        .execute(&pool)
+        .execute(pool)
         .await
         .unwrap();
     }
+}
+
+#[tokio::test]
+async fn residency_cells_use_secondary_suppression() {
+    let (pool, state) = setup().await;
+    // 住民 6 人、周辺 5 人、通勤・通学 3 人
+    add_relations(
+        &pool,
+        &[
+            ("v00", "resident"),
+            ("v01", "resident"),
+            ("v02", "resident"),
+            ("v03", "resident"),
+            ("v04", "resident"),
+            ("v05", "resident"),
+            ("v06", "neighbor"),
+            ("v07", "neighbor"),
+            ("v08", "neighbor"),
+            ("v09", "neighbor"),
+            ("v10", "neighbor"),
+            ("v11", "commuter"),
+            ("v12", "commuter"),
+            ("v13", "commuter"),
+        ],
+    )
+    .await;
     run_topic(&pool, "t1", false).await.unwrap();
 
     let j = get(
@@ -168,9 +182,68 @@ async fn residency_cells_with_few_people_are_hidden() {
         common["by_type"]["resident"],
         json!({ "agree": 6, "seen": 6 })
     );
-    // 3 人しかいないセルは出さない
+    // 通勤・通学（3人）を隠すだけだと、合計から逆算できる。次に少ない周辺（5人）も隠す
     assert_eq!(common["by_type"]["commuter"], Value::Null);
     assert_eq!(common["by_type"]["neighbor"], Value::Null);
+    assert_eq!(common["by_type"]["related"], Value::Null);
+}
+
+#[tokio::test]
+async fn group_composition_shows_relations_per_group() {
+    let (pool, state) = setup().await;
+    // 賛成派 v00〜v09 は住民 7・関係人口 3、反対派 v10〜v19 は住民 5・通勤・通学 5
+    add_relations(
+        &pool,
+        &[
+            ("v00", "resident"),
+            ("v01", "resident"),
+            ("v02", "resident"),
+            ("v03", "resident"),
+            ("v04", "resident"),
+            ("v05", "resident"),
+            ("v06", "resident"),
+            ("v07", "related"),
+            ("v08", "related"),
+            ("v09", "related"),
+            ("v10", "resident"),
+            ("v11", "resident"),
+            ("v12", "resident"),
+            ("v13", "resident"),
+            ("v14", "resident"),
+            ("v15", "commuter"),
+            ("v16", "commuter"),
+            ("v17", "commuter"),
+            ("v18", "commuter"),
+            ("v19", "commuter"),
+        ],
+    )
+    .await;
+    run_topic(&pool, "t1", false).await.unwrap();
+
+    let j = get(
+        &state,
+        &format!("{T1}/analysis"),
+        Some(&common::cookie_for(&state, "v00")),
+    )
+    .await
+    .json;
+    let comps = j["group_composition"].as_array().unwrap();
+    assert_eq!(comps.len(), 2);
+    // v00 のグループ（賛成派）: 関係人口 3人は隠れ、その合計 3 は逆算されうるので住民 7人も隠れる
+    let mine = j["map"]["you"]["group_id"].clone();
+    let pro = comps.iter().find(|c| c["group_id"] == mine).unwrap();
+    assert_eq!(
+        pro["by_type"],
+        json!({ "resident": null, "neighbor": null, "commuter": null, "related": null })
+    );
+    // 反対派: 住民 5・通勤・通学 5 はどちらも 5人以上なので見える
+    let con = comps.iter().find(|c| c["group_id"] != mine).unwrap();
+    assert_eq!(
+        con["by_type"],
+        json!({ "resident": 5, "neighbor": null, "commuter": 5, "related": null })
+    );
+    assert_no_key(&j, "user_id");
+    assert_no_key(&j, "members");
 }
 
 #[tokio::test]

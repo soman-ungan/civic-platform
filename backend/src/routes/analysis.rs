@@ -108,6 +108,13 @@ pub struct StatementByGroup {
     pub groups: Vec<GroupVoteCell>,
 }
 
+/// 意見グループの、このまちとの関わり方の構成。人数の少ない区分は null
+#[derive(Debug, Serialize)]
+pub struct GroupComposition {
+    pub group_id: i64,
+    pub by_type: BTreeMap<String, Option<i64>>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct Cell {
     pub agree: i64,
@@ -145,7 +152,9 @@ pub enum AnalysisView {
         consensus: Vec<ConsensusView>,
         /// 承認済みの意見を投稿順に並べた、グループ別の票
         statements_by_group: Vec<StatementByGroup>,
-        map: MapView,
+        /// 意見グループごとの、関わり方の構成
+        group_composition: Vec<GroupComposition>,
+        map: Box<MapView>,
         residency: Vec<ResidencyRow>,
     },
 }
@@ -292,6 +301,89 @@ async fn locate_you(
 }
 
 /// 居住地属性ごとの、意見ごとの賛成数と投票数（人数が少ないセルは null）
+/// 二次秘匿: どの区分を表示してよいかを返す（`counts` と同じ順の bool）。
+/// 1. 5人未満の区分を隠す
+/// 2. 隠した区分の合計が 1〜4 人なら、見えている区分のうち最も少ないものも隠す（引き算で逆算されないように）
+/// 3. 合計が5人以上になるか、すべて隠れるまで 2 を繰り返す
+pub fn suppress(counts: &[i64]) -> Vec<bool> {
+    let mut visible: Vec<bool> = counts.iter().map(|c| *c >= MIN_CELL_SIZE).collect();
+    loop {
+        let hidden: i64 = counts
+            .iter()
+            .zip(&visible)
+            .filter(|(_, v)| !**v)
+            .map(|(c, _)| *c)
+            .sum();
+        if hidden == 0 || hidden >= MIN_CELL_SIZE {
+            return visible;
+        }
+        let smallest = counts
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| visible[*i])
+            .min_by_key(|(_, c)| **c)
+            .map(|(i, _)| i);
+        match smallest {
+            Some(i) => visible[i] = false,
+            None => return visible,
+        }
+    }
+}
+
+/// 意見グループごとの、このまちとの関わり方の構成（Polis のレポートの「各グループの内訳」に相当）。
+/// 人数の少ない区分は二次秘匿で隠す
+async fn group_composition(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    result: &ConvResult,
+    state: &ConvState,
+) -> Result<Vec<GroupComposition>, ApiError> {
+    let relations: HashMap<String, String> = sqlx::query_as::<_, (String, String)>(
+        "SELECT user_id, residency_type FROM user_municipality_relations WHERE municipality_id = $1",
+    )
+    .bind(municipality_id)
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .collect();
+    let members: HashMap<i64, &Vec<String>> = state
+        .base_clusters
+        .iter()
+        .map(|c| (c.id, &c.members))
+        .collect();
+
+    Ok(result
+        .groups
+        .iter()
+        .map(|g| {
+            let mut counts: HashMap<&str, i64> = HashMap::new();
+            for pid in g
+                .base_ids
+                .iter()
+                .filter_map(|b| members.get(b))
+                .flat_map(|m| m.iter())
+            {
+                if let Some(t) = relations.get(pid) {
+                    *counts.entry(t.as_str()).or_default() += 1;
+                }
+            }
+            let values: Vec<i64> = RESIDENCY_TYPES
+                .iter()
+                .map(|t| counts.get(t).copied().unwrap_or(0))
+                .collect();
+            let visible = suppress(&values);
+            GroupComposition {
+                group_id: g.id,
+                by_type: RESIDENCY_TYPES
+                    .iter()
+                    .zip(values.iter().zip(&visible))
+                    .map(|(t, (n, v))| ((*t).to_owned(), v.then_some(*n)))
+                    .collect(),
+            }
+        })
+        .collect())
+}
+
 async fn residency_rows(
     pool: &SqlitePool,
     topic_id: &str,
@@ -313,21 +405,34 @@ async fn residency_rows(
     .fetch_all(pool)
     .await?;
 
-    let mut by_statement: BTreeMap<String, BTreeMap<String, Option<Cell>>> = BTreeMap::new();
+    // 意見ごとに、区分ごとの (賛成数, 投票数) を集める
+    let mut by_statement: BTreeMap<String, HashMap<String, (i64, i64)>> = BTreeMap::new();
     for (sid, rtype, agree, seen) in rows {
-        let cells = by_statement.entry(sid).or_insert_with(|| {
-            RESIDENCY_TYPES
-                .iter()
-                .map(|t| ((*t).to_owned(), None))
-                .collect()
-        });
-        if seen >= MIN_CELL_SIZE {
-            cells.insert(rtype, Some(Cell { agree, seen }));
-        }
+        by_statement
+            .entry(sid)
+            .or_default()
+            .insert(rtype, (agree, seen));
     }
     Ok(by_statement
         .into_iter()
-        .filter_map(|(sid, by_type)| {
+        .filter_map(|(sid, cells)| {
+            // 投票数で二次秘匿を判定する
+            let seen: Vec<i64> = RESIDENCY_TYPES
+                .iter()
+                .map(|t| cells.get(*t).map_or(0, |c| c.1))
+                .collect();
+            let visible = suppress(&seen);
+            let by_type: BTreeMap<String, Option<Cell>> = RESIDENCY_TYPES
+                .iter()
+                .zip(&visible)
+                .map(|(t, v)| {
+                    let cell = cells.get(*t).filter(|_| *v).map(|(agree, seen)| Cell {
+                        agree: *agree,
+                        seen: *seen,
+                    });
+                    ((*t).to_owned(), cell)
+                })
+                .collect();
             // 表示できるセルが1つもない意見は出さない
             if by_type.values().all(Option::is_none) {
                 return None;
@@ -424,7 +529,7 @@ pub async fn topic_analysis(
         .iter()
         .flat_map(|g| g.base_ids.iter().map(move |b| (*b, g.id)))
         .collect();
-    let map = MapView {
+    let map = Box::new(MapView {
         base_clusters: result
             .base_clusters
             .iter()
@@ -450,7 +555,7 @@ pub async fn topic_analysis(
             Some(uid) => locate_you(&state.pool, uid, &result, &conv_state, &bodies).await?,
             None => None,
         },
-    };
+    });
 
     Ok(Json(AnalysisView::Ready {
         computed_at,
@@ -458,6 +563,8 @@ pub async fn topic_analysis(
         analyzed_count: result.n_in_conv,
         consensus: pinned_consensus(&result, &bodies, &labels),
         statements_by_group: statements_by_group(&state.pool, &topic_id, &result).await?,
+        group_composition: group_composition(&state.pool, &municipality.id, &result, &conv_state)
+            .await?,
         groups,
         map,
         residency: residency_rows(&state.pool, &topic_id, &municipality.id, &bodies).await?,
@@ -528,4 +635,32 @@ pub async fn municipality_consensus(
     });
     out.truncate(MAX_PINNED);
     Ok(Json(out))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::suppress;
+
+    #[test]
+    fn nothing_hidden() {
+        assert_eq!(suppress(&[6, 5, 7]), [true, true, true]);
+    }
+
+    #[test]
+    fn hidden_total_of_five_or_more_is_safe() {
+        // 3 + 2 = 5 人を隠すだけでよい
+        assert_eq!(suppress(&[3, 2, 9]), [false, false, true]);
+    }
+
+    #[test]
+    fn small_hidden_total_hides_next_smallest() {
+        // 3 人だけ隠すと逆算できるので、次に少ない 5 も隠す
+        assert_eq!(suppress(&[6, 5, 3, 0]), [true, false, false, false]);
+    }
+
+    #[test]
+    fn may_hide_everything() {
+        assert_eq!(suppress(&[7, 1]), [false, false]);
+        assert_eq!(suppress(&[0, 0]), [false, false]);
+    }
 }
