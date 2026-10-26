@@ -73,15 +73,26 @@ civic-platform/
 ## よく使うコマンド（整備され次第更新する）
 - 初回: `cp .env.example .env`（`.env` はルートに1つ。backend / sqlx-cli は親ディレクトリを遡って読み、frontend は `next.config.ts` でルートの `.env` を読む）
   - `.env.example` に変数が増えたら手元の `.env` にも追記する（`NEXT_PUBLIC_SOURCE_URL` が無いと本番ビルドが失敗する）
+  - `SESSION_SECRET`（参加者 Cookie の署名鍵）は必須。`openssl rand -hex 32` で作る。未設定・32 バイト未満なら backend は起動しない
+  - `API_INTERNAL_URL`: Next.js のサーバー側から backend を呼ぶ URL（既定 `http://127.0.0.1:8080`）。ブラウザは同一オリジンの `/api` を呼び、開発時は `next.config.ts` の rewrites で backend に転送する
 - backend（`cd backend`）
-  - `cargo run` — 起動時にマイグレーションも自動適用。`GET /health` で DB 込みの疎通確認
+  - `cargo run` — 起動時にマイグレーションも自動適用。`GET /api/health` で DB 込みの疎通確認
   - `cargo run -- seed` — `data/seeds/*.sql` をファイル名順に投入して終了（冪等。初回とマスタ更新時に実行）
+  - `cargo run -- seed --dev` — 続けて `data/dev-seeds/`（【サンプル】の架空データ）も投入する。開発用で、本番では使わない
   - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト（`data/seeds/` の適用テストも含む）
   - `sqlx migrate add <name>` / `sqlx migrate run` / `sqlx migrate info`
   - `migrations/` の変更は `build.rs` により自動で再ビルドされる
 - frontend（`cd frontend`）
   - `npm run dev` / `npm run lint` / `npm run typecheck` / `npm run build`
   - Next.js 16 系。書く前に `frontend/AGENTS.md` の指示どおり `node_modules/next/dist/docs/` を確認する
+- API（すべて `/api` 配下。エラーは `{"error": {"code", "message"}}`）
+  - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）
+  - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}`
+  - `PUT /municipalities/{slug}/relation` — 居住地属性（投票の前に必要）
+  - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗
+  - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`
+  - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）
+  - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別（認証はフェーズ6）。CI は `.github/workflows/ci.yml`
 - 自治体の追加: `data/seeds/010_municipality_<団体コード>_<slug>.sql` を1ファイル追加し、`cargo run -- seed`
   - 書式は `010_municipality_092100_otawara.sql` に倣う。全 INSERT に `ON CONFLICT DO NOTHING` を付ける
   - 地区 ID は `<団体コード>-<ローマ字>`。人口統計は出典 URL 付きで `municipality_stats` に入れる
