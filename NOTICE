@@ -10,11 +10,30 @@ as published by the Free Software Foundation. See the LICENSE file for details.
 SPDX-License-Identifier: AGPL-3.0-only
 
 ------------------------------------------------------------------------
-Polis 由来のコード・ロジック
+Polis 由来のコード
 ------------------------------------------------------------------------
-Polis (https://github.com/compdemocracy/polis) は AGPL-3.0 で公開されています。
-本プロジェクトはデータ構造・画面設計・数理ロジックの考え方を参考に独自実装しており、
-現時点で Polis のソースコードは含んでいません。
-取り込む場合は、元ファイルの出典と著作権表示を保持したうえで、以下に記載します。
+Polis (https://github.com/compdemocracy/polis)
+Copyright (C) 2012-present, The Authors.
+Licensed under the GNU Affero General Public License, version 3.
 
-（記載なし）
+数理処理（PCA・クラスタリング・代表意見・合意点・表示順の優先度）は、Polis の Clojure 実装
+（ブランチ edge、コミット b4971eee61e4c8efa3d0f47f9b2a8bee3c9c50f9）を Rust に移植したものです。
+各ファイルの先頭に、移植元と著作権表示を記載しています。移植の方針と Polis との違いは
+docs/polis-math.md を参照してください。
+
+  backend/src/analysis/stats.rs         <- math/src/polismath/math/stats.clj
+  backend/src/analysis/matrix.rs        <- math/src/polismath/math/named_matrix.clj
+  backend/src/analysis/pca.rs           <- math/src/polismath/math/pca.clj
+  backend/src/analysis/clusters.rs      <- math/src/polismath/math/clusters.clj
+  backend/src/analysis/repness.rs       <- math/src/polismath/math/repness.clj
+  backend/src/analysis/conversation.rs  <- math/src/polismath/math/conversation.clj
+
+------------------------------------------------------------------------
+第三者のデータ
+------------------------------------------------------------------------
+backend/tests/fixtures/polis-biodiversity/
+  Polis openData の biodiversity 会話データと、その Clojure 計算結果（テスト専用）。
+  Data was gathered using the Polis software (compdemocracy.org/polis) and is
+  sub-licensed under CC BY 4.0 with Attribution to The Computational Democracy Project.
+  https://compdemocracy.org/case-studies/2019-scoop-hivemind-biodiversity
+  https://creativecommons.org/licenses/by/4.0/
