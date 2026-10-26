@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 @import "tailwindcss";
 
@@ -41,5 +41,28 @@ body {
       opacity: 1;
       transform: none;
     }
+  }
+}
+
+/*
+ * このまちとの関わり方の色（グループの色・賛否の緑と赤と紛れない配色）。
+ * dataviz スキルの validate_palette.js で、隣り合う区分の判別（色覚の多様性を含む）を
+ * ライト・ダークの両方で確認済み。並び順（住民→周辺→通勤通学→関係人口）を変えないこと。
+ */
+:root {
+  --residency-resident: #6250d6;
+  --residency-neighbor: #1baf7a;
+  --residency-commuter: #eda100;
+  --residency-related: #e87ba4;
+  --residency-hidden: #d4d4d8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --residency-resident: #9085e9;
+    --residency-neighbor: #199e70;
+    --residency-commuter: #c98500;
+    --residency-related: #d55181;
+    --residency-hidden: #52525b;
   }
 }

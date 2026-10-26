@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 "use client";
 
@@ -7,17 +7,17 @@ import { useCallback, useEffect, useState } from "react";
 import { RelationSheet } from "@/components/relation-sheet";
 import { StatementForm } from "@/components/statement-form";
 import { ApiError, apiFetch } from "@/lib/api-client";
-import type { District, NextStatement, VoteValue } from "@/lib/types";
+import type { NextStatement, VoteValue } from "@/lib/types";
 
 const VOTE_BUTTONS: { value: VoteValue; label: string; className: string }[] = [
   {
     value: 1,
-    label: "賛成",
+    label: "賛成👍️",
     className: "bg-emerald-600 text-white active:bg-emerald-700",
   },
   {
     value: -1,
-    label: "反対",
+    label: "反対👎️",
     className: "bg-rose-600 text-white active:bg-rose-700",
   },
   {
@@ -35,11 +35,12 @@ const VOTE_BUTTONS: { value: VoteValue; label: string; className: string }[] = [
 export function VotingPanel({
   slug,
   topicId,
-  districts,
+  onProgress,
 }: {
   slug: string;
   topicId: string;
-  districts: District[];
+  /** 次の意見を読み込むたびに、投票の進捗を知らせる */
+  onProgress?: (progress: NextStatement["progress"]) => void;
 }) {
   const base = `/api/municipalities/${encodeURIComponent(slug)}/topics/${encodeURIComponent(topicId)}`;
 
@@ -52,12 +53,14 @@ export function VotingPanel({
 
   const load = useCallback(async () => {
     try {
-      setData(await apiFetch<NextStatement>(`${base}/next-statement`));
+      const next = await apiFetch<NextStatement>(`${base}/next-statement`);
+      setData(next);
       setLoadError(false);
+      onProgress?.(next.progress);
     } catch {
       setLoadError(true);
     }
-  }, [base]);
+  }, [base, onProgress]);
 
   // 初回の読み込み。投票後の再読み込みはイベントハンドラーから load() を呼ぶ
   useEffect(() => {
@@ -67,6 +70,7 @@ export function VotingPanel({
         if (!ignore) {
           setData(next);
           setLoadError(false);
+          onProgress?.(next.progress);
         }
       })
       .catch(() => {
@@ -75,7 +79,7 @@ export function VotingPanel({
     return () => {
       ignore = true;
     };
-  }, [base]);
+  }, [base, onProgress]);
 
   async function sendVote(statementId: string, value: VoteValue) {
     setBusy(true);
@@ -219,7 +223,6 @@ export function VotingPanel({
       {pendingVote !== null && (
         <RelationSheet
           slug={slug}
-          districts={districts}
           onClose={() => setPendingVote(null)}
           onSaved={onRelationSaved}
         />

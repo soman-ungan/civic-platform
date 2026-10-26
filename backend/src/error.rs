@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
@@ -23,6 +23,9 @@ pub enum ApiError {
     InvalidRequest { status: StatusCode, message: String },
     #[error(transparent)]
     Database(#[from] sqlx::Error),
+    /// 保存データの読み込みなど、その他の内部エラー
+    #[error(transparent)]
+    Internal(#[from] anyhow::Error),
 }
 
 impl ApiError {
@@ -51,6 +54,14 @@ impl IntoResponse for ApiError {
             Self::Database(err) => {
                 // 詳細はログにだけ出し、クライアントには返さない
                 tracing::error!(error = %err, "database error");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal",
+                    "サーバーでエラーが発生しました".to_owned(),
+                )
+            }
+            Self::Internal(err) => {
+                tracing::error!(error = %err, "internal error");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "internal",

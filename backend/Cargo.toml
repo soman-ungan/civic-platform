@@ -2,7 +2,7 @@
 name = "backend"
 version = "0.1.0"
 edition = "2024"
-license = "AGPL-3.0-or-later"
+license = "AGPL-3.0-only"
 
 [dependencies]
 anyhow = "1.0.104"
@@ -11,6 +11,7 @@ axum-extra = { version = "0.12.6", features = ["cookie-signed", "cookie-key-expa
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 cookie = { version = "0.18", default-features = false }
 dotenvy = "0.15.7"
+rand = "0.10.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }

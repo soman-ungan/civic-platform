@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 mod common;
 
@@ -99,4 +99,76 @@ async fn dev_seeds_apply_after_master_seeds() {
     .await
     .unwrap();
     assert_eq!(foreign, 0);
+}
+
+/// 開発用サンプルだけで、どのトピックでも分析（グループと合意点）が画面に出ること。
+/// DB を初期化して `seed --dev` したあと、すぐに動作確認できることを保証する
+#[tokio::test]
+async fn dev_seeds_are_enough_for_analysis() {
+    use axum::http::StatusCode;
+    use backend::analysis::store::run_all;
+
+    let pool = common::test_pool().await;
+    seed::run(&pool, seeds_dir()).await.unwrap();
+    seed::run(&pool, dev_seeds_dir()).await.unwrap();
+    assert_eq!(run_all(&pool, false).await.unwrap(), 3);
+
+    let state = common::test_state(pool.clone());
+    let topics: Vec<String> = sqlx::query_scalar("SELECT id FROM topics ORDER BY id")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+    let mut completed_cookie = None;
+    for topic in &topics {
+        // 分析はすべての意見に投票した人にだけ見える。全件に投票したサンプル参加者で確かめる
+        let voter: String = sqlx::query_scalar(
+            "SELECT v.user_id FROM votes v JOIN statements s ON s.id = v.statement_id
+             WHERE s.topic_id = $1 AND s.status = 'approved'
+             GROUP BY v.user_id
+             HAVING count(*) = (SELECT count(*) FROM statements WHERE topic_id = $1 AND status = 'approved')
+             ORDER BY v.user_id LIMIT 1",
+        )
+        .bind(topic)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let cookie = common::cookie_for(&state, &voter);
+        let res = common::request(
+            &state,
+            "GET",
+            &format!("/api/municipalities/otawara/topics/{topic}/analysis"),
+            Some(&cookie),
+            None,
+        )
+        .await;
+        completed_cookie = Some(cookie);
+        assert_eq!(res.status, StatusCode::OK);
+        let j = &res.json;
+        assert_eq!(j["status"], "ready", "{topic}: {j}");
+        assert!(
+            j["groups"].as_array().unwrap().len() >= 2,
+            "{topic}: グループが2つ以上"
+        );
+        assert!(
+            !j["consensus"].as_array().unwrap().is_empty(),
+            "{topic}: 合意点がある"
+        );
+        // 居住地属性の比較表に出せる意見がある（5人以上の区分が2つ以上）
+        assert!(
+            !j["residency"].as_array().unwrap().is_empty(),
+            "{topic}: 居住地属性の集計がある"
+        );
+        common::assert_no_key(j, "user_id");
+    }
+
+    // タイムラインのピン留めにも出る
+    let pins = common::request(
+        &state,
+        "GET",
+        "/api/municipalities/otawara/consensus",
+        completed_cookie.as_deref(),
+        None,
+    )
+    .await;
+    assert!(!pins.json.as_array().unwrap().is_empty());
 }

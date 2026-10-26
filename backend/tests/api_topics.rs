@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 mod common;
 
@@ -181,4 +181,97 @@ async fn read_responses_have_no_user_id() {
     ] {
         assert_no_key(&get(&state, path).await.json, "user_id");
     }
+}
+
+#[tokio::test]
+async fn participation_status_follows_votes() {
+    let (pool, state) = setup().await;
+    // t1 に承認済みの意見を2件（fixture の s1 は未承認なので数えない）
+    sqlx::raw_sql(
+        "INSERT INTO statements (id, topic_id, body, status, created_at) VALUES
+            ('a1', 't1', '意見1', 'approved', '2026-10-26T00:00:00Z'),
+            ('a2', 't1', '意見2', 'approved', '2026-10-26T00:00:00Z');",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let status = |j: &serde_json::Value| (j["participation"].clone(), j["voted_count"].clone());
+
+    // Cookie が無ければ未参加
+    let res = get(&state, "/api/municipalities/otawara/topics").await;
+    assert_eq!(status(&res.json["topics"][0]), (json!("none"), json!(0)));
+
+    // 居住地属性を登録しただけでは未参加のまま
+    let cookie = request(
+        &state,
+        "PUT",
+        "/api/municipalities/otawara/relation",
+        None,
+        Some(json!({ "residency_type": "resident" })),
+    )
+    .await
+    .cookie
+    .unwrap();
+    let list = |cookie: String| {
+        let state = state.clone();
+        async move {
+            request(
+                &state,
+                "GET",
+                "/api/municipalities/otawara/topics",
+                Some(&cookie),
+                None,
+            )
+            .await
+            .json
+        }
+    };
+    assert_eq!(
+        status(&list(cookie.clone()).await["topics"][0]),
+        (json!("none"), json!(0))
+    );
+
+    let vote = |sid: &'static str| {
+        let (state, cookie) = (state.clone(), cookie.clone());
+        async move {
+            let res = request(
+                &state,
+                "POST",
+                &format!("/api/municipalities/otawara/topics/t1/statements/{sid}/votes"),
+                Some(&cookie),
+                Some(json!({ "value": 0 })),
+            )
+            .await;
+            assert_eq!(res.status, StatusCode::OK);
+        }
+    };
+    vote("a1").await;
+    assert_eq!(
+        status(&list(cookie.clone()).await["topics"][0]),
+        (json!("in_progress"), json!(1))
+    );
+    vote("a2").await;
+    assert_eq!(
+        status(&list(cookie.clone()).await["topics"][0]),
+        (json!("completed"), json!(2))
+    );
+
+    // 詳細でも同じ。意見が増えたら参加中に戻る
+    let detail = request(
+        &state,
+        "GET",
+        "/api/municipalities/otawara/topics/t1",
+        Some(&cookie),
+        None,
+    )
+    .await;
+    assert_eq!(status(&detail.json), (json!("completed"), json!(2)));
+    sqlx::query("INSERT INTO statements (id, topic_id, body, status, created_at) VALUES ('a3', 't1', '意見3', 'approved', '2026-10-26T00:00:00Z')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        status(&list(cookie.clone()).await["topics"][0]),
+        (json!("in_progress"), json!(2))
+    );
 }

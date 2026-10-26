@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 mod common;
 
@@ -81,6 +81,7 @@ async fn all_tables_exist() {
             "prefectures",
             "statements",
             "tags",
+            "topic_analyses",
             "topic_tags",
             "topics",
             "user_municipality_relations",

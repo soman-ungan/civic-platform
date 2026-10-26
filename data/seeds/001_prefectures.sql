@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-or-later
+-- SPDX-License-Identifier: AGPL-3.0-only
 
 -- 都道府県マスタ（JIS X 0401 都道府県コード）
 INSERT INTO prefectures (code, name) VALUES

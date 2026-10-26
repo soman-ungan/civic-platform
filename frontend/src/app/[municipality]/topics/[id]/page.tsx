@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { VotingPanel } from "@/components/voting-panel";
+import { TopicInteraction } from "@/components/topic-interaction";
 import { apiGet } from "@/lib/api-server";
 import { SOURCE_LABELS } from "@/lib/labels";
 import type { MunicipalityDetail, Topic } from "@/lib/types";
@@ -77,11 +77,7 @@ async function TopicView({
         )}
       </article>
 
-      <VotingPanel
-        slug={municipality.slug}
-        topicId={topic.id}
-        districts={municipality.districts}
-      />
+      <TopicInteraction slug={municipality.slug} topicId={topic.id} />
     </>
   );
 }

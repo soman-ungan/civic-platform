@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! 投票・意見投稿・居住地属性。
 //! 意見のレスポンス型には投稿者のフィールドを持たせない（匿名性の担保）。
@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::AppState;
+use crate::analysis::store::{self, Stored};
 use crate::error::{ApiError, ApiJson};
 use crate::moderation::Verdict;
 use crate::participant::{MaybeParticipant, Participant};
@@ -36,21 +37,21 @@ async fn has_relation(
     Ok(found.is_some())
 }
 
-// ===== 居住地属性 =====
+// ===== 居住地属性（このまちとの関わり方） =====
 
+/// 地区は受け取らない。市民を地区で分けると分断を煽るため、集めない（ADR 0002）。
+/// 古いクライアントが `district_id` を送ってきても、serde の既定の挙動で無視される
 #[derive(Debug, Deserialize)]
 pub struct RelationInput {
     pub residency_type: String,
-    pub district_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Relation {
     pub residency_type: String,
-    pub district_id: Option<String>,
 }
 
-/// PUT /api/municipalities/{slug}/relation — その自治体との関係を登録・更新する
+/// PUT /api/municipalities/{slug}/relation — その自治体との関わり方を登録・更新する
 pub async fn put_relation(
     State(state): State<AppState>,
     Path(slug): Path<String>,
@@ -65,33 +66,18 @@ pub async fn put_relation(
             "residency_type は resident / neighbor / commuter / related のいずれかです",
         ));
     }
-    if let Some(district_id) = &input.district_id {
-        let found: Option<String> =
-            sqlx::query_scalar("SELECT id FROM districts WHERE id = $1 AND municipality_id = $2")
-                .bind(district_id)
-                .bind(&municipality.id)
-                .fetch_optional(&state.pool)
-                .await?;
-        if found.is_none() {
-            return Err(ApiError::validation(
-                "invalid_district",
-                "この自治体の地区ではありません",
-            ));
-        }
-    }
 
     let participant = Participant::ensure(&state, existing).await?;
     sqlx::query(
         "INSERT INTO user_municipality_relations
             (user_id, municipality_id, residency_type, district_id, created_at)
-         VALUES ($1, $2, $3, $4, $5)
+         VALUES ($1, $2, $3, NULL, $4)
          ON CONFLICT (user_id, municipality_id) DO UPDATE
-            SET residency_type = excluded.residency_type, district_id = excluded.district_id",
+            SET residency_type = excluded.residency_type, district_id = NULL",
     )
     .bind(&participant.user_id)
     .bind(&municipality.id)
     .bind(&input.residency_type)
-    .bind(&input.district_id)
     .bind(now_iso())
     .execute(&state.pool)
     .await?;
@@ -100,7 +86,6 @@ pub async fn put_relation(
         participant,
         Json(Relation {
             residency_type: input.residency_type,
-            district_id: input.district_id,
         }),
     ))
 }
@@ -157,18 +142,30 @@ pub async fn next_statement(
     .fetch_one(&state.pool)
     .await?;
 
-    let statement = sqlx::query_as(
+    // 候補: 承認済みで、まだ投票していない意見
+    let candidates: Vec<StatementCard> = sqlx::query_as(
         "SELECT s.id, s.body FROM statements s
          WHERE s.topic_id = $1 AND s.status = 'approved'
            AND NOT EXISTS (
                SELECT 1 FROM votes v WHERE v.statement_id = s.id AND v.user_id = $2)
-         ORDER BY random()
-         LIMIT 1",
+         ORDER BY s.id",
     )
     .bind(&topic_id)
     .bind(&user_id)
-    .fetch_optional(&state.pool)
+    .fetch_all(&state.pool)
     .await?;
+
+    // Polis の comment-priorities で重みを付けて1件選ぶ（分析が無ければ一様）
+    let priorities = match store::load(&state.pool, &topic_id).await? {
+        Some(Stored::Ready { result, .. }) => result.comment_priorities,
+        _ => Default::default(),
+    };
+    let weights: Vec<f64> = candidates
+        .iter()
+        .map(|c| priorities.get(&c.id).copied().unwrap_or(0.0))
+        .collect();
+    let statement = select_probabilistically(&weights, rand::random::<f64>())
+        .map(|i| candidates.into_iter().nth(i).expect("範囲内"));
 
     let needs_relation = !has_relation(&state.pool, &user_id, &municipality.id).await?;
 
@@ -177,6 +174,20 @@ pub async fn next_statement(
         progress: Progress { voted, total },
         needs_relation,
     }))
+}
+
+/// 重み付きの抽選（Polis `server/src/nextComment.ts` の `selectProbabilistically` の移植。
+/// Copyright (C) 2012-present, The Authors (Polis), AGPL-3.0）。
+/// 重みが無い・0 の候補は 1 として扱う（`priorities[tid] || 1`）。`r` は [0, 1) の乱数
+pub fn select_probabilistically(weights: &[f64], r: f64) -> Option<usize> {
+    let mut cumulative = Vec::with_capacity(weights.len());
+    let mut total = 0.0;
+    for w in weights {
+        total += if *w > 0.0 && w.is_finite() { *w } else { 1.0 };
+        cumulative.push(total);
+    }
+    let target = r * total;
+    cumulative.iter().position(|c| *c > target)
 }
 
 // ===== 投票 =====
@@ -337,4 +348,33 @@ pub async fn post_statement(
             suggestion,
         }),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::select_probabilistically;
+
+    #[test]
+    fn picks_by_cumulative_weight() {
+        // 累積 [1, 4, 5]。r * 5 を最初に超える位置
+        let w = [1.0, 3.0, 1.0];
+        assert_eq!(select_probabilistically(&w, 0.0), Some(0));
+        assert_eq!(select_probabilistically(&w, 0.19), Some(0));
+        assert_eq!(select_probabilistically(&w, 0.2), Some(1));
+        assert_eq!(select_probabilistically(&w, 0.79), Some(1));
+        assert_eq!(select_probabilistically(&w, 0.8), Some(2));
+        assert_eq!(select_probabilistically(&w, 0.999), Some(2));
+    }
+
+    #[test]
+    fn missing_or_zero_weights_count_as_one() {
+        // [0, 0] → [1, 1] として扱う
+        assert_eq!(select_probabilistically(&[0.0, 0.0], 0.4), Some(0));
+        assert_eq!(select_probabilistically(&[0.0, 0.0], 0.6), Some(1));
+    }
+
+    #[test]
+    fn no_candidates() {
+        assert_eq!(select_probabilistically(&[], 0.5), None);
+    }
 }

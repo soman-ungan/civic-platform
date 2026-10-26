@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-or-later
+-- SPDX-License-Identifier: AGPL-3.0-only
 
 -- 栃木県大田原市（パイロット自治体）
 -- 自治体を追加するときは、このファイルを参考に 1 自治体 1 ファイルで追加する。

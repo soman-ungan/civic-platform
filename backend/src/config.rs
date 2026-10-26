@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 use std::env;
 
@@ -15,6 +15,8 @@ pub struct Config {
     pub dev_seeds_dir: String,
     pub session_secret: String,
     pub cookie_secure: bool,
+    /// 分析の再計算の間隔（秒）。0 なら定期実行しない
+    pub analysis_interval_secs: u64,
 }
 
 impl Config {
@@ -32,6 +34,10 @@ impl Config {
                 .unwrap_or_else(|_| DEFAULT_DEV_SEEDS_DIR.into()),
             session_secret,
             cookie_secure: env::var("COOKIE_SECURE").is_ok_and(|v| v == "true"),
+            analysis_interval_secs: env::var("ANALYSIS_INTERVAL_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10),
         })
     }
 }

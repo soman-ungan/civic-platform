@@ -1,11 +1,17 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { ConsensusPins } from "@/components/consensus-pins";
 import { TopicFeed } from "@/components/topic-feed";
 import { apiGet } from "@/lib/api-server";
-import type { MunicipalityDetail, TopicList } from "@/lib/types";
+import type {
+  MunicipalityConsensus,
+  MunicipalityDetail,
+  TopicList,
+} from "@/lib/types";
 
 export default function MunicipalityPage({
   params,
@@ -27,9 +33,12 @@ async function Timeline({
   const { municipality: slug } = await params;
   const { tag } = await searchParams;
   const path = `/api/municipalities/${encodeURIComponent(slug)}`;
-  const [municipality, list] = await Promise.all([
+  // 参加状態と、合意点（投票を終えたトピックの分だけ見える）は参加者ごとに違うので、Cookie を backend に渡す
+  const cookie = (await headers()).get("cookie");
+  const [municipality, list, consensus] = await Promise.all([
     apiGet<MunicipalityDetail>(path),
-    apiGet<TopicList>(`${path}/topics`),
+    apiGet<TopicList>(`${path}/topics`, { cookie }),
+    apiGet<MunicipalityConsensus[]>(`${path}/consensus`, { cookie }),
   ]);
   if (!municipality || !list) {
     notFound();
@@ -43,6 +52,9 @@ async function Timeline({
           {municipality.name}
         </h1>
       </header>
+      {consensus && consensus.length > 0 && (
+        <ConsensusPins slug={municipality.slug} items={consensus} />
+      )}
       <TopicFeed
         slug={municipality.slug}
         topics={list.topics}

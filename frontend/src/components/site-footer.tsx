@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 /** 全ページ共通のフッター。AGPL 第13条に基づきソースコードへのリンクを常に表示する。 */
 export function SiteFooter() {
@@ -7,7 +7,7 @@ export function SiteFooter() {
   return (
     <footer className="mt-auto border-t border-zinc-200 dark:border-zinc-800">
       <div className="mx-auto flex w-full max-w-md flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-4 text-xs text-zinc-500">
-        <p>AGPL-3.0-or-later で公開しています</p>
+        <p>AGPL-3.0-only で公開しています</p>
         {sourceUrl && (
           <a
             href={sourceUrl}
