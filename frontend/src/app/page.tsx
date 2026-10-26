@@ -7,7 +7,7 @@ import { apiGet } from "@/lib/api-server";
 import type { Municipality } from "@/lib/types";
 
 // 公開中の自治体が1つだけのときは src/proxy.ts がそのページへリダイレクトする。
-// ここに来るのは 0 件または複数件のとき（自治体選択の UI はフェーズ7で作り込む）。
+// ここに来るのは 0 件または複数件のとき（自治体選択の UI はフェーズ8「展開」で作り込む）。
 export default function Home() {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-8">
