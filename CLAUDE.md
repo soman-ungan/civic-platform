@@ -93,7 +93,7 @@ civic-platform/
   - Next.js 16 系。書く前に `frontend/AGENTS.md` の指示どおり `node_modules/next/dist/docs/` を確認する
 - API（すべて `/api` 配下。エラーは `{"error": {"code", "message"}}`）
   - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）
-  - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}`
+  - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}` — Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count` を返す（承認済みの意見だけで数える）
   - `PUT /municipalities/{slug}/relation` — 居住地属性（投票の前に必要）
   - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗（Polis の優先度で重み付けした抽選）
   - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・居住地属性ごとの集計（分析対象が5人未満なら insufficient）

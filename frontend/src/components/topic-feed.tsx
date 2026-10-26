@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { SOURCE_LABELS } from "@/lib/labels";
-import type { Tag, Topic } from "@/lib/types";
+import type { Participation, Tag, Topic } from "@/lib/types";
 
 /** トピック一覧。タグのタップで、取得済みの一覧をその場で絞り込む（URL の ?tag= も更新） */
 export function TopicFeed({
@@ -107,15 +107,58 @@ function Chip({
   );
 }
 
+/** 参加状態ごとのカードの見た目と、状態の表示 */
+const PARTICIPATION_STYLES: Record<
+  Participation,
+  { card: string; badge: string | null }
+> = {
+  none: {
+    card: "border-zinc-200 bg-white active:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:active:bg-zinc-800",
+    badge: null,
+  },
+  in_progress: {
+    card: "border-amber-400 bg-amber-50/60 active:bg-amber-100 dark:border-amber-600 dark:bg-amber-950/30",
+    badge:
+      "bg-amber-100 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100",
+  },
+  completed: {
+    card: "border-emerald-200 bg-emerald-50/60 active:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/30",
+    badge:
+      "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-100",
+  },
+};
+
+function participationLabel(topic: Topic): string | null {
+  switch (topic.participation) {
+    case "in_progress":
+      return `参加中 ${topic.voted_count}/${topic.statement_count}`;
+    case "completed":
+      return "✓ 投票済み";
+    default:
+      return null;
+  }
+}
+
 function TopicCard({ slug, topic }: { slug: string; topic: Topic }) {
+  const style = PARTICIPATION_STYLES[topic.participation];
+  const label = participationLabel(topic);
   return (
     <Link
       href={`/${slug}/topics/${topic.id}`}
-      className="block rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm active:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:active:bg-zinc-800"
+      className={`block rounded-2xl border p-4 shadow-sm ${style.card}`}
     >
-      <p className="mb-1 text-xs text-zinc-500">
-        {SOURCE_LABELS[topic.source_type]}
-      </p>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <p className="text-xs text-zinc-500">
+          {SOURCE_LABELS[topic.source_type]}
+        </p>
+        {label && style.badge && (
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${style.badge}`}
+          >
+            {label}
+          </span>
+        )}
+      </div>
       <h2 className="font-semibold leading-snug">{topic.title}</h2>
       {topic.description && (
         <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">

@@ -399,8 +399,8 @@ pub struct MunicipalityConsensus {
     pub gac: f64,
 }
 
-/// タイムラインにピン留めする件数の上限
-const MAX_PINNED: usize = 5;
+/// タイムラインにピン留めする件数の上限（画面では最初の数件だけを出し、残りは「もっと見る」）
+const MAX_PINNED: usize = 20;
 
 /// GET /api/municipalities/{slug}/consensus — 自治体内の全トピックの合意点（ピン留め用）
 pub async fn municipality_consensus(

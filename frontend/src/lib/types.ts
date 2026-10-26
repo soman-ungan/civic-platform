@@ -35,7 +35,13 @@ export type Topic = {
   statement_count: number;
   participant_count: number;
   tags: Tag[];
+  /** Cookie の参加者の参加状態 */
+  participation: Participation;
+  /** Cookie の参加者が投票した、承認済みの意見の数 */
+  voted_count: number;
 };
+
+export type Participation = "none" | "in_progress" | "completed";
 
 export type TopicList = {
   topics: Topic[];

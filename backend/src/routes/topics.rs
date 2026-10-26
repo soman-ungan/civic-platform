@@ -9,6 +9,7 @@ use sqlx::SqlitePool;
 
 use crate::AppState;
 use crate::error::ApiError;
+use crate::participant::MaybeParticipant;
 use crate::routes::municipalities;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -43,6 +44,34 @@ pub struct Topic {
     /// 1件以上投票した人の数
     pub participant_count: i64,
     pub tags: Vec<Tag>,
+    /// Cookie の参加者の参加状態（Cookie が無ければ none）
+    pub participation: Participation,
+    /// Cookie の参加者が投票した、承認済みの意見の数
+    pub voted_count: i64,
+}
+
+/// トピックへの参加状態。承認済みの意見だけで数える（意見が増えれば completed は in_progress に戻る）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Participation {
+    /// まだ1件も投票していない
+    None,
+    /// 投票したが、未投票の意見が残っている
+    InProgress,
+    /// すべての意見に投票した
+    Completed,
+}
+
+impl Participation {
+    fn from_counts(voted: i64, total: i64) -> Self {
+        if voted == 0 {
+            Self::None
+        } else if voted >= total {
+            Self::Completed
+        } else {
+            Self::InProgress
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -99,8 +128,33 @@ async fn tags_by_topic(
     Ok(map)
 }
 
-fn into_topic(row: TopicRow, tags: Vec<Tag>) -> Topic {
+/// 参加者がトピックごとに投票した、承認済みの意見の数
+async fn voted_counts(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    user_id: Option<&str>,
+) -> Result<HashMap<String, i64>, ApiError> {
+    let Some(user_id) = user_id else {
+        return Ok(HashMap::new());
+    };
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT s.topic_id, count(*) FROM votes v
+         JOIN statements s ON s.id = v.statement_id
+         JOIN topics t ON t.id = s.topic_id
+         WHERE v.user_id = $1 AND s.status = 'approved' AND t.municipality_id = $2
+         GROUP BY s.topic_id",
+    )
+    .bind(user_id)
+    .bind(municipality_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().collect())
+}
+
+fn into_topic(row: TopicRow, tags: Vec<Tag>, voted_count: i64) -> Topic {
     Topic {
+        participation: Participation::from_counts(voted_count, row.statement_count),
+        voted_count,
         id: row.id,
         title: row.title,
         description: row.description,
@@ -133,6 +187,7 @@ pub async fn list(
     State(state): State<AppState>,
     Path(slug): Path<String>,
     Query(query): Query<ListQuery>,
+    MaybeParticipant(user_id): MaybeParticipant,
 ) -> Result<Json<TopicList>, ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
 
@@ -149,6 +204,7 @@ pub async fn list(
     .await?;
 
     let mut tags_map = tags_by_topic(&state.pool, &municipality.id).await?;
+    let voted = voted_counts(&state.pool, &municipality.id, user_id.as_deref()).await?;
 
     // チップ用: 重複を除いた全タグ（kind, name 順）
     let mut all_tags: Vec<Tag> = tags_map.values().flatten().cloned().collect();
@@ -159,7 +215,8 @@ pub async fn list(
         .into_iter()
         .map(|row| {
             let tags = tags_map.remove(&row.id).unwrap_or_default();
-            into_topic(row, tags)
+            let voted_count = voted.get(&row.id).copied().unwrap_or(0);
+            into_topic(row, tags, voted_count)
         })
         .collect();
 
@@ -173,6 +230,7 @@ pub async fn list(
 pub async fn detail(
     State(state): State<AppState>,
     Path((slug, topic_id)): Path<(String, String)>,
+    MaybeParticipant(user_id): MaybeParticipant,
 ) -> Result<Json<Topic>, ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
 
@@ -187,5 +245,10 @@ pub async fn detail(
         .await?
         .remove(&row.id)
         .unwrap_or_default();
-    Ok(Json(into_topic(row, tags)))
+    let voted_count = voted_counts(&state.pool, &municipality.id, user_id.as_deref())
+        .await?
+        .get(&row.id)
+        .copied()
+        .unwrap_or(0);
+    Ok(Json(into_topic(row, tags, voted_count)))
 }
