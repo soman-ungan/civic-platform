@@ -40,6 +40,13 @@ civic-platform/
 - 収集処理は `Collector` trait で抽象化し、自治体ごとの差分はアダプタ + `collector_sources.config` に閉じ込める。
 - Polis 分析（PCA / クラスタリング / コンセンサス判定）はトピック単位。自治体をまたいで混ぜない。
 
+## 分断を生まない原則（`docs/adr/0002-participant-attributes.md`）
+- **市民を本人の属性（年齢・性別など）や市内の地区で分けて集計・可視化しない。** 分けて見せてよいのは、その自治体との関わり方（`residency_type`: 住民・周辺・通勤通学・関係人口）だけ。
+- 年齢・性別は集めない（必須は棄却、任意も当面しない）。参加者の地区も集めない。トピックの地区タグ（話題の対象地域）は人を分けないので可。
+- 関わり方も、意見グループを作るのには使わず、グループの説明と意見ごとの比較にだけ使う（Polis の原則）。
+- 公表は5人未満の区分を隠し、隠した合計が1〜4人なら次に少ない区分も隠す（二次秘匿。`backend/src/routes/analysis.rs` の `suppress`）。
+- 属性や区分で集計する機能を検討するときは、プライバシーに加えて「分断を生まないか」を必ず検討する。
+
 ## 技術方針
 - DB: 開発は SQLite、将来 PostgreSQL へ移行。
   - SQL は両方で動く書き方を優先（SQLite 固有関数を避ける）。
@@ -94,9 +101,9 @@ civic-platform/
 - API（すべて `/api` 配下。エラーは `{"error": {"code", "message"}}`）
   - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）
   - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}` — Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count` を返す（承認済みの意見だけで数える）
-  - `PUT /municipalities/{slug}/relation` — 居住地属性（投票の前に必要）
+  - `PUT /municipalities/{slug}/relation` — このまちとの関わり方（投票の前に必要）。地区は受け取らない
   - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗（Polis の優先度で重み付けした抽選）
-  - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・居住地属性ごとの集計（分析対象が5人未満なら insufficient）
+  - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・`statements_by_group`・`group_composition`（グループごとの関わり方の構成）・関わり方ごとの集計（分析対象が5人未満なら insufficient。関わり方の集計は二次秘匿済み）
     - **そのトピックのすべての承認済み意見に投票するまでは `locked`（残り件数）を返す**。全体の傾向に投票が左右されないようにするため。意見が増えれば再びロックされる
   - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。投票を終えたトピックの分だけを返す（Cookie が無ければ空）
   - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`

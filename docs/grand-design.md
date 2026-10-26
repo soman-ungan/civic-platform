@@ -3,6 +3,7 @@
 > v2 変更点：対象を大田原市に固定せず、行政区分（都道府県 → 市区町村 → 地区）を選択可能な構造に変更。大田原市を最初の対象自治体（パイロット）として扱う。
 > v2.1 変更点：ライセンスを GNU AGPL v3（AGPL-3.0-or-later）に決定（§7）。
 > v2.2 変更点：本家 Polis（AGPL-3.0-only）と揃えるため、AGPL-3.0-only に変更（§7）。
+> v2.3 変更点：市民を本人の属性や市内の地区で分けて見せない方針を採用（§3⑤⑥、§4④。ADR 0002）。
 
 ### 1. プロジェクトの思想と目的
 
@@ -76,10 +77,10 @@ prefectures（都道府県） 1 ── n municipalities（市区町村） 1 ─�
 
 画面上は完全匿名（自動アバター）。居住地属性は自治体ごとに異なるため、usersからは切り出す。
 
+**年齢・性別・職業などの本人の属性は集めない**（市民を属性で分けて見せると分断を煽るため。必須での収集は棄却、任意での収集も当面行わない。docs/adr/0002-participant-attributes.md）。スキーマにある `age_group` / `gender` / `occupation` の列は使わず、将来削除する候補。
+
 * id: TEXT / Primary Key (SNS認証のユニークID)
-* age_group: TEXT (年代：10s, 20s, 30s...)
-* gender: TEXT (性別：male, female, other, prefer_not_to_say)
-* occupation: TEXT (職業：student, employee, self_employed...)
+* ~~age_group / gender / occupation~~ → 集めない（ADR 0002）
 * home_municipality_id: TEXT / Foreign Key / Nullable (初期表示に使う「ホーム自治体」)
 * created_at: TIMESTAMP
 * ~~residency_type~~ → ⑥へ移動
@@ -91,7 +92,7 @@ prefectures（都道府県） 1 ── n municipalities（市区町村） 1 ─�
 * user_id: TEXT / Foreign Key
 * municipality_id: TEXT / Foreign Key
 * residency_type: TEXT ('resident' 住民 / 'neighbor' 周辺住民 / 'commuter' 通勤・通学 / 'related' 関係人口)
-* district_id: TEXT / Foreign Key / Nullable (住民の場合の任意の地区)
+* ~~district_id~~ → **集めない**（市内の地区で市民を分けると分断を煽るため。ADR 0002）。列は残るが常に NULL
 * created_at: TIMESTAMP
 * ※ (user_id, municipality_id) を複合主キーとする
 * その自治体のトピックで初めて投票する際に1回だけ回答を求める。
@@ -161,7 +162,9 @@ prefectures（都道府県） 1 ── n municipalities（市区町村） 1 ─�
 #### ④ Polis分析（PCA・クラスタリング・コンセンサス判定）
 
 * 分析単位はトピック。自治体をまたいだ集計は行わない。
-* 属性クロス集計では user_municipality_relations の residency_type を使い、「住民」と「関係人口」の意見差も可視化できるようにする。
+* 関わり方（user_municipality_relations の residency_type）は、意見グループを作るのには使わない。できたグループの説明（どのグループにどんな関わり方の人がいるか）と、意見ごとの関わり方による違いの可視化にだけ使う（Polis の原則）。
+* 本人の属性（年齢・性別など）や市内の地区では、集計も可視化もしない（ADR 0002）。
+* 公表は5人未満の区分を隠し、引き算で逆算されないよう二次秘匿を行う。
 
 ### 5. フロントエンドUI/UX仕様 (Next.js / Tailwind CSS)
 
