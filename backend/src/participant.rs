@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! 匿名参加者の識別。認証（フェーズ6）までは、署名付き Cookie に users.id を入れて識別する。
 

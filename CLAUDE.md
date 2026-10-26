@@ -10,10 +10,10 @@
 - 個人開発・ワンオペ運用。自動化と保守のしやすさを最優先する。
 - Polis を丸ごとフォークはせず、データ構造・画面設計・数理ロジック（PCA + クラスタリング）を Rust × Next.js に移植する。
 
-## ライセンス（AGPL-3.0-or-later）
-- 本プロジェクトは「行政の透明性」を掲げるため、サービス自体も透明であることを最優先し、**GNU AGPL v3（AGPL-3.0-or-later）** とする。
-- ルートに `LICENSE`（AGPLv3 全文）を置く。`backend/Cargo.toml` は `license = "AGPL-3.0-or-later"`、`frontend/package.json` は `"license": "AGPL-3.0-or-later"` とする。
-- 新規ソースファイルの先頭に SPDX ヘッダーを付ける: `// SPDX-License-Identifier: AGPL-3.0-or-later`（SQL は `--`）。
+## ライセンス（AGPL-3.0-only）
+- 本プロジェクトは「行政の透明性」を掲げるため、サービス自体も透明であることを最優先し、**GNU AGPL v3（AGPL-3.0-only）** とする。本家 Polis（AGPL-3.0-only）と揃え、Polis の数理処理を移植できるようにするため（「or later」は付けない）。
+- ルートに `LICENSE`（AGPLv3 全文）を置く。`backend/Cargo.toml` は `license = "AGPL-3.0-only"`、`frontend/package.json` は `"license": "AGPL-3.0-only"` とする。
+- 新規ソースファイルの先頭に SPDX ヘッダーを付ける: `// SPDX-License-Identifier: AGPL-3.0-only`（SQL は `--`）。
 - Polis（AGPL-3.0）由来のコードやロジックを取り込む場合は、元ファイルの出典と著作権表示を残し、`NOTICE` に記載する。
 - **AGPL 第13条への対応**: フロントの全ページのフッターに、ソースコード（公開リポジトリ）へのリンクを表示する。URL は環境変数 `NEXT_PUBLIC_SOURCE_URL` から読む。
 - **GitHub リポジトリは開発中は Private。本番公開の前に必ず Public に切り替える**（Private のままではフッターのソースリンクを利用者が開けず、第13条を満たせない）。
@@ -44,6 +44,7 @@ civic-platform/
   - SQL は両方で動く書き方を優先（SQLite 固有関数を避ける）。
   - ID は TEXT（UUID v7 推奨。ただし行政区分マスタは公的コードを使用）。日時は ISO8601 文字列（UTC）。
   - マイグレーションは `backend/migrations/` に sqlx migrate 形式で置く。
+  - main にマージ済みのマイグレーションは書き換えない（コメント1文字でも sqlx のチェックサムが変わり、既存の DB が起動時に弾かれる）。変更は新しいマイグレーションで行う。
 - テーブル（定義は docs/grand-design.md §3）:
   - 行政区分: `prefectures` / `municipalities` / `districts` / `municipality_stats`
   - ユーザー: `users` / `user_municipality_relations`（居住地属性は自治体ごとにこちらで持つ）

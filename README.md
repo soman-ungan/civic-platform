@@ -8,5 +8,5 @@
 
 ## ライセンス
 
-[GNU Affero General Public License v3.0 or later](LICENSE)（AGPL-3.0-or-later）です。
+[GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0-only。本家 Polis と同じ）です。
 行政の透明性を掲げるサービス自体も透明であるため、このライセンスを採用しています。

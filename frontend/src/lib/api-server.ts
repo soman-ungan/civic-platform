@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Server Component から backend を呼ぶためのヘルパー。
 // ブラウザからは同一オリジンの /api/* を呼ぶ（開発時は next.config.ts の rewrites で転送）。

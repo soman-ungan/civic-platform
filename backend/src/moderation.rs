@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //! 投稿された意見のモデレーション。
 //! フェーズ2は全件承認の仮実装。フェーズ4で AI 判定の分岐を追加する。

@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-or-later
+-- SPDX-License-Identifier: AGPL-3.0-only
 
 -- コアスキーマ（docs/grand-design.md v2 §3、多自治体対応）
 -- SQLite / PostgreSQL の両方で動く構文のみを使う。

@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-or-later
+-- SPDX-License-Identifier: AGPL-3.0-only
 -- 開発・動作確認用のサンプルデータ（本番には投入しない。`backend seed --dev` でのみ適用）
 -- 内容はすべて架空。実際の議案・発言ではない。タイトルには必ず【サンプル】を付ける。
 -- 前提: data/seeds/ の大田原市（092100）と地区が登録済みであること。

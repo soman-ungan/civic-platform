@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Client Component から同一オリジンの /api/* を呼ぶためのヘルパー。
 // 参加者 Cookie（HttpOnly）はブラウザが自動で送る。
