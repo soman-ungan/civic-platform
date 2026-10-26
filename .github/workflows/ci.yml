@@ -17,7 +17,7 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -37,8 +37,8 @@ jobs:
       # 本番ビルドでは必須（AGPL 第13条のソースリンク）
       NEXT_PUBLIC_SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -70,7 +70,7 @@ jobs:
       PGPASSWORD: postgres
       PGDATABASE: civic
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: マイグレーションを適用
         run: |
           for f in backend/migrations/*.sql; do
