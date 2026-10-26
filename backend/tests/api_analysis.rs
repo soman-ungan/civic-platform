@@ -231,3 +231,62 @@ async fn best_agree_is_shown_as_agree() {
         }
     }
 }
+
+#[tokio::test]
+async fn statements_by_group_lists_every_approved_statement() {
+    let (pool, state) = setup().await;
+    run_topic(&pool, "t1", false).await.unwrap();
+    // 分析の後に非公開になった意見は表に出さない
+    sqlx::query("UPDATE statements SET status = 'rejected' WHERE id = 'a5'")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let j = get(&state, &format!("{T1}/analysis"), None).await.json;
+    let rows = j["statements_by_group"].as_array().unwrap();
+    let ids: Vec<&str> = rows
+        .iter()
+        .map(|r| r["statement_id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["a0", "a1", "a2", "a3", "a4", "common"]);
+
+    // 各行にグループの数だけ列があり、グループの id はグループ一覧と同じ順
+    let group_ids: Vec<&Value> = j["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|g| &g["id"])
+        .collect();
+    for row in rows {
+        let cols: Vec<&Value> = row["groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| &c["group_id"])
+            .collect();
+        assert_eq!(cols, group_ids);
+    }
+    // 全員が賛成した意見は、どのグループでも 10 人中 10 人が賛成
+    let common = rows.iter().find(|r| r["statement_id"] == "common").unwrap();
+    for c in common["groups"].as_array().unwrap() {
+        assert_eq!(
+            (
+                c["agree"].as_u64(),
+                c["disagree"].as_u64(),
+                c["seen"].as_u64()
+            ),
+            (Some(10), Some(0), Some(10))
+        );
+    }
+    // a0 は一方のグループが全員賛成、もう一方が全員反対
+    let a0 = rows.iter().find(|r| r["statement_id"] == "a0").unwrap();
+    let mut agrees: Vec<u64> = a0["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["agree"].as_u64().unwrap())
+        .collect();
+    agrees.sort();
+    assert_eq!(agrees, [0, 10]);
+    assert_no_key(&j, "user_id");
+}

@@ -90,6 +90,24 @@ pub struct MapView {
     pub you: Option<You>,
 }
 
+/// あるグループの、ある意見への票（Polis の group-votes）
+#[derive(Debug, Serialize)]
+pub struct GroupVoteCell {
+    pub group_id: i64,
+    pub agree: u32,
+    pub disagree: u32,
+    /// 投票した人数（パスを含む）
+    pub seen: u32,
+}
+
+/// 意見ごとの、グループ別の票（グループの特徴を一覧する表の1行）
+#[derive(Debug, Serialize)]
+pub struct StatementByGroup {
+    pub statement_id: String,
+    pub body: String,
+    pub groups: Vec<GroupVoteCell>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct Cell {
     pub agree: i64,
@@ -119,6 +137,8 @@ pub enum AnalysisView {
         analyzed_count: usize,
         groups: Vec<GroupView>,
         consensus: Vec<ConsensusView>,
+        /// 承認済みの意見を投稿順に並べた、グループ別の票
+        statements_by_group: Vec<StatementByGroup>,
         map: MapView,
         residency: Vec<ResidencyRow>,
     },
@@ -140,6 +160,44 @@ async fn approved_bodies(
 
 fn group_label(index: usize) -> String {
     char::from(b'A' + (index % 26) as u8).to_string()
+}
+
+/// 承認済みの意見（投稿順）ごとに、各グループの賛成・反対・投票数を並べる。
+/// 分析の後に投稿された意見は、分析に含まれていないので出さない
+async fn statements_by_group(
+    pool: &SqlitePool,
+    topic_id: &str,
+    result: &ConvResult,
+) -> Result<Vec<StatementByGroup>, ApiError> {
+    let ordered: Vec<(String, String)> = sqlx::query_as(
+        "SELECT id, body FROM statements
+         WHERE topic_id = $1 AND status = 'approved'
+         ORDER BY created_at, id",
+    )
+    .bind(topic_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(ordered
+        .into_iter()
+        .filter(|(id, _)| result.tids.contains(id))
+        .map(|(id, body)| StatementByGroup {
+            groups: result
+                .groups
+                .iter()
+                .map(|g| {
+                    let c = g.votes[&id];
+                    GroupVoteCell {
+                        group_id: g.id,
+                        agree: c.a,
+                        disagree: c.d,
+                        seen: c.s,
+                    }
+                })
+                .collect(),
+            statement_id: id,
+            body,
+        })
+        .collect())
 }
 
 /// ピン留めする合意点: 全グループで (A+1)/(S+2) ≥ 0.8。group-aware consensus の大きい順
@@ -384,6 +442,7 @@ pub async fn topic_analysis(
         participant_count: result.n_participants,
         analyzed_count: result.n_in_conv,
         consensus: pinned_consensus(&result, &bodies, &labels),
+        statements_by_group: statements_by_group(&state.pool, &topic_id, &result).await?,
         groups,
         map,
         residency: residency_rows(&state.pool, &topic_id, &municipality.id, &bodies).await?,

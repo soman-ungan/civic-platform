@@ -118,6 +118,7 @@ export type AnalysisView =
       analyzed_count: number;
       groups: GroupView[];
       consensus: ConsensusView[];
+      statements_by_group: StatementByGroup[];
       map: MapView;
       residency: ResidencyRow[];
     };
@@ -128,4 +129,10 @@ export type MunicipalityConsensus = {
   statement_id: string;
   body: string;
   gac: number;
+};
+
+export type StatementByGroup = {
+  statement_id: string;
+  body: string;
+  groups: { group_id: number; agree: number; disagree: number; seen: number }[];
 };

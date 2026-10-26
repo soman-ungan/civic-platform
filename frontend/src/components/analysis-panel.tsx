@@ -4,9 +4,10 @@
 
 import { useEffect, useState } from "react";
 
+import { GroupTable } from "@/components/group-table";
 import { OpinionMap } from "@/components/opinion-map";
 import { apiFetch } from "@/lib/api-client";
-import { GROUP_COLORS, RESIDENCY_SHORT_LABELS, percent } from "@/lib/labels";
+import { RESIDENCY_SHORT_LABELS, percent } from "@/lib/labels";
 import type { AnalysisView, ResidencyRow, ResidencyType } from "@/lib/types";
 
 const RESIDENCY_ORDER: ResidencyType[] = [
@@ -146,42 +147,11 @@ function ReadyView({
         )}
       </div>
 
-      <div>
-        <h3 className="mb-2 font-semibold">グループごとの特徴</h3>
-        <div className="flex flex-col gap-3">
-          {view.groups.map((g, i) => (
-            <article
-              key={g.id}
-              className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
-            >
-              <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                <span
-                  aria-hidden
-                  className="inline-block size-3 rounded-full"
-                  style={{
-                    backgroundColor: GROUP_COLORS[i % GROUP_COLORS.length],
-                  }}
-                />
-                グループ{g.label}（{g.size}人）
-              </h4>
-              <ul className="flex flex-col gap-2">
-                {g.representative.map((r) => (
-                  <li key={r.statement_id} className="text-sm leading-6">
-                    <p>{r.body}</p>
-                    <p
-                      className={`text-xs ${r.repful_for === "agree" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}`}
-                    >
-                      このグループの {percent(r.n_success, r.n_trials)}% が
-                      {r.repful_for === "agree" ? "賛成" : "反対"}（
-                      {r.n_success} / {r.n_trials}人）
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </article>
-          ))}
-        </div>
-      </div>
+      <GroupTable
+        groups={view.groups}
+        rows={view.statements_by_group}
+        myGroupId={view.map.you?.group_id ?? null}
+      />
 
       <ResidencyTable rows={view.residency} />
     </div>
