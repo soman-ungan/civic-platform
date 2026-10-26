@@ -40,8 +40,10 @@ impl FromRequestParts<AppState> for MaybeParticipant {
     }
 }
 
-/// 書き込み用。有効な Cookie が無ければ匿名ユーザーを作る。
+/// 書き込み用の参加者。
 ///
+/// ハンドラは `MaybeParticipant` で受け取り、入力の検証が済んでから `Participant::ensure` で確定する
+/// （不正なリクエストのたびに匿名ユーザーが作られないようにするため）。
 /// 新しく作った場合はレスポンスに Set-Cookie を付ける必要があるので、
 /// ハンドラは戻り値のタプルにこの値を含めること（`IntoResponseParts` を実装している）。
 pub struct Participant {
@@ -50,16 +52,9 @@ pub struct Participant {
 }
 
 impl Participant {
-    pub fn is_new(&self) -> bool {
-        self.set_cookie.is_some()
-    }
-}
-
-impl FromRequestParts<AppState> for Participant {
-    type Rejection = ApiError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
-        if let Some(user_id) = current_user_id(parts, state).await? {
+    /// 既存の参加者ならそのまま使い、未登録なら匿名ユーザーを作る。
+    pub async fn ensure(state: &AppState, existing: Option<String>) -> Result<Self, ApiError> {
+        if let Some(user_id) = existing {
             return Ok(Self {
                 user_id,
                 set_cookie: None,
@@ -85,6 +80,10 @@ impl FromRequestParts<AppState> for Participant {
             user_id,
             set_cookie: Some(jar),
         })
+    }
+
+    pub fn is_new(&self) -> bool {
+        self.set_cookie.is_some()
     }
 }
 

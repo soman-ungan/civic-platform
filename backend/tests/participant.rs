@@ -4,6 +4,7 @@ mod common;
 
 use axum::Router;
 use axum::body::Body;
+use axum::extract::State;
 use axum::http::{Request, StatusCode, header};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
@@ -18,10 +19,13 @@ fn router(state: AppState) -> Router {
     Router::new()
         .route(
             "/write",
-            post(|p: Participant| async move {
-                let id = p.user_id.clone();
-                (p, id).into_response()
-            }),
+            post(
+                |State(state): State<AppState>, MaybeParticipant(existing): MaybeParticipant| async move {
+                    let p = Participant::ensure(&state, existing).await.unwrap();
+                    let id = p.user_id.clone();
+                    (p, id).into_response()
+                },
+            ),
         )
         .route(
             "/read",

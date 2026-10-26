@@ -142,10 +142,47 @@ async fn relation_can_be_updated() {
 
 #[tokio::test]
 async fn vote_requires_relation() {
-    let (_pool, state) = setup().await;
+    let (pool, state) = setup().await;
     let res = vote(&state, None, "a1", 1).await;
     assert_eq!(res.status, StatusCode::CONFLICT);
     assert_eq!(res.json["error"]["code"], "relation_required");
+    assert!(res.cookie.is_none());
+    assert_eq!(
+        user_count(&pool).await,
+        2,
+        "fixture の u1, u2 以外にユーザーは作られない"
+    );
+}
+
+#[tokio::test]
+async fn invalid_requests_do_not_create_users() {
+    let (pool, state) = setup().await;
+    // 141 文字の投稿・不正な居住地属性・存在しないトピックへの投稿
+    post(&state, None, &"あ".repeat(141)).await;
+    request(
+        &state,
+        "PUT",
+        "/api/municipalities/otawara/relation",
+        None,
+        Some(json!({ "residency_type": "external" })),
+    )
+    .await;
+    request(
+        &state,
+        "POST",
+        "/api/municipalities/otawara/topics/missing/statements",
+        None,
+        Some(json!({ "body": "意見" })),
+    )
+    .await;
+    assert_eq!(user_count(&pool).await, 2);
+}
+
+async fn user_count(pool: &SqlitePool) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM users")
+        .fetch_one(pool)
+        .await
+        .unwrap()
 }
 
 #[tokio::test]

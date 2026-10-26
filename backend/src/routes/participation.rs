@@ -54,7 +54,7 @@ pub struct Relation {
 pub async fn put_relation(
     State(state): State<AppState>,
     Path(slug): Path<String>,
-    participant: Participant,
+    MaybeParticipant(existing): MaybeParticipant,
     ApiJson(input): ApiJson<RelationInput>,
 ) -> Result<(Participant, Json<Relation>), ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
@@ -80,6 +80,7 @@ pub async fn put_relation(
         }
     }
 
+    let participant = Participant::ensure(&state, existing).await?;
     sqlx::query(
         "INSERT INTO user_municipality_relations
             (user_id, municipality_id, residency_type, district_id, created_at)
@@ -196,9 +197,9 @@ pub struct Vote {
 pub async fn vote(
     State(state): State<AppState>,
     Path((slug, topic_id, statement_id)): Path<(String, String, String)>,
-    participant: Participant,
+    MaybeParticipant(user_id): MaybeParticipant,
     ApiJson(input): ApiJson<VoteInput>,
-) -> Result<(Participant, Json<Vote>), ApiError> {
+) -> Result<Json<Vote>, ApiError> {
     if ![-1, 0, 1].contains(&input.value) {
         return Err(ApiError::validation(
             "invalid_vote_value",
@@ -222,11 +223,16 @@ pub async fn vote(
         return Err(ApiError::NotFound);
     }
 
-    if !has_relation(&state.pool, &participant.user_id, &municipality.id).await? {
-        return Err(ApiError::conflict(
+    // 投票には居住地属性の登録が必要。登録時に参加者が作られるので、ここでは作らない
+    let relation_required = || {
+        ApiError::conflict(
             "relation_required",
             "投票の前に、この自治体との関係を登録してください",
-        ));
+        )
+    };
+    let user_id = user_id.ok_or_else(relation_required)?;
+    if !has_relation(&state.pool, &user_id, &municipality.id).await? {
+        return Err(relation_required());
     }
 
     sqlx::query(
@@ -236,20 +242,17 @@ pub async fn vote(
             SET vote_value = excluded.vote_value, created_at = excluded.created_at",
     )
     .bind(new_id())
-    .bind(&participant.user_id)
+    .bind(&user_id)
     .bind(&statement_id)
     .bind(input.value)
     .bind(now_iso())
     .execute(&state.pool)
     .await?;
 
-    Ok((
-        participant,
-        Json(Vote {
-            statement_id,
-            value: input.value,
-        }),
-    ))
+    Ok(Json(Vote {
+        statement_id,
+        value: input.value,
+    }))
 }
 
 // ===== 意見の投稿 =====
@@ -291,12 +294,14 @@ pub fn validate_statement_body(body: &str) -> Result<&str, ApiError> {
 pub async fn post_statement(
     State(state): State<AppState>,
     Path((slug, topic_id)): Path<(String, String)>,
-    participant: Participant,
+    MaybeParticipant(existing): MaybeParticipant,
     ApiJson(input): ApiJson<StatementInput>,
 ) -> Result<(StatusCode, Participant, Json<PostedStatement>), ApiError> {
     let body = validate_statement_body(&input.body)?;
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
     topics::ensure_in_municipality(&state.pool, &municipality.id, &topic_id).await?;
+
+    let participant = Participant::ensure(&state, existing).await?;
 
     // いったん非公開（pending）で保存してから判定する
     let id = new_id();
