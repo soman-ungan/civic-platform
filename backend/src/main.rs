@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use backend::{AppState, app, config::Config, db, seed};
+use backend::{AppState, analysis, app, config::Config, db, seed};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -33,6 +33,33 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!(dir, count = files.len(), "seeding finished");
         }
         return Ok(());
+    }
+
+    // `cargo run -- analyze [--topic <id>] [--force]`: 分析を更新して終了する（開発用）
+    if args.first().map(String::as_str) == Some("analyze") {
+        let force = args.iter().any(|a| a == "--force");
+        let topic = args
+            .iter()
+            .position(|a| a == "--topic")
+            .and_then(|i| args.get(i + 1));
+        match topic {
+            Some(topic_id) => {
+                let outcome = analysis::store::run_topic(&pool, topic_id, force).await?;
+                tracing::info!(topic_id, ?outcome, "analysis finished");
+            }
+            None => {
+                let n = analysis::store::run_all(&pool, force).await?;
+                tracing::info!(topics = n, "analysis finished");
+            }
+        }
+        return Ok(());
+    }
+
+    if config.analysis_interval_secs > 0 {
+        analysis::store::spawn_worker(
+            pool.clone(),
+            std::time::Duration::from_secs(config.analysis_interval_secs),
+        );
     }
 
     let state = AppState::new(pool, &config.session_secret, config.cookie_secure)?;

@@ -9,3 +9,4 @@ pub mod matrix;
 pub mod pca;
 pub mod repness;
 pub mod stats;
+pub mod store;
