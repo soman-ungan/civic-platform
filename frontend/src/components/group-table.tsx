@@ -84,7 +84,8 @@ export function GroupTable({
                     scope="col"
                     className={`w-24 min-w-24 px-2 py-2 text-center align-bottom ${
                       mine
-                        ? `border-x-2 border-t-2 border-b ${MY_BORDER}`
+                        ? // 枠は列の外側だけ（見出しの下に横線は引かない）
+                          `border-x-2 border-t-2 ${MY_BORDER}`
                         : "border-b border-zinc-200 dark:border-zinc-800"
                     }`}
                   >
@@ -128,8 +129,9 @@ export function GroupTable({
                     const rep = representative
                       .get(cell.group_id)
                       ?.get(row.statement_id);
+                    // 自分の列は外側の枠だけを引き、内側の横罫線は引かない
                     const border = mine
-                      ? `border-x-2 ${last ? "border-b-2" : "border-b"} ${MY_BORDER}`
+                      ? `border-x-2 ${last ? "border-b-2" : ""} ${MY_BORDER}`
                       : "border-b border-zinc-200 dark:border-zinc-800";
                     return (
                       <td
