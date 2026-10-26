@@ -94,47 +94,7 @@ export function GroupTable({
   return (
     <div>
       <h3 className="mb-1 font-semibold">グループごとの特徴</h3>
-      <div className="mb-2 flex flex-col gap-1 text-xs leading-5 text-zinc-500">
-        <p>各グループで 👍️ 賛成 / 👎️ 反対した人の割合です。</p>
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="inline-flex items-center gap-1">
-            <span
-              aria-hidden
-              className={`inline-block size-3 rounded-sm ${HIGHLIGHT.agree}`}
-            />
-            そのグループの特徴（賛成が特に多い）
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span
-              aria-hidden
-              className={`inline-block size-3 rounded-sm ${HIGHLIGHT.disagree}`}
-            />
-            そのグループの特徴（反対が特に多い）
-          </span>
-          {consensusRows.length > 0 && (
-            <span className="inline-flex items-center gap-1">
-              <span
-                aria-hidden
-                className={`inline-block size-3 rounded-sm border-2 ${GOLD_BORDER}`}
-              />
-              合意点（どのグループでも8割以上が賛成）
-            </span>
-          )}
-          {myGroupId !== null && (
-            <span className="inline-flex items-center gap-1">
-              <span
-                aria-hidden
-                className={`inline-block size-3 rounded-sm border-2 ${MY_BORDER}`}
-              />
-              あなたのグループ
-            </span>
-          )}
-        </p>
-        {consensusRows.length === 0 && (
-          <p>まだ、すべてのグループの8割以上が賛成している意見はありません。</p>
-        )}
-        <p>表は横にスクロールできます。</p>
-      </div>
+      <p className="mb-2 text-xs text-zinc-500">表は横にスクロールできます。</p>
       <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
         <table className="w-max min-w-full border-separate border-spacing-0 text-left text-xs">
           <thead>
@@ -225,6 +185,47 @@ export function GroupTable({
             })}
           </tbody>
         </table>
+      </div>
+      {/* 凡例 */}
+      <div className="mt-2 flex flex-col gap-1 text-xs leading-5 text-zinc-500">
+        <p>各グループで 👍️ 賛成 / 👎️ 反対した人の割合です。</p>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="inline-flex items-center gap-1">
+            <span
+              aria-hidden
+              className={`inline-block size-3 rounded-sm ${HIGHLIGHT.agree}`}
+            />
+            そのグループの特徴（賛成が特に多い）
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span
+              aria-hidden
+              className={`inline-block size-3 rounded-sm ${HIGHLIGHT.disagree}`}
+            />
+            そのグループの特徴（反対が特に多い）
+          </span>
+          {consensusRows.length > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <span
+                aria-hidden
+                className={`inline-block size-3 rounded-sm border-2 ${GOLD_BORDER}`}
+              />
+              合意点（どのグループでも8割以上が賛成）
+            </span>
+          )}
+          {myGroupId !== null && (
+            <span className="inline-flex items-center gap-1">
+              <span
+                aria-hidden
+                className={`inline-block size-3 rounded-sm border-2 ${MY_BORDER}`}
+              />
+              あなたのグループ
+            </span>
+          )}
+        </p>
+        {consensusRows.length === 0 && (
+          <p>まだ、すべてのグループの8割以上が賛成している意見はありません。</p>
+        )}
       </div>
     </div>
   );
