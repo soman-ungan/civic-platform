@@ -60,3 +60,86 @@ pub async fn seed_fixture(pool: &SqlitePool) {
     .await
     .unwrap();
 }
+
+/// 那須塩原市も公開状態にする（自治体の取り違えを試すテスト用）
+#[allow(dead_code)]
+pub async fn activate_second_municipality(pool: &SqlitePool) {
+    sqlx::query("UPDATE municipalities SET is_active = TRUE WHERE id = '092134'")
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+#[allow(dead_code)]
+pub struct TestResponse {
+    pub status: axum::http::StatusCode,
+    pub json: serde_json::Value,
+    /// Set-Cookie の `name=value` 部分
+    pub cookie: Option<String>,
+}
+
+/// アプリにリクエストを1つ送る。`body` があれば JSON として送る。
+#[allow(dead_code)]
+pub async fn request(
+    state: &AppState,
+    method: &str,
+    path: &str,
+    cookie: Option<&str>,
+    body: Option<serde_json::Value>,
+) -> TestResponse {
+    use axum::body::Body;
+    use axum::http::{Request, header};
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    let mut req = Request::builder().method(method).uri(path);
+    if let Some(c) = cookie {
+        req = req.header(header::COOKIE, c);
+    }
+    let req = match body {
+        Some(json) => req
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(json.to_string())),
+        None => req.body(Body::empty()),
+    }
+    .unwrap();
+
+    let res = backend::app(state.clone()).oneshot(req).await.unwrap();
+    let status = res.status();
+    let cookie = res
+        .headers()
+        .get(header::SET_COOKIE)
+        .map(|v| v.to_str().unwrap().split(';').next().unwrap().to_owned());
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json = if bytes.is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap_or_else(|_| {
+            panic!(
+                "JSON ではないレスポンス: {}",
+                String::from_utf8_lossy(&bytes)
+            )
+        })
+    };
+    TestResponse {
+        status,
+        json,
+        cookie,
+    }
+}
+
+/// JSON のどの階層にも `key` が無いことを確かめる（投稿者情報の漏れ防止）
+#[allow(dead_code)]
+pub fn assert_no_key(value: &serde_json::Value, key: &str) {
+    match value {
+        serde_json::Value::Object(map) => {
+            assert!(
+                !map.contains_key(key),
+                "レスポンスに {key} が含まれている: {value}"
+            );
+            map.values().for_each(|v| assert_no_key(v, key));
+        }
+        serde_json::Value::Array(items) => items.iter().for_each(|v| assert_no_key(v, key)),
+        _ => {}
+    }
+}
