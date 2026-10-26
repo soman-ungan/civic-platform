@@ -87,8 +87,11 @@ civic-platform/
 ## 開発フェーズ
 1. 土台: モノレポ雛形、DB マイグレーション（行政区分マスタ含む）、大田原市の seed、ヘルスチェック API、フロント雛形
 2. コア: 自治体別トピック一覧・詳細、ステートメント投稿、投票 API、Polis 風投票 UI
+   - 開始時: CI（GitHub Actions）で PostgreSQL へのマイグレーション・seed 互換チェック
+   - 完了後: ステージングのデプロイ基盤（Dockerfile / 本番用 compose / Caddy / バックアップ）。方針は `docs/adr/0001-docker-adoption.md`
 3. 分析: 投票行列からの PCA / クラスタリング、コンセンサス判定（全グループ賛成率 80% 以上）
 4. AI: モデレーション、自動タグ付け（分野は共通語彙、地区はその自治体の districts から選択）
 5. 収集: `Collector` trait と大田原市用アダプタ、決算カード共通パーサー（robots.txt と利用規約を確認してから）
+   - 収集バッチは backend イメージのサブコマンドとして定期実行する
 6. 認証: SNS ログイン（Google / Apple / LINE）→ 後に SMS 認証
 7. 展開: 自治体選択 UI の有効化、近隣自治体の追加、自治体追加手順のドキュメント化
