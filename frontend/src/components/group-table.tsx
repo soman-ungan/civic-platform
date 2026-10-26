@@ -1,11 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { GROUP_COLORS, percent } from "@/lib/labels";
-import type { GroupView, StatementByGroup } from "@/lib/types";
+import type { GroupView, RepfulFor, StatementByGroup } from "@/lib/types";
+
+/** 自分のグループの列を囲む枠線の色 */
+const MY_BORDER = "border-sky-500 dark:border-sky-400";
+
+/** 代表意見のセルの塗り（そのグループの特徴が賛成向きか反対向きか） */
+const HIGHLIGHT: Record<RepfulFor, string> = {
+  agree: "bg-emerald-100 dark:bg-emerald-900/40",
+  disagree: "bg-rose-100 dark:bg-rose-900/40",
+};
 
 /**
  * グループごとの特徴: 行 = 意見、列 = グループ。各グループの賛成・反対の割合を一覧する。
- * スマホでは横にスクロールでき、意見の列は左端に固定する。自分のグループの列は強調する。
+ * Polis が代表意見に選んだセルは、賛成向きなら緑、反対向きなら赤で塗る。
+ * スマホでは横にスクロールでき、意見の列は左端に固定する。自分のグループの列は青い枠で囲む。
  */
 export function GroupTable({
   groups,
@@ -16,21 +26,46 @@ export function GroupTable({
   rows: StatementByGroup[];
   myGroupId: number | null;
 }) {
-  // Polis が代表意見に選んだ（そのグループらしさが強い）意見
+  // グループ → 意見 → 代表意見としての向き
   const representative = new Map(
     groups.map((g) => [
       g.id,
-      new Set(g.representative.map((r) => r.statement_id)),
+      new Map(g.representative.map((r) => [r.statement_id, r.repful_for])),
     ]),
   );
 
   return (
     <div>
       <h3 className="mb-1 font-semibold">グループごとの特徴</h3>
-      <p className="mb-2 text-xs leading-5 text-zinc-500">
-        各グループで賛成した人の割合（下段は反対）。★
-        はそのグループの特徴をよく表す意見です。表は横にスクロールできます。
-      </p>
+      <div className="mb-2 flex flex-col gap-1 text-xs leading-5 text-zinc-500">
+        <p>各グループで 👍️ 賛成 / 👎️ 反対した人の割合です。</p>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="inline-flex items-center gap-1">
+            <span
+              aria-hidden
+              className={`inline-block size-3 rounded-sm ${HIGHLIGHT.agree}`}
+            />
+            そのグループの特徴（賛成が特に多い）
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span
+              aria-hidden
+              className={`inline-block size-3 rounded-sm ${HIGHLIGHT.disagree}`}
+            />
+            そのグループの特徴（反対が特に多い）
+          </span>
+          {myGroupId !== null && (
+            <span className="inline-flex items-center gap-1">
+              <span
+                aria-hidden
+                className={`inline-block size-3 rounded-sm border-2 ${MY_BORDER}`}
+              />
+              あなたのグループ
+            </span>
+          )}
+        </p>
+        <p>表は横にスクロールできます。</p>
+      </div>
       <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
         <table className="w-max min-w-full border-separate border-spacing-0 text-left text-xs">
           <thead>
@@ -47,8 +82,10 @@ export function GroupTable({
                   <th
                     key={g.id}
                     scope="col"
-                    className={`w-24 min-w-24 border-b border-zinc-200 px-2 py-2 text-center align-bottom dark:border-zinc-800 ${
-                      mine ? "bg-sky-50 dark:bg-sky-950/50" : ""
+                    className={`w-24 min-w-24 px-2 py-2 text-center align-bottom ${
+                      mine
+                        ? `border-x-2 border-t-2 border-b ${MY_BORDER}`
+                        : "border-b border-zinc-200 dark:border-zinc-800"
                     }`}
                   >
                     {mine && (
@@ -76,37 +113,43 @@ export function GroupTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.statement_id}>
-                <th
-                  scope="row"
-                  className="sticky left-0 z-10 w-40 min-w-40 border-b border-zinc-200 bg-background px-3 py-2 align-top font-normal leading-5 dark:border-zinc-800"
-                >
-                  {row.body}
-                </th>
-                {row.groups.map((cell) => {
-                  const mine = cell.group_id === myGroupId;
-                  const rep = representative
-                    .get(cell.group_id)
-                    ?.has(row.statement_id);
-                  return (
-                    <td
-                      key={cell.group_id}
-                      className={`border-b border-zinc-200 px-2 py-2 text-center align-top dark:border-zinc-800 ${
-                        mine ? "bg-sky-50 dark:bg-sky-950/50" : ""
-                      }`}
-                    >
-                      <VoteCell
-                        agree={cell.agree}
-                        disagree={cell.disagree}
-                        seen={cell.seen}
-                        representative={rep ?? false}
-                      />
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+            {rows.map((row, rowIndex) => {
+              const last = rowIndex === rows.length - 1;
+              return (
+                <tr key={row.statement_id}>
+                  <th
+                    scope="row"
+                    className="sticky left-0 z-10 w-40 min-w-40 border-b border-zinc-200 bg-background px-3 py-2 align-top font-normal leading-5 dark:border-zinc-800"
+                  >
+                    {row.body}
+                  </th>
+                  {row.groups.map((cell) => {
+                    const mine = cell.group_id === myGroupId;
+                    const rep = representative
+                      .get(cell.group_id)
+                      ?.get(row.statement_id);
+                    const border = mine
+                      ? `border-x-2 ${last ? "border-b-2" : "border-b"} ${MY_BORDER}`
+                      : "border-b border-zinc-200 dark:border-zinc-800";
+                    return (
+                      <td
+                        key={cell.group_id}
+                        className={`px-2 py-2 text-center align-top ${border} ${
+                          rep ? HIGHLIGHT[rep] : ""
+                        }`}
+                      >
+                        <VoteCell
+                          agree={cell.agree}
+                          disagree={cell.disagree}
+                          seen={cell.seen}
+                          representative={rep ?? null}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -123,7 +166,8 @@ function VoteCell({
   agree: number;
   disagree: number;
   seen: number;
-  representative: boolean;
+  /** 代表意見なら、その向き */
+  representative: RepfulFor | null;
 }) {
   if (seen === 0) {
     return <span className="text-zinc-400">—</span>;
@@ -132,16 +176,29 @@ function VoteCell({
   const d = percent(disagree, seen);
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-        {representative && (
-          <span aria-label="代表意見" className="mr-0.5 text-amber-500">
-            ★
-          </span>
-        )}
+      {representative && (
+        <span className="sr-only">
+          このグループの特徴（
+          {representative === "agree" ? "賛成" : "反対"}が多い）
+        </span>
+      )}
+      <span
+        className={`text-sm text-emerald-700 dark:text-emerald-400 ${
+          representative === "agree" ? "font-bold" : ""
+        }`}
+      >
+        <span aria-hidden>👍️ </span>
+        <span className="sr-only">賛成 </span>
         {a}%
       </span>
-      <span className="text-[11px] text-rose-700 dark:text-rose-400">
-        反対 {d}%
+      <span
+        className={`text-sm text-rose-700 dark:text-rose-400 ${
+          representative === "disagree" ? "font-bold" : ""
+        }`}
+      >
+        <span aria-hidden>👎️ </span>
+        <span className="sr-only">反対 </span>
+        {d}%
       </span>
       {/* 賛成・反対・パスの内訳 */}
       <span

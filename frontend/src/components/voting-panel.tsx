@@ -12,12 +12,12 @@ import type { District, NextStatement, VoteValue } from "@/lib/types";
 const VOTE_BUTTONS: { value: VoteValue; label: string; className: string }[] = [
   {
     value: 1,
-    label: "賛成",
+    label: "賛成👍️",
     className: "bg-emerald-600 text-white active:bg-emerald-700",
   },
   {
     value: -1,
-    label: "反対",
+    label: "反対👎️",
     className: "bg-rose-600 text-white active:bg-rose-700",
   },
   {
