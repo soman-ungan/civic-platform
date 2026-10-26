@@ -3,6 +3,7 @@
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod moderation;
 pub mod participant;
 pub mod routes;
 pub mod seed;
@@ -11,6 +12,7 @@ pub mod util;
 use axum::Router;
 use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
+use moderation::Moderation;
 use sqlx::SqlitePool;
 use tower_http::trace::TraceLayer;
 
@@ -25,6 +27,8 @@ pub struct AppState {
     pub cookie_key: Key,
     /// Cookie に Secure 属性を付けるか（本番の HTTPS 環境で true）
     pub cookie_secure: bool,
+    /// 投稿された意見の判定方式
+    pub moderation: Moderation,
 }
 
 impl AppState {
@@ -42,6 +46,7 @@ impl AppState {
             pool,
             cookie_key: Key::derive_from(session_secret.as_bytes()),
             cookie_secure,
+            moderation: Moderation::default(),
         })
     }
 }
