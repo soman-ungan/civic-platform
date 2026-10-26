@@ -22,10 +22,18 @@ if (
   );
 }
 
+// backend の URL（サーバー側だけで使う）。ブラウザは同一オリジンの /api/* を呼び、
+// 開発時は下の rewrites で backend に転送する。本番ではリバースプロキシが /api を振り分ける。
+const apiInternalUrl = process.env.API_INTERNAL_URL ?? "http://127.0.0.1:8080";
+
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  async rewrites() {
+    return [
+      { source: "/api/:path*", destination: `${apiInternalUrl}/api/:path*` },
+    ];
+  },
   turbopack: {
     rules: {
       "*.css": {

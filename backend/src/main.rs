@@ -15,22 +15,31 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
 
-    let config = Config::from_env();
+    let config = Config::from_env()?;
     let pool = db::connect(&config.database_url).await?;
     db::MIGRATOR.run(&pool).await?;
     tracing::info!("migrations applied");
 
     // `cargo run -- seed`: マスタ seed を投入して終了する
-    if std::env::args().nth(1).as_deref() == Some("seed") {
-        let files = seed::run(&pool, Path::new(&config.seeds_dir)).await?;
-        tracing::info!(count = files.len(), "seeding finished");
+    // `cargo run -- seed --dev`: 続けて開発用サンプルデータも投入する（本番では使わない）
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("seed") {
+        let mut dirs = vec![config.seeds_dir.as_str()];
+        if args.iter().any(|a| a == "--dev") {
+            dirs.push(config.dev_seeds_dir.as_str());
+        }
+        for dir in dirs {
+            let files = seed::run(&pool, Path::new(dir)).await?;
+            tracing::info!(dir, count = files.len(), "seeding finished");
+        }
         return Ok(());
     }
 
+    let state = AppState::new(pool, &config.session_secret, config.cookie_secure)?;
     let listener = TcpListener::bind(&config.bind_addr).await?;
     tracing::info!("listening on http://{}", listener.local_addr()?);
 
-    axum::serve(listener, app(AppState { pool }))
+    axum::serve(listener, app(state))
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())
