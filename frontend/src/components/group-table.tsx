@@ -3,8 +3,14 @@
 import { GROUP_COLORS, percent } from "@/lib/labels";
 import type { GroupView, RepfulFor, StatementByGroup } from "@/lib/types";
 
-/** 自分のグループの列を囲む枠線の色 */
+/** 自分のグループの列を囲む枠線の色（凡例の色見本用） */
 const MY_BORDER = "border-sky-500 dark:border-sky-400";
+/** 自分の列: 左右は青い枠、行の区切りは他の列と同じ灰色 */
+const MY_SIDES = "border-x-2 border-x-sky-500 dark:border-x-sky-400";
+const ROW_LINE = "border-b border-b-zinc-200 dark:border-b-zinc-800";
+/** 自分の列の外側の上端・下端 */
+const MY_TOP = "border-t-2 border-t-sky-500 dark:border-t-sky-400";
+const MY_BOTTOM = "border-b-2 border-b-sky-500 dark:border-b-sky-400";
 
 /** 代表意見のセルの塗り（そのグループの特徴が賛成向きか反対向きか） */
 const HIGHLIGHT: Record<RepfulFor, string> = {
@@ -84,8 +90,8 @@ export function GroupTable({
                     scope="col"
                     className={`w-24 min-w-24 px-2 py-2 text-center align-bottom ${
                       mine
-                        ? // 枠は列の外側だけ（見出しの下に横線は引かない）
-                          `border-x-2 border-t-2 ${MY_BORDER}`
+                        ? // 青い枠は列の外側だけ。見出しの下は他の列と同じ灰色の線
+                          `${MY_SIDES} ${MY_TOP} ${ROW_LINE}`
                         : "border-b border-zinc-200 dark:border-zinc-800"
                     }`}
                   >
@@ -129,9 +135,9 @@ export function GroupTable({
                     const rep = representative
                       .get(cell.group_id)
                       ?.get(row.statement_id);
-                    // 自分の列は外側の枠だけを引き、内側の横罫線は引かない
+                    // 自分の列: 青い枠は外側だけ、行の区切りは灰色（最後の行の下端だけ青）
                     const border = mine
-                      ? `border-x-2 ${last ? "border-b-2" : ""} ${MY_BORDER}`
+                      ? `${MY_SIDES} ${last ? MY_BOTTOM : ROW_LINE}`
                       : "border-b border-zinc-200 dark:border-zinc-800";
                     return (
                       <td
