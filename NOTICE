@@ -27,6 +27,7 @@ docs/polis-math.md を参照してください。
   backend/src/analysis/clusters.rs      <- math/src/polismath/math/clusters.clj
   backend/src/analysis/repness.rs       <- math/src/polismath/math/repness.clj
   backend/src/analysis/conversation.rs  <- math/src/polismath/math/conversation.clj
+  backend/src/routes/participation.rs   <- server/src/nextComment.ts（selectProbabilistically のみ）
 
 ------------------------------------------------------------------------
 第三者のデータ

@@ -143,3 +143,63 @@ pub fn assert_no_key(value: &serde_json::Value, key: &str) {
         _ => {}
     }
 }
+
+const POLARIZED_NOW: &str = "2026-10-26T00:00:00.000Z";
+
+/// fixture に加えて、t1 に承認済みの意見 a0〜a5 と「全員が賛成する」common を入れ、
+/// 賛成派 10 人（v00〜v09）と反対派 10 人（v10〜v19）が投票する
+#[allow(dead_code)]
+pub async fn seed_polarized(pool: &SqlitePool) {
+    seed_fixture(pool).await;
+    for i in 0..6 {
+        sqlx::query("INSERT INTO statements (id, topic_id, body, status, created_at) VALUES ($1, 't1', $2, 'approved', $3)")
+            .bind(format!("a{i}"))
+            .bind(format!("意見{i}"))
+            .bind(POLARIZED_NOW)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+    sqlx::query("INSERT INTO statements (id, topic_id, body, status, created_at) VALUES ('common', 't1', '全員賛成', 'approved', $1)")
+        .bind(POLARIZED_NOW)
+        .execute(pool)
+        .await
+        .unwrap();
+    for u in 0..20 {
+        let uid = format!("v{u:02}");
+        sqlx::query("INSERT INTO users (id, created_at) VALUES ($1, $2)")
+            .bind(&uid)
+            .bind(POLARIZED_NOW)
+            .execute(pool)
+            .await
+            .unwrap();
+        let side = if u < 10 { 1 } else { -1 };
+        let mut stmts: Vec<(String, i64)> = (0..6).map(|i| (format!("a{i}"), side)).collect();
+        stmts.push(("common".into(), 1));
+        for (n, (sid, value)) in stmts.into_iter().enumerate() {
+            insert_vote(
+                pool,
+                &uid,
+                &sid,
+                value,
+                &format!("2026-10-26T00:{u:02}:{n:02}.000Z"),
+            )
+            .await;
+        }
+    }
+}
+
+#[allow(dead_code)]
+pub async fn insert_vote(pool: &SqlitePool, uid: &str, sid: &str, value: i64, at: &str) {
+    sqlx::query(
+        "INSERT INTO votes (id, user_id, statement_id, vote_value, created_at) VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(format!("{uid}-{sid}"))
+    .bind(uid)
+    .bind(sid)
+    .bind(value)
+    .bind(at)
+    .execute(pool)
+    .await
+    .unwrap();
+}

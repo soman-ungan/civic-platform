@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+pub mod analysis;
 mod health;
 pub mod municipalities;
 pub mod participation;
@@ -25,6 +26,14 @@ pub fn router() -> Router<AppState> {
         .route(
             "/municipalities/{slug}/topics/{topic_id}",
             get(topics::detail),
+        )
+        .route(
+            "/municipalities/{slug}/consensus",
+            get(analysis::municipality_consensus),
+        )
+        .route(
+            "/municipalities/{slug}/topics/{topic_id}/analysis",
+            get(analysis::topic_analysis),
         )
         .route(
             "/municipalities/{slug}/topics/{topic_id}/next-statement",
