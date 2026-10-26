@@ -42,3 +42,27 @@ export const GROUP_COLORS = [
 export function percent(numerator: number, denominator: number): number {
   return denominator === 0 ? 0 : Math.round((numerator / denominator) * 100);
 }
+
+/** 関わり方の並び（住民 → 周辺 → 通勤・通学 → 関係人口）。色の検証はこの並びで行っている */
+export const RESIDENCY_ORDER: ResidencyType[] = [
+  "resident",
+  "neighbor",
+  "commuter",
+  "related",
+];
+
+/** 関わり方の色（globals.css の CSS 変数。ダークモードで切り替わる） */
+export const RESIDENCY_COLORS: Record<ResidencyType, string> = {
+  resident: "var(--residency-resident)",
+  neighbor: "var(--residency-neighbor)",
+  commuter: "var(--residency-commuter)",
+  related: "var(--residency-related)",
+};
+
+/** ドット図での関わり方の形（色を使わず、形で区別する） */
+export const RESIDENCY_SHAPES: Record<ResidencyType, string> = {
+  resident: "●",
+  neighbor: "■",
+  commuter: "▲",
+  related: "◆",
+};

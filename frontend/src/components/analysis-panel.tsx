@@ -4,18 +4,12 @@
 
 import { useEffect, useState } from "react";
 
+import { GroupCompositionChart } from "@/components/group-composition";
 import { GroupTable } from "@/components/group-table";
 import { OpinionMap } from "@/components/opinion-map";
+import { ResidencyDotPlot } from "@/components/residency-dot-plot";
 import { apiFetch } from "@/lib/api-client";
-import { RESIDENCY_SHORT_LABELS, percent } from "@/lib/labels";
-import type { AnalysisView, ResidencyRow, ResidencyType } from "@/lib/types";
-
-const RESIDENCY_ORDER: ResidencyType[] = [
-  "resident",
-  "neighbor",
-  "commuter",
-  "related",
-];
+import type { AnalysisView } from "@/lib/types";
 
 /**
  * 「みんなの意見」: 意見マップ、合意点、グループと代表意見、居住地属性ごとの違い。
@@ -137,6 +131,11 @@ function ReadyView({
         </p>
       </div>
 
+      <GroupCompositionChart
+        groups={view.groups}
+        composition={view.group_composition}
+      />
+
       <GroupTable
         groups={view.groups}
         rows={view.statements_by_group}
@@ -144,79 +143,7 @@ function ReadyView({
         consensusIds={view.consensus.map((c) => c.statement_id)}
       />
 
-      <ResidencyTable rows={view.residency} />
-    </div>
-  );
-}
-
-/** 居住地属性ごとの賛成率。差が大きい意見を上から5件（人数が少ないセルは「—」） */
-function ResidencyTable({ rows }: { rows: ResidencyRow[] }) {
-  const comparable = rows
-    .map((row) => {
-      const rates = RESIDENCY_ORDER.flatMap((t) => {
-        const cell = row.by_type[t];
-        return cell ? [cell.agree / cell.seen] : [];
-      });
-      return {
-        row,
-        spread:
-          rates.length >= 2 ? Math.max(...rates) - Math.min(...rates) : -1,
-      };
-    })
-    .filter((x) => x.spread >= 0)
-    .sort((a, b) => b.spread - a.spread)
-    .slice(0, 5);
-
-  return (
-    <div>
-      <h3 className="mb-1 font-semibold">住民と関係人口の違い</h3>
-      <p className="mb-2 text-xs text-zinc-500">
-        賛成した人の割合。5人未満の区分は表示しません。
-      </p>
-      {comparable.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          比べられるだけの人数が、まだ集まっていません。
-        </p>
-      ) : (
-        <div className="-mx-4 overflow-x-auto px-4">
-          <table className="w-full min-w-[22rem] text-left text-xs">
-            <thead>
-              <tr className="text-zinc-500">
-                <th className="py-2 pr-2 font-normal">意見</th>
-                {RESIDENCY_ORDER.map((t) => (
-                  <th
-                    key={t}
-                    className="px-1 py-2 text-right font-normal whitespace-nowrap"
-                  >
-                    {RESIDENCY_SHORT_LABELS[t]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {comparable.map(({ row }) => (
-                <tr
-                  key={row.statement_id}
-                  className="border-t border-zinc-200 align-top dark:border-zinc-800"
-                >
-                  <td className="py-2 pr-2 leading-5">{row.body}</td>
-                  {RESIDENCY_ORDER.map((t) => {
-                    const cell = row.by_type[t];
-                    return (
-                      <td
-                        key={t}
-                        className="px-1 py-2 text-right whitespace-nowrap"
-                      >
-                        {cell ? `${percent(cell.agree, cell.seen)}%` : "—"}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <ResidencyDotPlot rows={view.residency} />
     </div>
   );
 }

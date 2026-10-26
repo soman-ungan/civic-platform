@@ -120,6 +120,7 @@ export type AnalysisView =
       groups: GroupView[];
       consensus: ConsensusView[];
       statements_by_group: StatementByGroup[];
+      group_composition: GroupComposition[];
       map: MapView;
       residency: ResidencyRow[];
     };
@@ -136,4 +137,10 @@ export type StatementByGroup = {
   statement_id: string;
   body: string;
   groups: { group_id: number; agree: number; disagree: number; seen: number }[];
+};
+
+export type GroupComposition = {
+  group_id: number;
+  /** 人数。人数の少ない区分は二次秘匿で null */
+  by_type: Record<ResidencyType, number | null>;
 };
