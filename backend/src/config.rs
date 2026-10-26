@@ -5,11 +5,14 @@ use std::env;
 const DEFAULT_DATABASE_URL: &str = "sqlite://../data/civic.db?mode=rwc";
 const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8080";
 const DEFAULT_SEEDS_DIR: &str = "../data/seeds";
+const DEFAULT_DEV_SEEDS_DIR: &str = "../data/dev-seeds";
 
 pub struct Config {
     pub database_url: String,
     pub bind_addr: String,
     pub seeds_dir: String,
+    /// 開発用サンプルデータ（`seed --dev` のときだけ使う）
+    pub dev_seeds_dir: String,
     pub session_secret: String,
     pub cookie_secure: bool,
 }
@@ -25,6 +28,8 @@ impl Config {
             database_url: env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.into()),
             bind_addr: env::var("BIND_ADDR").unwrap_or_else(|_| DEFAULT_BIND_ADDR.into()),
             seeds_dir: env::var("SEEDS_DIR").unwrap_or_else(|_| DEFAULT_SEEDS_DIR.into()),
+            dev_seeds_dir: env::var("DEV_SEEDS_DIR")
+                .unwrap_or_else(|_| DEFAULT_DEV_SEEDS_DIR.into()),
             session_secret,
             cookie_secure: env::var("COOKIE_SECURE").is_ok_and(|v| v == "true"),
         })

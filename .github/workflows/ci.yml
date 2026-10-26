@@ -87,6 +87,13 @@ jobs:
               echo "::endgroup::"
             done
           done
+      - name: 開発用サンプルデータを適用
+        run: |
+          for f in data/dev-seeds/*.sql; do
+            echo "::group::$f"
+            psql -v ON_ERROR_STOP=1 --single-transaction -f "$f"
+            echo "::endgroup::"
+          done
       - name: 件数を確認
         run: |
           test "$(psql -tAc 'select count(*) from prefectures')" = 47
