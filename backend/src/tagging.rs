@@ -240,6 +240,7 @@ pub async fn classify(
         schema: schema(&fields, &districts),
         effort: Effort::Low,
         max_tokens: 1024,
+        pdf: None,
     };
     let chosen = match tagger.llm.structured(pool, &request).await {
         Ok(value) => serde_json::from_value::<LlmTags>(value)
