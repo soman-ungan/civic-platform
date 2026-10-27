@@ -23,4 +23,14 @@ INSERT INTO districts (id, municipality_id, name, name_kana) VALUES
     ('092100-yuzukami', '092100', '湯津上', 'ゆづかみ')
 ON CONFLICT DO NOTHING;
 
--- municipality_stats（人口・世帯数）は出典付きの値を確認してから登録する（フェーズ5）
+-- 収集先（docs/design/collection.md）。自治体ごとの違いは config に閉じ込める
+--   決算カード（総務省）: 全市町村で同じ設定。都道府県と団体コードは municipalities から引く。
+--     人口（municipality_stats）も決算カードの住民基本台帳人口から入る
+--     規約: 総務省ホームページの「著作権について」で、公共データ利用規約（第1.0版）に準拠。出典の記載が条件
+--     robots.txt: ia_archiver 以外は制限なし（2026-10-27 確認）
+INSERT INTO collector_sources (id, municipality_id, kind, adapter, base_url, config, is_enabled) VALUES
+    ('092100-settlement-card', '092100', 'settlement_card', 'soumu_settlement_card',
+     'https://www.soumu.go.jp/iken/zaisei/card.html',
+     '{"terms_url": "https://www.soumu.go.jp/menu_kyotsuu/policy/tyosaku.html", "terms_checked_at": "2026-10-27", "min_interval_secs": 5, "from_fiscal_year": 2015}',
+     TRUE)
+ON CONFLICT DO NOTHING;

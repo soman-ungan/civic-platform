@@ -8,6 +8,7 @@
 
 pub mod fetch;
 pub mod robots;
+pub mod settlement_card;
 
 use std::time::Duration;
 
@@ -100,7 +101,7 @@ pub fn check_terms(config: &Value, today: NaiveDate) -> Result<Option<String>, S
 }
 
 /// 収集先の接続の間隔（`min_interval_secs`）
-pub fn min_interval(config: &Value) -> Duration {
+fn min_interval(config: &Value) -> Duration {
     Duration::from_secs(
         config
             .get("min_interval_secs")
@@ -109,9 +110,42 @@ pub fn min_interval(config: &Value) -> Duration {
     )
 }
 
-/// 今日の日付（UTC）。規約の確認の期限に使う
-pub fn today() -> NaiveDate {
-    Utc::now().date_naive()
+/// 1つの収集先を処理する。無効な収集先・規約の確認の記録が無い収集先は動かさない。
+/// `contact` は運営者の連絡先（`COLLECTOR_CONTACT`。User-Agent に入れる）
+pub async fn run_source(
+    pool: &SqlitePool,
+    source: &Source,
+    contact: &str,
+    options: &Options,
+) -> anyhow::Result<Report> {
+    if !source.is_enabled {
+        anyhow::bail!("収集先 {} は無効です（is_enabled = false）", source.id);
+    }
+    let config = source.config_json()?;
+    let warning = check_terms(&config, Utc::now().date_naive())
+        .map_err(|e| anyhow::anyhow!("収集先 {}: {e}", source.id))?;
+    let fetcher = Fetcher::new(contact, min_interval(&config))?;
+
+    let mut report = match source.adapter.as_str() {
+        "soumu_settlement_card" => {
+            settlement_card::SettlementCard
+                .collect(pool, &fetcher, source, options)
+                .await?
+        }
+        other => anyhow::bail!(
+            "収集先 {}: 自動で取得できないアダプタです: {other}",
+            source.id
+        ),
+    };
+    report.warnings.extend(warning);
+    if !options.dry_run {
+        sqlx::query("UPDATE collector_sources SET last_crawled_at = $1 WHERE id = $2")
+            .bind(crate::util::now_iso())
+            .bind(&source.id)
+            .execute(pool)
+            .await?;
+    }
+    Ok(report)
 }
 
 #[cfg(test)]
