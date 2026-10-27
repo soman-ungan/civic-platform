@@ -163,3 +163,60 @@ async fn failure_leaves_topic_for_next_time() {
     assert!(tag_topic(&pool, &tagger, "t1", false).await.is_err());
     assert!(tagged_at(&pool, "t1").await.is_none());
 }
+
+#[tokio::test]
+async fn prompt_includes_definitions_and_municipality() {
+    let (pool, tagger, fake) = setup().await;
+    sqlx::query("UPDATE tags SET description = 'バスや鉄道' WHERE id = 'field-koutsu'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    fake.push_json(json!({"fields": [], "districts": []}));
+    tag_topic(&pool, &tagger, "t1", false).await.unwrap();
+
+    let sent = &fake.requests()[0];
+    let system = sent["system"][0]["text"].as_str().unwrap();
+    assert!(system.contains("- 交通: バスや鉄道"), "{system}");
+    assert!(system.contains("議会で議論された・議員が質問したというだけでは付けない"));
+    let user = sent["messages"][0]["content"].as_str().unwrap();
+    assert!(
+        user.contains("<municipality>大田原市</municipality>"),
+        "{user}"
+    );
+}
+
+/// 判断基準の文書（docs/design/tagging-criteria.md）の「分野の定義」の表と、
+/// seed の語彙・定義が一致していること（片方だけ直すずれを防ぐ）
+#[tokio::test]
+async fn criteria_doc_matches_seed() {
+    let pool = test_pool().await;
+    backend::seed::run(&pool, std::path::Path::new("../data/seeds"))
+        .await
+        .unwrap();
+    let mut seeded: Vec<(String, String)> =
+        sqlx::query_as("SELECT name, description FROM tags WHERE kind = 'field' ORDER BY name")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+    let doc = std::fs::read_to_string("../docs/design/tagging-criteria.md").unwrap();
+    let section = doc
+        .split("## 分野の定義")
+        .nth(1)
+        .unwrap()
+        .split("\n## ")
+        .next()
+        .unwrap();
+    let mut documented: Vec<(String, String)> = section
+        .lines()
+        .filter(|l| l.starts_with("| ") && !l.starts_with("| 分野"))
+        .map(|l| {
+            let cells: Vec<&str> = l.trim_matches('|').split('|').map(str::trim).collect();
+            (cells[0].to_owned(), cells[1].to_owned())
+        })
+        .collect();
+    seeded.sort();
+    documented.sort();
+    assert_eq!(seeded.len(), 19);
+    assert_eq!(documented, seeded);
+}

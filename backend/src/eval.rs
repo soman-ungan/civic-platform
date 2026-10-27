@@ -40,6 +40,9 @@ pub struct TaggingCase {
     pub fields: Vec<String>,
     #[serde(default)]
     pub districts: Vec<String>,
+    /// 何を確かめるケースか
+    #[serde(default)]
+    pub note: String,
 }
 
 pub fn load<T: for<'de> Deserialize<'de>>(path: &Path) -> anyhow::Result<Vec<T>> {
@@ -204,8 +207,8 @@ pub struct TaggingReport {
     pub fields: Counts,
     pub districts: Counts,
     pub errors: usize,
-    /// 一致しなかったケース (id, 正解, 判定)
-    pub misses: Vec<(String, String, String)>,
+    /// 一致しなかったケース (id, 正解, 判定, note)
+    pub misses: Vec<(String, String, String, String)>,
     pub cost_micro_usd: i64,
     pub median_latency: Duration,
 }
@@ -269,6 +272,7 @@ pub async fn run_tagging(
                 case.id.clone(),
                 format!("{expected_fields:?} {expected_districts:?}"),
                 format!("{actual_fields:?} {actual_districts:?}"),
+                case.note.clone(),
             ));
         }
     }
@@ -299,8 +303,8 @@ impl TaggingReport {
         );
         if !self.misses.is_empty() {
             let _ = writeln!(out, "一致しなかったケース（正解 / 判定）");
-            for (id, expected, actual) in &self.misses {
-                let _ = writeln!(out, "  {id}: {expected} / {actual}");
+            for (id, expected, actual, note) in &self.misses {
+                let _ = writeln!(out, "  {id}: {expected} / {actual}  {note}");
             }
         }
         out

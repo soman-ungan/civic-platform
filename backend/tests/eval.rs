@@ -48,7 +48,7 @@ fn moderation_cases_are_valid() {
 async fn tagging_cases_use_vocabulary_and_own_districts() {
     let pool = seeded_pool().await;
     let cases: Vec<TaggingCase> = eval::load(Path::new("../evals/tagging.jsonl")).unwrap();
-    assert!(cases.len() >= 30);
+    assert!(cases.len() >= 40);
     let fields: HashSet<String> = sqlx::query_scalar("SELECT name FROM tags WHERE kind = 'field'")
         .fetch_all(&pool)
         .await
@@ -133,24 +133,26 @@ fn case(id: &str, expected: &str) -> ModerationCase {
 async fn tagging_report_compares_by_name() {
     let pool = seeded_pool().await;
     let (llm, fake) = Llm::fake(1.0);
-    fake.push_json(json!({"fields": ["交通"], "districts": ["黒羽"]}));
-    fake.push_json(json!({"fields": ["交通", "福祉"], "districts": []}));
+    fake.push_json(json!({"fields": ["交通・移動"], "districts": ["黒羽"]}));
+    fake.push_json(json!({"fields": ["交通・移動", "福祉・介護"], "districts": []}));
     let cases = vec![
         TaggingCase {
             id: "x".into(),
             municipality_id: "092100".into(),
             title: "バス".into(),
             description: String::new(),
-            fields: vec!["交通".into()],
+            fields: vec!["交通・移動".into()],
             districts: vec!["黒羽".into()],
+            note: String::new(),
         },
         TaggingCase {
             id: "y".into(),
             municipality_id: "092100".into(),
             title: "バス".into(),
             description: String::new(),
-            fields: vec!["交通".into()],
+            fields: vec!["交通・移動".into()],
             districts: vec![],
+            note: String::new(),
         },
     ];
     let tagger = Tagger {
