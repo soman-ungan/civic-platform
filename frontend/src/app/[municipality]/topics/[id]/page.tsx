@@ -5,9 +5,10 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { TopicInteraction } from "@/components/topic-interaction";
+import { TopicSources } from "@/components/topic-sources";
 import { apiGet } from "@/lib/api-server";
 import { SOURCE_LABELS } from "@/lib/labels";
-import type { MunicipalityDetail, Topic } from "@/lib/types";
+import type { MunicipalityDetail, TopicDetail } from "@/lib/types";
 
 export default function TopicPage({
   params,
@@ -28,7 +29,7 @@ async function TopicView({
   const path = `/api/municipalities/${encodeURIComponent(slug)}`;
   const [municipality, topic] = await Promise.all([
     apiGet<MunicipalityDetail>(path),
-    apiGet<Topic>(`${path}/topics/${encodeURIComponent(id)}`),
+    apiGet<TopicDetail>(`${path}/topics/${encodeURIComponent(id)}`),
   ]);
   if (!municipality || !topic) {
     notFound();
@@ -65,7 +66,8 @@ async function TopicView({
             {topic.description}
           </p>
         )}
-        {topic.source_url && (
+        <TopicSources sources={topic.sources} />
+        {topic.source_url && topic.sources.length === 0 && (
           <a
             href={topic.source_url}
             target="_blank"

@@ -50,6 +50,24 @@ pub struct Topic {
     pub voted_count: i64,
 }
 
+/// 詳細: トピックと、議会のトピックの出典
+#[derive(Debug, Serialize)]
+pub struct TopicDetail {
+    #[serde(flatten)]
+    pub topic: Topic,
+    pub sources: Vec<TopicSource>,
+}
+
+/// 出典（会議録の発言からの引用）。発言者は公人なら氏名つき、職員は職名だけ
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TopicSource {
+    pub speaker: String,
+    pub quote: String,
+    pub document_title: String,
+    pub held_on: Option<String>,
+    pub url: Option<String>,
+}
+
 /// トピックへの参加状態。承認済みの意見だけで数える（意見が増えれば completed は in_progress に戻る）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -86,7 +104,7 @@ pub struct ListQuery {
     pub tag: Option<String>,
 }
 
-/// $1 = municipality_id。$2 以降は呼び出し側で追加する。
+/// $1 = municipality_id。$2 以降は呼び出し側で追加する。公開済みのトピックだけ（下書きは運営者の確認待ち）
 const SELECT_TOPIC: &str = "
     SELECT t.id, t.title, t.description, t.source_type, t.source_url, t.created_at,
         (SELECT count(*) FROM statements s
@@ -95,7 +113,7 @@ const SELECT_TOPIC: &str = "
           JOIN statements s ON s.id = v.statement_id
           WHERE s.topic_id = t.id) AS participant_count
     FROM topics t
-    WHERE t.municipality_id = $1";
+    WHERE t.municipality_id = $1 AND t.status = 'published'";
 
 #[derive(Debug, sqlx::FromRow)]
 struct TopicTagRow {
@@ -114,7 +132,7 @@ async fn tags_by_topic(
          FROM topic_tags tt
          JOIN tags g ON g.id = tt.tag_id
          JOIN topics t ON t.id = tt.topic_id
-         WHERE t.municipality_id = $1
+         WHERE t.municipality_id = $1 AND t.status = 'published'
          ORDER BY g.kind, g.name",
     )
     .bind(municipality_id)
@@ -196,18 +214,20 @@ fn into_topic(row: TopicRow, tags: Vec<Tag>, voted_count: i64) -> Topic {
     }
 }
 
-/// トピックが指定の自治体に属しているか確かめる。別の自治体のトピックなら 404。
+/// トピックが指定の自治体に属し、公開済みか確かめる。別の自治体のトピックや下書きなら 404。
+/// 投票・投稿・次の意見・分析は、すべてここを通る
 pub async fn ensure_in_municipality(
     pool: &SqlitePool,
     municipality_id: &str,
     topic_id: &str,
 ) -> Result<(), ApiError> {
-    let found: Option<String> =
-        sqlx::query_scalar("SELECT id FROM topics WHERE id = $1 AND municipality_id = $2")
-            .bind(topic_id)
-            .bind(municipality_id)
-            .fetch_optional(pool)
-            .await?;
+    let found: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM topics WHERE id = $1 AND municipality_id = $2 AND status = 'published'",
+    )
+    .bind(topic_id)
+    .bind(municipality_id)
+    .fetch_optional(pool)
+    .await?;
     found.map(|_| ()).ok_or(ApiError::NotFound)
 }
 
@@ -260,7 +280,7 @@ pub async fn detail(
     State(state): State<AppState>,
     Path((slug, topic_id)): Path<(String, String)>,
     MaybeParticipant(user_id): MaybeParticipant,
-) -> Result<Json<Topic>, ApiError> {
+) -> Result<Json<TopicDetail>, ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
 
     let row: TopicRow = sqlx::query_as(&format!("{SELECT_TOPIC} AND t.id = $2"))
@@ -279,5 +299,16 @@ pub async fn detail(
         .get(&row.id)
         .copied()
         .unwrap_or(0);
-    Ok(Json(into_topic(row, tags, voted_count)))
+    let sources = sqlx::query_as(
+        "SELECT s.speaker_label AS speaker, s.quote, d.title AS document_title, d.held_on, d.url
+         FROM topic_sources s JOIN documents d ON d.id = s.document_id
+         WHERE s.topic_id = $1 ORDER BY s.position",
+    )
+    .bind(&row.id)
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(TopicDetail {
+        topic: into_topic(row, tags, voted_count),
+        sources,
+    }))
 }

@@ -6,7 +6,7 @@ use backend::llm::Llm;
 use backend::llm::client::AnthropicClient;
 use backend::moderation::{self, Moderation};
 use backend::tagging::{self, Tagger};
-use backend::{AppState, analysis, app, config::Config, db, eval, seed};
+use backend::{AppState, analysis, app, config::Config, db, drafts, eval, minutes, seed};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -59,12 +59,21 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // `cargo run -- topics drafts | show <id> | publish <id> | archive <id>`: 下書きの確認と公開
+    if args.first().map(String::as_str) == Some("topics") {
+        topics_command(&pool, &args[1..]).await?;
+        return Ok(());
+    }
+
     // API キーがあれば AI でモデレーションする（無ければ全件承認）
     let llm = match &config.anthropic_api_key {
-        Some(key) => Some(Llm::anthropic(
-            AnthropicClient::new(key.clone())?,
-            config.llm_daily_budget_usd,
-        )),
+        Some(key) => Some(
+            Llm::anthropic(
+                AnthropicClient::new(key.clone())?,
+                config.llm_daily_budget_usd,
+            )
+            .with_extraction_budget(config.llm_extraction_daily_budget_usd),
+        ),
         None => None,
     };
     let moderation = match &llm {
@@ -101,6 +110,12 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         return Ok(());
+    }
+
+    // `cargo run -- import minutes --municipality <slug> --file <path> --title <会議名>
+    //   --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again] [--force]`: 会議録からトピック案を作る
+    if args.first().map(String::as_str) == Some("import") {
+        return import_command(&pool, &config, llm.as_ref(), &moderation, &args[1..]).await;
     }
 
     // `cargo run -- eval moderation|tagging [--model <id>] [--limit <n>] [--file <path>]`:
@@ -228,6 +243,236 @@ async fn moderation_command(
             println!("{n} 件を判定しました");
         }
         _ => anyhow::bail!("使い方: moderation [list | approve <id> | reject <id> | retry]"),
+    }
+    Ok(())
+}
+
+async fn import_command(
+    pool: &sqlx::SqlitePool,
+    config: &Config,
+    llm: Option<&Llm>,
+    moderation: &Moderation,
+    args: &[String],
+) -> anyhow::Result<()> {
+    let option = |name: &str| {
+        args.iter()
+            .position(|a| a == name)
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+    };
+    let usage = "使い方: import minutes --municipality <slug> --file <path> --title <会議名> --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again] [--force]";
+    if args.first().map(String::as_str) != Some("minutes") {
+        anyhow::bail!(usage);
+    }
+    let (Some(slug), Some(file), Some(title), Some(held_on)) = (
+        option("--municipality"),
+        option("--file"),
+        option("--title"),
+        option("--held-on"),
+    ) else {
+        anyhow::bail!(usage);
+    };
+    let municipality_id: String =
+        sqlx::query_scalar("SELECT id FROM municipalities WHERE slug = $1")
+            .bind(&slug)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("自治体が見つかりません: {slug}"))?;
+    let input = minutes::Input {
+        municipality_id,
+        title,
+        held_on,
+        url: option("--url"),
+        text: std::fs::read_to_string(&file)?,
+    };
+
+    if args.iter().any(|a| a == "--dry-run") {
+        let p = minutes::prepare(pool, &input).await?;
+        println!(
+            "発言 {} 件（{} 文字）",
+            p.utterances.len(),
+            input.text.chars().count()
+        );
+        println!(
+            "議事日程: {}",
+            if p.topical {
+                "トピックを作る議事あり"
+            } else {
+                "形式的な議事だけ（取り込まない。取り込むときは --force）"
+            }
+        );
+        for item in &p.agenda {
+            println!("  {item}");
+        }
+        let mut speakers: Vec<(String, usize)> = Vec::new();
+        for u in &p.utterances {
+            let label = u.speaker_label();
+            match speakers.iter_mut().find(|(l, _)| *l == label) {
+                Some((_, n)) => *n += 1,
+                None => speakers.push((label, 1)),
+            }
+        }
+        for (label, n) in speakers {
+            println!("  {label}: {n} 件");
+        }
+        if p.unmatched.is_empty() {
+            println!("首長・議員はすべて名簿と対応付けられました");
+        } else {
+            println!("名簿に無い首長・議員（data/seeds/030_officials_*.sql に登録してください）:");
+            for name in &p.unmatched {
+                println!("  {name}");
+            }
+        }
+        if let Some(id) = p.existing_document {
+            println!("この会議録は取り込み済みです（document {id}）。作り直すときは --again");
+        }
+        return Ok(());
+    }
+
+    let Some(llm) = llm else {
+        anyhow::bail!(
+            "ANTHROPIC_API_KEY が設定されていないため、取り込めません（--dry-run は使えます）"
+        );
+    };
+    let again = args.iter().any(|a| a == "--again");
+    let force = args.iter().any(|a| a == "--force");
+    match minutes::import(
+        pool,
+        llm,
+        &config.extraction_model,
+        moderation,
+        &input,
+        again,
+        force,
+    )
+    .await?
+    {
+        minutes::Outcome::NotTopical(agenda) => {
+            println!(
+                "一般質問などトピックを作る議事が無いので、取り込みませんでした（取り込むときは --force）:"
+            );
+            for item in agenda {
+                println!("  {item}");
+            }
+        }
+        minutes::Outcome::NoUtterances => {
+            anyhow::bail!("発言が見つかりません。会議録の見出しの形を確かめてください（--dry-run）")
+        }
+        minutes::Outcome::Unmatched(names) => {
+            println!("名簿に無い首長・議員がいるので止めました。登録してからやり直してください:");
+            for name in names {
+                println!("  {name}");
+            }
+        }
+        minutes::Outcome::Duplicate(id) => {
+            println!("この会議録は取り込み済みです（document {id}）。作り直すときは --again");
+        }
+        minutes::Outcome::Imported(report) => {
+            println!(
+                "発言 {} 件から、下書きを {} 件作りました",
+                report.utterances,
+                report.topics.len()
+            );
+            for (id, title) in &report.topics {
+                println!("  {id}  {title}");
+            }
+            if !report.notes.is_empty() {
+                println!("捨てたもの:");
+                for note in &report.notes {
+                    println!("  {note}");
+                }
+            }
+            println!("確認: cargo run -- topics show <id> → topics publish <id>");
+        }
+    }
+    Ok(())
+}
+
+async fn topics_command(pool: &sqlx::SqlitePool, args: &[String]) -> anyhow::Result<()> {
+    match (args.first().map(String::as_str), args.get(1)) {
+        (Some("drafts") | None, _) => {
+            let items = drafts::list(pool).await?;
+            if items.is_empty() {
+                println!("下書きのトピックはありません");
+            }
+            for d in items {
+                println!(
+                    "{}  {}  [{}]  {}",
+                    d.id, d.created_at, d.municipality_id, d.title
+                );
+            }
+        }
+        (Some("show"), Some(id)) => match drafts::show(pool, id).await? {
+            Some(detail) => print!("{}", detail.render()),
+            None => anyhow::bail!("トピックが見つかりません: {id}"),
+        },
+        (Some(cmd @ ("publish" | "archive")), Some(id)) => {
+            let status = if cmd == "publish" {
+                "published"
+            } else {
+                "archived"
+            };
+            if drafts::set_status(pool, id, status).await? {
+                println!("{id}: {status}");
+            } else {
+                anyhow::bail!("トピックが見つかりません: {id}");
+            }
+        }
+        // topics edit <id> [--title <タイトル>] [--description <説明>]
+        (Some("edit"), Some(id)) => {
+            let option = |name: &str| {
+                args.iter()
+                    .position(|a| a == name)
+                    .and_then(|i| args.get(i + 1))
+                    .map(String::as_str)
+            };
+            let (title, description) = (option("--title"), option("--description"));
+            if title.is_none() && description.is_none() {
+                anyhow::bail!(
+                    "使い方: topics edit <id> [--title <タイトル>] [--description <説明>]"
+                );
+            }
+            drafts::edit_topic(pool, id, title, description).await?;
+            println!("{id}: 直しました");
+        }
+        // topics statement add <topic_id> <本文> | edit <意見の ID> <本文> | remove <意見の ID>
+        (Some("statement"), Some(cmd)) => match (cmd.as_str(), args.get(2), args.get(3)) {
+            ("add", Some(topic_id), Some(body)) => {
+                let sid = drafts::add_statement(pool, topic_id, body).await?;
+                println!("{sid}: 足しました");
+            }
+            ("edit", Some(sid), Some(body)) => {
+                drafts::edit_statement(pool, sid, body).await?;
+                println!("{sid}: 直しました");
+            }
+            ("remove", Some(sid), None) => {
+                if !moderation::decide(pool, sid, false).await? {
+                    anyhow::bail!("意見が見つかりません: {sid}");
+                }
+                println!("{sid}: 取り下げました");
+            }
+            _ => anyhow::bail!(
+                "使い方: topics statement add <topic_id> <本文> | edit <意見の ID> <本文> | remove <意見の ID>"
+            ),
+        },
+        // topics tag add|remove <topic_id> <tag_id>
+        (Some("tag"), Some(cmd)) if cmd == "add" || cmd == "remove" => {
+            let (Some(topic_id), Some(tag_id)) = (args.get(2), args.get(3)) else {
+                anyhow::bail!("使い方: topics tag add|remove <topic_id> <tag_id>");
+            };
+            drafts::set_tag(pool, topic_id, tag_id, cmd == "add").await?;
+            println!(
+                "{topic_id}: {tag_id} を{}",
+                if cmd == "add" {
+                    "付けました"
+                } else {
+                    "外しました"
+                }
+            );
+        }
+        _ => anyhow::bail!(
+            "使い方: topics [drafts | show <id> | publish <id> | archive <id> | edit <id> ... | statement ... | tag ...]"
+        ),
     }
     Ok(())
 }

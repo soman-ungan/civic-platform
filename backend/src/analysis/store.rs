@@ -191,11 +191,12 @@ pub async fn run_topic(
     Ok(RunOutcome::Computed)
 }
 
-/// 全トピックの分析を更新する。戻り値は計算したトピックの数
+/// 公開済みの全トピックの分析を更新する。戻り値は計算したトピックの数
 pub async fn run_all(pool: &SqlitePool, force: bool) -> anyhow::Result<usize> {
-    let topic_ids: Vec<String> = sqlx::query_scalar("SELECT id FROM topics ORDER BY id")
-        .fetch_all(pool)
-        .await?;
+    let topic_ids: Vec<String> =
+        sqlx::query_scalar("SELECT id FROM topics WHERE status = 'published' ORDER BY id")
+            .fetch_all(pool)
+            .await?;
     let mut computed = 0;
     for topic_id in topic_ids {
         match run_topic(pool, &topic_id, force).await {

@@ -83,16 +83,23 @@ export function StatementForm({
       )}
 
       {!open ? (
-        <button
-          type="button"
-          onClick={() => {
-            setOpen(true);
-            setMessage(null);
-          }}
-          className="h-12 w-full rounded-full border border-dashed border-zinc-400 text-sm text-zinc-700 dark:border-zinc-600 dark:text-zinc-300"
-        >
-          ＋ 自分の意見を追加
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(true);
+              setMessage(null);
+            }}
+            className="h-12 w-full rounded-full border border-dashed border-zinc-400 text-sm text-zinc-700 dark:border-zinc-600 dark:text-zinc-300"
+          >
+            ＋ 自分の意見を追加
+          </button>
+          {/* 最初の意見は議会での主張だけなので、ほかの視点を足してもらうよう呼びかける */}
+          <p className="mt-2 text-center text-xs leading-5 text-zinc-500">
+            まだ出ていない視点や、別の案はありませんか？
+            新しい意見は、ほかの参加者にも優先して表示されます。
+          </p>
+        </>
       ) : (
         <form
           onSubmit={submit}

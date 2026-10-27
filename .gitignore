@@ -3,6 +3,9 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 
+# 手でコピーした会議録など、リポジトリに入れない資料（docs/plans/2026-10-27-phase5a-minutes.md）
+data/private/
+
 # 環境変数
 .env
 .env.*

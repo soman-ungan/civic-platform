@@ -594,11 +594,12 @@ pub async fn municipality_consensus(
         return Ok(Json(Vec::new()));
     };
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
-    let topics: Vec<(String, String)> =
-        sqlx::query_as("SELECT id, title FROM topics WHERE municipality_id = $1")
-            .bind(&municipality.id)
-            .fetch_all(&state.pool)
-            .await?;
+    let topics: Vec<(String, String)> = sqlx::query_as(
+        "SELECT id, title FROM topics WHERE municipality_id = $1 AND status = 'published'",
+    )
+    .bind(&municipality.id)
+    .fetch_all(&state.pool)
+    .await?;
 
     let mut out = Vec::new();
     for (topic_id, title) in topics {

@@ -223,7 +223,8 @@ pub async fn vote(
     let found: Option<String> = sqlx::query_scalar(
         "SELECT s.id FROM statements s
          JOIN topics t ON t.id = s.topic_id
-         WHERE s.id = $1 AND s.topic_id = $2 AND t.municipality_id = $3 AND s.status = 'approved'",
+         WHERE s.id = $1 AND s.topic_id = $2 AND t.municipality_id = $3 AND s.status = 'approved'
+           AND t.status = 'published'",
     )
     .bind(&statement_id)
     .bind(&topic_id)

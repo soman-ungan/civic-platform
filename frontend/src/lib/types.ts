@@ -43,6 +43,18 @@ export type Topic = {
 
 export type Participation = "none" | "in_progress" | "completed";
 
+/** 議会のトピックの出典（会議録の発言からの引用） */
+export type TopicSource = {
+  /** 公人は氏名つき（「〇〇議員」）、職員は職名だけ */
+  speaker: string;
+  quote: string;
+  document_title: string;
+  held_on: string | null;
+  url: string | null;
+};
+
+export type TopicDetail = Topic & { sources: TopicSource[] };
+
 export type TopicList = {
   topics: Topic[];
   tags: Tag[];
