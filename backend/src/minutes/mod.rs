@@ -223,23 +223,28 @@ pub async fn import(
     };
     let value = llm.structured(pool, &request).await?;
     let raw: extract::RawOutput = serde_json::from_value(value)?;
-    let (checked, mut notes) = extract::check(raw, &prepared.utterances, &prepared.names);
+    // 引用と意見の根拠は、AI に送った発言の中から選ばれていること
+    let (checked, mut notes) = extract::check(raw, &speeches, &prepared.names);
 
     // 最初の意見もモデレーションに通す。承認されたものと、判定できなかったもの（pending。
     // 通常の投稿と同じく、あとで判定し直す）を残し、非公開・要確認になったものは捨てる
-    let mut topics: Vec<(extract::CheckedTopic, Vec<(String, &'static str)>)> = Vec::new();
-    for topic in checked {
+    let mut topics: Vec<(
+        extract::CheckedTopic,
+        Vec<(&extract::CheckedStatement, &'static str)>,
+    )> = Vec::new();
+    for topic in &checked {
         let mut kept = Vec::new();
-        for body in &topic.statements {
-            let review = moderation.review(pool, body).await;
+        for statement in &topic.statements {
+            let review = moderation.review(pool, &statement.body).await;
             match review.verdict {
                 Verdict::Approved | Verdict::Pending => {
-                    kept.push((body.clone(), review.verdict.status()));
+                    kept.push((statement, review.verdict.status()));
                 }
                 _ => notes.push(format!(
-                    "{}: モデレーションで {} になった意見を捨てた:「{body}」",
+                    "{}: モデレーションで {} になった意見を捨てた:「{}」",
                     topic.title,
-                    review.verdict.status()
+                    review.verdict.status(),
+                    statement.body
                 )),
             }
         }
@@ -257,7 +262,7 @@ pub async fn import(
                 topic.title
             ));
         }
-        topics.push((topic, kept));
+        topics.push((topic.clone(), kept));
     }
 
     // 保存（トピックは下書き）
@@ -300,18 +305,32 @@ pub async fn import(
         .bind(&now)
         .execute(&mut *tx)
         .await?;
-        for (body, status) in statements {
+        for (statement, status) in statements {
+            let statement_id = new_id();
             sqlx::query(
                 "INSERT INTO statements (id, topic_id, user_id, body, status, created_at)
                  VALUES ($1, $2, NULL, $3, $4, $5)",
             )
-            .bind(new_id())
+            .bind(&statement_id)
             .bind(&topic_id)
-            .bind(body)
+            .bind(&statement.body)
             .bind(status)
             .bind(&now)
             .execute(&mut *tx)
             .await?;
+            // 根拠の発言（運営者の確認用。API では返さない）
+            for no in &statement.basis {
+                sqlx::query(
+                    "INSERT INTO statement_sources (statement_id, document_id, utterance_no, speaker_label)
+                     VALUES ($1, $2, $3, $4)",
+                )
+                .bind(&statement_id)
+                .bind(&document_id)
+                .bind(*no as i64)
+                .bind(by_no[no].speaker_label())
+                .execute(&mut *tx)
+                .await?;
+            }
         }
         for (position, source) in topic.sources.iter().enumerate() {
             let u = by_no[&source.utterance_no];

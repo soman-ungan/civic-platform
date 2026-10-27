@@ -82,6 +82,7 @@ async fn all_tables_exist() {
             "municipality_stats",
             "prefectures",
             "public_officials",
+            "statement_sources",
             "statements",
             "tags",
             "topic_analyses",

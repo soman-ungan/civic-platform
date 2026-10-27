@@ -5,6 +5,8 @@
 //!
 //! - 引用は、指定した発言の本文にそのまま含まれるものだけ（作られた引用を捨てる）
 //! - タイトル・説明・意見に氏名が入ったものは捨てる（意見は中身で判断してもらうため）
+//! - 最初の意見は、議会で実際に出た主張を出発点にする。根拠の発言が無い意見は捨てる
+//!   （AI に新しい選択肢を作らせると、議論の枠を AI が決めてしまうため。2026-10-27 ユーザーと決定）
 //! - 意見は140文字以内。少なすぎるトピックは捨てる
 
 use serde::Deserialize;
@@ -14,8 +16,8 @@ use super::parse::Utterance;
 
 /// 1つの会議録から作るトピックの最大数
 pub const MAX_TOPICS: usize = 5;
-/// 1つのトピックの最初の意見の最大数
-pub const MAX_STATEMENTS: usize = 8;
+/// 1つのトピックの最初の意見の最大数（市民が足す余地を残すため少なめにする）
+pub const MAX_STATEMENTS: usize = 5;
 /// これより意見が少ないトピックは捨てる
 pub const MIN_STATEMENTS: usize = 3;
 /// 引用の最大文字数（topic_sources.quote と同じ）
@@ -40,9 +42,12 @@ pub const SYSTEM_PROMPT: &str = "\
   - **人の名前を書かない。**「議員から〜という質問があり、市は〜と答えた」のように役割で書く
   - 一方の立場に寄せない。会議録に無い事実を付け足さない
 - sources: そのトピックの根拠になる発言を1〜4件。utterance_no は発言の番号、quote はその発言の本文から**そのまま抜き出した**連続した文字列（1〜2文、200字以内）。要約や言い換えをしない
-- statements: 市民が賛成・反対を投票する意見を4〜8件
-  - 1件140字以内、一人称の意見の文で、1つの主張だけを書く
-  - 賛成・反対・条件付き・別の案など、異なる立場をバランスよく含める
+- statements: 市民が賛成・反対を投票する「最初の意見」を3〜5件
+  - **議会で実際に出た主張だけを出発点にする。** 議員の提案・要望・懸念、市の方針・考え方など、会議録にある主張を、市民が投票できる一人称の意見の文に言い直す
+  - **会議録に無い選択肢や新しい案を作らない。** まだ出ていない視点は、参加する市民が足していく
+  - 議会で出た異なる立場（例: 議員の提案と市の考え）は、それぞれ含める
+  - basis: その意見の根拠になる発言の番号（1件以上）
+  - 1件140字以内、1つの主張だけを書く
   - **人の名前・政党名を入れない。** 誰の意見かではなく、中身で判断してもらうため
   - 他の意見への返信や質問の形にしない
 
@@ -73,7 +78,18 @@ pub fn schema() -> Value {
                                 "additionalProperties": false
                             }
                         },
-                        "statements": {"type": "array", "items": {"type": "string"}}
+                        "statements": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "body": {"type": "string"},
+                                    "basis": {"type": "array", "items": {"type": "integer"}}
+                                },
+                                "required": ["body", "basis"],
+                                "additionalProperties": false
+                            }
+                        }
                     },
                     "required": ["title", "description", "sources", "statements"],
                     "additionalProperties": false
@@ -102,11 +118,18 @@ pub struct RawSource {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct RawStatement {
+    pub body: String,
+    /// 根拠の発言の番号
+    pub basis: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct RawTopic {
     pub title: String,
     pub description: String,
     pub sources: Vec<RawSource>,
-    pub statements: Vec<String>,
+    pub statements: Vec<RawStatement>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -121,13 +144,21 @@ pub struct CheckedSource {
     pub quote: String,
 }
 
+/// 確かめたあとの最初の意見
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStatement {
+    pub body: String,
+    /// 根拠の発言の番号（会議録に実在するもの）
+    pub basis: Vec<usize>,
+}
+
 /// 確かめたあとのトピック案（意見はまだモデレーションを通していない）
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedTopic {
     pub title: String,
     pub description: String,
     pub sources: Vec<CheckedSource>,
-    pub statements: Vec<String>,
+    pub statements: Vec<CheckedStatement>,
 }
 
 /// 空白（改行・全角を含む）を除いた形。会議録の改行の位置の違いで引用が外れないように比べる
@@ -206,16 +237,25 @@ pub fn check(
             continue;
         }
 
-        let mut statements: Vec<String> = Vec::new();
-        for body in topic.statements {
-            let body = body.trim().to_owned();
+        let mut statements: Vec<CheckedStatement> = Vec::new();
+        for raw in topic.statements {
+            let body = raw.body.trim().to_owned();
             let chars = body.chars().count();
+            let mut basis: Vec<usize> = raw
+                .basis
+                .iter()
+                .filter_map(|n| usize::try_from(*n).ok())
+                .filter(|n| utterances.iter().any(|u| u.no == *n))
+                .collect();
+            basis.dedup();
             if chars == 0 || chars > MAX_STATEMENT_CHARS {
                 notes.push(format!("{title}: 長さが範囲外の意見を捨てた"));
             } else if let Some(name) = contains_name(&body, names) {
                 notes.push(format!("{title}: 氏名（{name}）を含む意見を捨てた"));
-            } else if !statements.contains(&body) {
-                statements.push(body);
+            } else if basis.is_empty() {
+                notes.push(format!("{title}: 根拠の発言が無い意見を捨てた:「{body}」"));
+            } else if !statements.iter().any(|s| s.body == body) {
+                statements.push(CheckedStatement { body, basis });
             }
         }
         statements.truncate(MAX_STATEMENTS);
@@ -269,8 +309,18 @@ mod tests {
                 utterance_no: 1,
                 quote: quote.into(),
             }],
-            statements: statements.iter().map(|s| s.to_string()).collect(),
+            statements: statements
+                .iter()
+                .map(|s| RawStatement {
+                    body: s.to_string(),
+                    basis: vec![1],
+                })
+                .collect(),
         }
+    }
+
+    fn bodies(t: &CheckedTopic) -> Vec<&str> {
+        t.statements.iter().map(|s| s.body.as_str()).collect()
     }
 
     const OK: [&str; 3] = [
@@ -316,7 +366,7 @@ mod tests {
             &utterances(),
             &names(),
         );
-        assert_eq!(kept[0].statements, OK);
+        assert_eq!(bodies(&kept[0]), OK);
 
         let (kept, notes) = check(
             RawOutput {
@@ -327,6 +377,31 @@ mod tests {
         );
         assert!(kept.is_empty());
         assert!(notes[0].contains("氏名"));
+    }
+
+    #[test]
+    fn drops_statements_without_existing_basis() {
+        let mut t = topic("説明", "対策を伺います。", &OK);
+        t.statements[0].basis = vec![];
+        t.statements[1].basis = vec![99];
+        t.statements.push(RawStatement {
+            body: "根拠のある4件目".into(),
+            basis: vec![99, 2],
+        });
+        let (kept, notes) = check(RawOutput { topics: vec![t] }, &utterances(), &names());
+        assert!(kept.is_empty(), "残るのは2件なので捨てる");
+        assert_eq!(
+            notes
+                .iter()
+                .filter(|n| n.contains("根拠の発言が無い"))
+                .count(),
+            2
+        );
+
+        let mut t = topic("説明", "対策を伺います。", &OK);
+        t.statements[2].basis = vec![2, 99];
+        let (kept, _) = check(RawOutput { topics: vec![t] }, &utterances(), &names());
+        assert_eq!(kept[0].statements[2].basis, [2]);
     }
 
     #[test]

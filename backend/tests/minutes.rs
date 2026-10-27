@@ -71,17 +71,22 @@ fn extraction_reply() -> Value {
                 {"utterance_no": 3, "quote": "定員を100人増やします。"}
             ],
             "statements": [
-                "市の施設の定員を増やすべきだ",
-                "民間の学童への補助を増やすべきだ",
-                "利用料を上げてでも職員を増やすべきだ",
-                "鈴木花子議員の提案に賛成だ"
+                {"body": "市の施設の定員を増やすべきだ", "basis": [3]},
+                {"body": "民間の学童への補助を増やすべきだ", "basis": [4]},
+                {"body": "待機児童の対策を急ぐべきだ", "basis": [2, 3]},
+                {"body": "鈴木花子議員の提案に賛成だ", "basis": [2]},
+                {"body": "会議録に根拠の無い新しい案", "basis": []}
             ]
         },
         {
             "title": "引用が作られたトピック",
             "description": "説明",
             "sources": [{"utterance_no": 2, "quote": "会議録に無い文"}],
-            "statements": ["a", "b", "c"]
+            "statements": [
+                {"body": "a", "basis": [2]},
+                {"body": "b", "basis": [2]},
+                {"body": "c", "basis": [2]}
+            ]
         }
     ]})
 }
@@ -156,6 +161,7 @@ async fn imports_checked_topics_as_drafts() {
     assert!(report.topics.is_empty(), "{:?}", report.notes);
     assert!(report.notes.iter().any(|n| n.contains("無い引用")));
     assert!(report.notes.iter().any(|n| n.contains("氏名")));
+    assert!(report.notes.iter().any(|n| n.contains("根拠の発言が無い")));
 
     // AI に送った会議録には職員の氏名が無い
     let sent = fake.requests()[0].to_string();
@@ -210,6 +216,25 @@ async fn saved_draft_has_sources_and_statements() {
             .await
             .unwrap();
     assert_eq!(statements.len(), 3);
+    // 意見の根拠の発言（運営者の確認用）
+    let basis: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT ss.utterance_no, ss.speaker_label FROM statement_sources ss
+         JOIN statements s ON s.id = ss.statement_id
+         WHERE s.topic_id = $1 ORDER BY ss.utterance_no",
+    )
+    .bind(topic_id)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        basis,
+        [
+            (2, "鈴木花子議員".to_string()),
+            (3, "山田一郎市長".to_string()),
+            (3, "山田一郎市長".to_string()),
+            (4, "保健福祉部長".to_string()),
+        ]
+    );
     assert!(
         statements
             .iter()
@@ -333,6 +358,7 @@ async fn published_topic_shows_sources() {
     assert_eq!(sources[0]["held_on"], "2025-09-05");
     assert_eq!(res.json["source_type"], "assembly");
     common::assert_no_key(&res.json, "official_id");
+    common::assert_no_key(&res.json, "basis");
     assert!(!res.json.to_string().contains("佐藤"));
 }
 

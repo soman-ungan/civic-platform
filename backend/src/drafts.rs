@@ -44,6 +44,8 @@ pub struct DraftDetail {
     pub sources: Vec<SourceLine>,
     /// (意見の ID, 本文, 状態)
     pub statements: Vec<(String, String, String)>,
+    /// 意見の ID → 根拠の発言（「発言12 〇〇議員」）。会議録から作った意見だけ
+    pub basis: std::collections::HashMap<String, Vec<String>>,
     /// (タグの ID, 名前, 付けたのは ai / admin)
     pub tags: Vec<(String, String, String)>,
 }
@@ -72,6 +74,21 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
     .bind(topic_id)
     .fetch_all(pool)
     .await?;
+    let basis_rows: Vec<(String, i64, String)> = sqlx::query_as(
+        "SELECT ss.statement_id, ss.utterance_no, ss.speaker_label FROM statement_sources ss
+         JOIN statements s ON s.id = ss.statement_id
+         WHERE s.topic_id = $1 ORDER BY ss.utterance_no",
+    )
+    .bind(topic_id)
+    .fetch_all(pool)
+    .await?;
+    let mut basis: std::collections::HashMap<String, Vec<String>> = Default::default();
+    for (sid, no, speaker) in basis_rows {
+        basis
+            .entry(sid)
+            .or_default()
+            .push(format!("発言{no} {speaker}"));
+    }
     let tags = sqlx::query_as(
         "SELECT g.id, g.name, tt.assigned_by FROM topic_tags tt JOIN tags g ON g.id = tt.tag_id
          WHERE tt.topic_id = $1 ORDER BY g.kind, g.name",
@@ -86,6 +103,7 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
         description,
         sources,
         statements,
+        basis,
         tags,
     }))
 }
@@ -119,6 +137,9 @@ impl DraftDetail {
                 format!("[{status}] ")
             };
             out.push_str(&format!("- {mark}{body}\n  {id}\n"));
+            if let Some(basis) = self.basis.get(id) {
+                out.push_str(&format!("  根拠: {}\n", basis.join("、")));
+            }
         }
         out.push_str("\n## タグ\n");
         if self.tags.is_empty() {
