@@ -47,6 +47,15 @@ civic-platform/
 - 公表は5人未満の区分を隠し、隠した合計が1〜4人なら次に少ない区分も隠す（二次秘匿。`backend/src/routes/analysis.rs` の `suppress`）。
 - 属性や区分で集計する機能を検討するときは、プライバシーに加えて「分断を生まないか」を必ず検討する。
 
+## AI（LLM）の原則（`docs/adr/0003-llm-operations.md`）
+- Claude API は `backend/src/llm/` から reqwest で直接呼ぶ（Rust に公式 SDK が無いため）。応答は構造化出力で受け取る。
+- **API キーが無くても動くこと**（モデレーションは全件承認、タグ付けはしない）。テストは偽の LLM（`Llm::fake`）で行い、実際の API は呼ばない。実際の API を呼ぶ評価（`eval`）は費用がかかるので、実行の前にユーザーの了承を得る。
+- モデレーションは主張や政治的な立場では判断しない。公人の公務への批判は公開、人格攻撃・私生活は非公開。
+- **判定できないとき（通信の失敗・費用の上限）は pending のまま残し、自動承認しない。** refusal は flagged（人が確認）。
+- AI に送るのは本文（タグ付けはトピックのタイトルと説明）だけ。参加者 ID・関わり方・トピック ID は送らない。
+- 首長・議員などの人物はタグにしない。議員ごとの記録はフェーズ5で、会議録の発言者の記載から機械的に対応付ける（LLM に推測させない）。投票の対象の意見の文には議員名を入れない。
+- 行政資料の収集は「エージェント」にせず、設定に従う決まった手順のコードにする。原本は保持しない（`docs/design/collection.md`）。
+
 ## 技術方針
 - DB: 開発は SQLite、将来 PostgreSQL へ移行。
   - SQL は両方で動く書き方を優先（SQLite 固有関数を避ける）。
@@ -92,6 +101,11 @@ civic-platform/
     - 投票データ `110_sample_votes_092100_otawara.sql` は `python3 scripts/generate_sample_votes.py > data/dev-seeds/110_sample_votes_092100_otawara.sql` で生成する（手で編集しない。シード固定で毎回同じ出力）
     - サンプルで分析が出ることは `cargo test --test seeds` で確かめている
   - `cargo run -- analyze [--topic <id>] [--force]` — 分析を今すぐ再計算する（通常は `ANALYSIS_INTERVAL_SECS`（既定 10 秒）ごとにバックグラウンドで、投票が変わったトピックだけ再計算される）
+  - AI（`ANTHROPIC_API_KEY` があるときだけ。モデルは `MODERATION_MODEL` / `TAGGING_MODEL`、1日の費用の上限は `LLM_DAILY_BUDGET_USD`。使用量と推定費用は `llm_usage`）
+    - `cargo run -- moderation list | approve <id> | reject <id> | retry` — 確認待ち（flagged / pending）の意見を扱う（認証のフェーズ6までは CLI）
+    - `cargo run -- tag [--topic <id>] [--force]` — 自動タグ付け（通常は60秒ごとにバックグラウンドで、タグの無いトピックを処理）。`--force` は AI のタグだけを付け直す
+    - `cargo run -- eval moderation|tagging [--model <id>] [--limit <n>]` — `evals/*.jsonl` で評価する。**実際の API を呼ぶので費用がかかる**
+    - 分野タグの共通語彙は `data/seeds/020_field_tags.sql`
   - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト（`data/seeds/` の適用テストも含む）
   - `sqlx migrate add <name>` / `sqlx migrate run` / `sqlx migrate info`
   - `migrations/` の変更は `build.rs` により自動で再ビルドされる
@@ -107,7 +121,7 @@ civic-platform/
     - **そのトピックのすべての承認済み意見に投票するまでは `locked`（残り件数）を返す**。全体の傾向に投票が左右されないようにするため。意見が増えれば再びロックされる
   - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。投票を終えたトピックの分だけを返す（Cookie が無ければ空）
   - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`
-  - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）
+  - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）。判定の結果 `status`（approved / rejected / flagged / pending）と、rejected のときは言い換えの提案 `suggestion` を返す
   - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別（認証はフェーズ6）。CI は `.github/workflows/ci.yml`
 - 自治体の追加: `data/seeds/010_municipality_<団体コード>_<slug>.sql` を1ファイル追加し、`cargo run -- seed`
   - 書式は `010_municipality_092100_otawara.sql` に倣う。全 INSERT に `ON CONFLICT DO NOTHING` を付ける

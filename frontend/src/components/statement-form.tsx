@@ -104,6 +104,9 @@ export function StatementForm({
           <p className="mt-1 text-xs text-zinc-500">
             他の人の意見への返信ではなく、みんなが賛成・反対できる1つの意見として書いてください。
           </p>
+          <p className="mt-1 text-xs text-zinc-500">
+            投稿は公開前に AI（Anthropic の Claude）で確認します。送るのは本文だけで、あなたを識別する情報は送りません。
+          </p>
           <textarea
             id="statement-body"
             value={text}
@@ -130,7 +133,7 @@ export function StatementForm({
                 disabled={count === 0 || tooLong || sending}
                 className="h-11 rounded-full bg-zinc-900 px-5 text-sm font-medium text-white disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
               >
-                {sending ? "送信中…" : "投稿する"}
+                {sending ? "確認中…" : "投稿する"}
               </button>
             </div>
           </div>

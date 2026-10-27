@@ -12,7 +12,7 @@ use sqlx::SqlitePool;
 use crate::AppState;
 use crate::analysis::store::{self, Stored};
 use crate::error::{ApiError, ApiJson};
-use crate::moderation::Verdict;
+use crate::moderation::{self, Verdict};
 use crate::participant::{MaybeParticipant, Participant};
 use crate::routes::{municipalities, topics};
 use crate::util::{new_id, now_iso};
@@ -328,12 +328,9 @@ pub async fn post_statement(
     .execute(&state.pool)
     .await?;
 
-    let verdict = state.moderation.review(body).await;
-    sqlx::query("UPDATE statements SET status = $1 WHERE id = $2")
-        .bind(verdict.status())
-        .bind(&id)
-        .execute(&state.pool)
-        .await?;
+    let review = state.moderation.review(&state.pool, body).await;
+    moderation::save(&state.pool, &id, &review).await?;
+    let verdict = review.verdict;
 
     let suggestion = match &verdict {
         Verdict::Rejected { suggestion } => suggestion.clone(),

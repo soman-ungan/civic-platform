@@ -1,14 +1,9 @@
 -- SPDX-License-Identifier: AGPL-3.0-only
 -- 開発・動作確認用のサンプルデータ（本番には投入しない。`backend seed --dev` でのみ適用）
 -- 内容はすべて架空。実際の議案・発言ではない。タイトルには必ず【サンプル】を付ける。
--- 前提: data/seeds/ の大田原市（092100）と地区が登録済みであること。
+-- 前提: data/seeds/ の大田原市（092100）と地区、分野タグの語彙が登録済みであること。
 
--- 分野タグ（全自治体共通の語彙）
-INSERT INTO tags (id, kind, name) VALUES
-    ('field-kosodate', 'field', '子育て'),
-    ('field-koutsu',   'field', '交通'),
-    ('field-bousai',   'field', '防災')
-ON CONFLICT DO NOTHING;
+-- 分野タグは data/seeds/020_field_tags.sql（全自治体共通の語彙）にある
 
 -- 地区タグ（districts に紐づく）
 INSERT INTO tags (id, kind, name, district_id) VALUES

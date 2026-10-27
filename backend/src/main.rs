@@ -2,7 +2,11 @@
 
 use std::path::Path;
 
-use backend::{AppState, analysis, app, config::Config, db, seed};
+use backend::llm::Llm;
+use backend::llm::client::AnthropicClient;
+use backend::moderation::{self, Moderation};
+use backend::tagging::{self, Tagger};
+use backend::{AppState, analysis, app, config::Config, db, eval, seed};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -55,6 +59,105 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // API キーがあれば AI でモデレーションする（無ければ全件承認）
+    let llm = match &config.anthropic_api_key {
+        Some(key) => Some(Llm::anthropic(
+            AnthropicClient::new(key.clone())?,
+            config.llm_daily_budget_usd,
+        )),
+        None => None,
+    };
+    let moderation = match &llm {
+        Some(llm) => Moderation::Llm {
+            llm: llm.clone(),
+            model: config.moderation_model.clone(),
+        },
+        None => Moderation::AutoApprove,
+    };
+
+    let tagger = llm.as_ref().map(|llm| Tagger {
+        llm: llm.clone(),
+        model: config.tagging_model.clone(),
+    });
+
+    // `cargo run -- tag [--topic <id>] [--force]`: トピックに自動でタグを付けて終了する
+    if args.first().map(String::as_str) == Some("tag") {
+        let Some(tagger) = &tagger else {
+            anyhow::bail!("ANTHROPIC_API_KEY が設定されていないため、タグ付けできません");
+        };
+        let force = args.iter().any(|a| a == "--force");
+        let topic = args
+            .iter()
+            .position(|a| a == "--topic")
+            .and_then(|i| args.get(i + 1));
+        match topic {
+            Some(topic_id) => {
+                let outcome = tagging::tag_topic(&pool, tagger, topic_id, force).await?;
+                println!("{topic_id}: {outcome:?}");
+            }
+            None => {
+                let n = tagging::run_untagged(&pool, tagger).await?;
+                println!("{n} 件のトピックをタグ付けしました");
+            }
+        }
+        return Ok(());
+    }
+
+    // `cargo run -- eval moderation|tagging [--model <id>] [--limit <n>] [--file <path>]`:
+    // 評価データを実際の API で判定し、結果を出す（費用がかかる）
+    if args.first().map(String::as_str) == Some("eval") {
+        let Some(llm) = &llm else {
+            anyhow::bail!("ANTHROPIC_API_KEY が設定されていないため、評価できません");
+        };
+        let option = |name: &str| {
+            args.iter()
+                .position(|a| a == name)
+                .and_then(|i| args.get(i + 1))
+                .cloned()
+        };
+        let limit = option("--limit")
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(usize::MAX);
+        match args.get(1).map(String::as_str) {
+            Some("moderation") => {
+                let model = option("--model").unwrap_or(config.moderation_model.clone());
+                let file = option("--file").unwrap_or("../evals/moderation.jsonl".into());
+                let cases: Vec<eval::ModerationCase> = eval::load(Path::new(&file))?;
+                let cases = &cases[..cases.len().min(limit)];
+                println!("モデレーションの評価: {model}、{} 件", cases.len());
+                let moderation = Moderation::Llm {
+                    llm: llm.clone(),
+                    model,
+                };
+                let report = eval::run_moderation(&pool, &moderation, cases).await?;
+                print!("{}", report.render());
+            }
+            Some("tagging") => {
+                let model = option("--model").unwrap_or(config.tagging_model.clone());
+                let file = option("--file").unwrap_or("../evals/tagging.jsonl".into());
+                let cases: Vec<eval::TaggingCase> = eval::load(Path::new(&file))?;
+                let cases = &cases[..cases.len().min(limit)];
+                println!("タグ付けの評価: {model}、{} 件", cases.len());
+                let tagger = Tagger {
+                    llm: llm.clone(),
+                    model,
+                };
+                let report = eval::run_tagging(&pool, &tagger, cases).await?;
+                print!("{}", report.render());
+            }
+            _ => anyhow::bail!(
+                "使い方: eval moderation|tagging [--model <id>] [--limit <n>] [--file <path>]"
+            ),
+        }
+        return Ok(());
+    }
+
+    // `cargo run -- moderation list | approve <id> | reject <id> | retry`: 確認待ちの意見を扱う
+    if args.first().map(String::as_str) == Some("moderation") {
+        moderation_command(&pool, &moderation, &args[1..]).await?;
+        return Ok(());
+    }
+
     if config.analysis_interval_secs > 0 {
         analysis::store::spawn_worker(
             pool.clone(),
@@ -62,13 +165,70 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    let state = AppState::new(pool, &config.session_secret, config.cookie_secure)?;
+    match &moderation {
+        Moderation::Llm { model, .. } => {
+            tracing::info!(model, "AI moderation enabled");
+            moderation::spawn_retry_worker(
+                pool.clone(),
+                moderation.clone(),
+                std::time::Duration::from_secs(60),
+            );
+        }
+        Moderation::AutoApprove => {
+            tracing::info!("ANTHROPIC_API_KEY が無いので、投稿は自動で承認し、タグ付けはしません");
+        }
+    }
+    if let Some(tagger) = tagger {
+        tagging::spawn_worker(pool.clone(), tagger, std::time::Duration::from_secs(60));
+    }
+
+    let state = AppState::new(pool, &config.session_secret, config.cookie_secure)?
+        .with_moderation(moderation);
     let listener = TcpListener::bind(&config.bind_addr).await?;
     tracing::info!("listening on http://{}", listener.local_addr()?);
 
     axum::serve(listener, app(state))
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+    Ok(())
+}
+
+async fn moderation_command(
+    pool: &sqlx::SqlitePool,
+    moderation: &Moderation,
+    args: &[String],
+) -> anyhow::Result<()> {
+    match (args.first().map(String::as_str), args.get(1)) {
+        (Some("list") | None, _) => {
+            let items = moderation::queue(pool).await?;
+            if items.is_empty() {
+                println!("確認待ちの意見はありません");
+            }
+            for item in items {
+                println!(
+                    "{}  [{}]  {}  topic={}\n    {}\n    理由: {}",
+                    item.id,
+                    item.status,
+                    item.created_at,
+                    item.topic_id,
+                    item.body,
+                    item.moderation_note.as_deref().unwrap_or("-"),
+                );
+            }
+        }
+        (Some(cmd @ ("approve" | "reject")), Some(id)) => {
+            if moderation::decide(pool, id, cmd == "approve").await? {
+                println!("{id}: {cmd}");
+            } else {
+                anyhow::bail!("意見が見つかりません: {id}");
+            }
+        }
+        (Some("retry"), _) => {
+            let n = moderation::retry_pending(pool, moderation).await?;
+            println!("{n} 件を判定しました");
+        }
+        _ => anyhow::bail!("使い方: moderation [list | approve <id> | reject <id> | retry]"),
+    }
     Ok(())
 }
 

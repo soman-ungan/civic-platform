@@ -4,10 +4,13 @@ pub mod analysis;
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod eval;
+pub mod llm;
 pub mod moderation;
 pub mod participant;
 pub mod routes;
 pub mod seed;
+pub mod tagging;
 pub mod util;
 
 use axum::Router;
@@ -49,6 +52,14 @@ impl AppState {
             cookie_secure,
             moderation: Moderation::default(),
         })
+    }
+}
+
+impl AppState {
+    /// 投稿の判定方式を差し替える（API キーがあるときの LLM、テストの偽の LLM）
+    pub fn with_moderation(mut self, moderation: Moderation) -> Self {
+        self.moderation = moderation;
+        self
     }
 }
 
