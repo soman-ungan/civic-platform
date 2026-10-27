@@ -42,8 +42,6 @@ export function FinanceNature({ items }: { items: FinanceAmount[] }) {
             shareText: shareText(g.value / total),
             color: g.color,
           }))}
-        totalLabel="1人あたり"
-        totalText={roughYen(groups.reduce((a, g) => a + g.perCapita, 0))}
       />
       <ul className="flex flex-col">
         {groups.map((g) => (

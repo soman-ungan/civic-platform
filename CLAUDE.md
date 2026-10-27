@@ -128,6 +128,7 @@ civic-platform/
 - frontend（`cd frontend`）
   - `npm run dev` / `npm run lint` / `npm run typecheck` / `npm run build`
   - Next.js 16 系。書く前に `frontend/AGENTS.md` の指示どおり `node_modules/next/dist/docs/` を確認する
+  - `globals.css` を変えても開発サーバーが古い CSS を配り続けることがある（Turbopack のキャッシュ。WSL で確認）。そのときは `npm run dev` を止めて `.next/dev` を消してから起動し直す
 - API（すべて `/api` 配下。エラーは `{"error": {"code", "message"}}`）
   - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）
   - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}` — Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count` を返す（承認済みの意見だけで数える）

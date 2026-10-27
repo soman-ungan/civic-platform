@@ -49,7 +49,6 @@ export function FinanceBars({
   const colorOf = (i: number) =>
     `var(--series-${Math.min(i, DONUT_SLICES - 1) + 1})`;
   const total = rows.reduce((a, r) => a + r.value, 0);
-  const perCapitaTotal = rows.reduce((a, r) => a + (r.per_capita ?? 0), 0);
   const slices = rows.slice(0, DONUT_SLICES - 1).map((r, i) => ({
     key: r.key,
     label: r.key,
@@ -73,13 +72,7 @@ export function FinanceBars({
 
   return (
     <>
-      {donut && (
-        <FinanceDonut
-          slices={slices}
-          totalLabel="1人あたり"
-          totalText={roughYen(perCapitaTotal)}
-        />
-      )}
+      {donut && <FinanceDonut slices={slices} />}
       <ul className="flex flex-col gap-2.5">
         {rows.map((row, i) => (
           <li key={row.key}>

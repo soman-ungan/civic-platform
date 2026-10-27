@@ -52,7 +52,14 @@ export function SwipeNav({ children }: { children: React.ReactNode }) {
     const { tabs, current } = tabsFor(window.location.pathname);
     // 指を左へ動かしたら右のタブへ（ページをめくる向き）
     const next = current + (dx < 0 ? 1 : -1);
-    if (current < 0 || next < 0 || next >= tabs.length) return;
+    if (
+      current < 0 ||
+      !tabs[current].swipe ||
+      next < 0 ||
+      next >= tabs.length
+    ) {
+      return;
+    }
     router.push(tabs[next].href, {
       transitionTypes: transitionTo(current, next),
     });

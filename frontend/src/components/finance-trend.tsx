@@ -120,31 +120,51 @@ export function FinanceTrend({
 
   return (
     <div>
-      <div
-        role="group"
-        aria-label="単位"
-        className="mb-3 inline-flex rounded-full border border-zinc-300 p-0.5 text-xs dark:border-zinc-700"
-      >
-        {(
-          [
-            ["per_capita", "1人あたり"],
-            ["total", "総額"],
-          ] as const
-        ).map(([m, label]) => (
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div
+          role="group"
+          aria-label="単位"
+          className="inline-flex rounded-full border border-zinc-300 p-0.5 text-xs dark:border-zinc-700"
+        >
+          {(
+            [
+              ["per_capita", "1人あたり"],
+              ["total", "総額"],
+            ] as const
+          ).map(([m, label]) => (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={mode === m}
+              onClick={() => setMode(m)}
+              className={`min-h-8 rounded-full px-3 ${
+                mode === m
+                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                  : "text-zinc-600 dark:text-zinc-400"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1.5">
           <button
-            key={m}
             type="button"
-            aria-pressed={mode === m}
-            onClick={() => setMode(m)}
-            className={`min-h-8 rounded-full px-3 ${
-              mode === m
-                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                : "text-zinc-600 dark:text-zinc-400"
-            }`}
+            onClick={() => setHidden(new Set())}
+            disabled={hidden.size === 0}
+            className="inline-flex min-h-8 items-center rounded-full border border-zinc-300 px-2.5 text-xs whitespace-nowrap text-zinc-700 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300"
           >
-            {label}
+            すべて選ぶ
           </button>
-        ))}
+          <button
+            type="button"
+            onClick={() => setHidden(new Set(series.map((s) => s.key)))}
+            disabled={visible.length === 0}
+            className="inline-flex min-h-8 items-center rounded-full border border-zinc-300 px-2.5 text-xs whitespace-nowrap text-zinc-700 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300"
+          >
+            すべて外す
+          </button>
+        </div>
       </div>
 
       <nav
@@ -153,26 +173,6 @@ export function FinanceTrend({
         className="-mx-4 mb-3 overflow-x-auto px-4 [scrollbar-width:none]"
       >
         <ul className="flex w-max gap-1.5">
-          <li>
-            <button
-              type="button"
-              onClick={() => setHidden(new Set())}
-              disabled={hidden.size === 0}
-              className="inline-flex min-h-9 items-center rounded-full border border-zinc-300 px-2.5 text-xs whitespace-nowrap text-zinc-700 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300"
-            >
-              すべて選ぶ
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              onClick={() => setHidden(new Set(series.map((s) => s.key)))}
-              disabled={visible.length === 0}
-              className="inline-flex min-h-9 items-center rounded-full border border-zinc-300 px-2.5 text-xs whitespace-nowrap text-zinc-700 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300"
-            >
-              すべて外す
-            </button>
-          </li>
           {series.map((s) => {
             const on = !hidden.has(s.key);
             return (
@@ -214,7 +214,6 @@ export function FinanceTrend({
         <>
           <svg
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-            data-swipe-ignore
             className="w-full touch-pan-y select-none"
             role="img"
             aria-label={`歳出の推移（${mode === "per_capita" ? "1人あたり" : "総額"}）`}

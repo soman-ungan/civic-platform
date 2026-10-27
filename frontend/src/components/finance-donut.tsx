@@ -26,17 +26,10 @@ const C = 2 * Math.PI * R;
 /**
  * ドーナツ型の円グラフ（全体の中の割合をひと目で見せる。区切りは6つまで: dataviz）。
  * 近い値は円では比べにくいので、呼び出し側で色見本付きの一覧（凡例を兼ねる）を下に並べる。
- * 区切りに触れると、その名前・額・割合を真ん中に出す。もう一度触れると合計に戻る
+ * 区切りに触れると、その名前・額・割合を真ん中に出す。もう一度触れると消える
+ * （合計の1人あたりはヘッダーに出ているので、真ん中には出さない）
  */
-export function FinanceDonut({
-  slices,
-  totalLabel,
-  totalText,
-}: {
-  slices: DonutSlice[];
-  totalLabel: string;
-  totalText: string;
-}) {
+export function FinanceDonut({ slices }: { slices: DonutSlice[] }) {
   const [active, setActive] = useState<string | null>(null);
   const total = slices.reduce((a, s) => a + s.value, 0);
   if (total <= 0) return null;
@@ -49,7 +42,7 @@ export function FinanceDonut({
   }));
 
   return (
-    <div className="relative mx-auto mb-4 w-48" data-swipe-ignore>
+    <div className="relative mx-auto mb-4 w-48">
       <svg
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         className="w-full -rotate-90"
@@ -79,16 +72,22 @@ export function FinanceDonut({
           );
         })}
       </svg>
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-xs text-zinc-500">
-          {shown ? shown.label : totalLabel}
-        </span>
-        <span className="text-lg font-bold tabular-nums">
-          {shown ? shown.valueText : totalText}
-        </span>
-        {shown && (
-          <span className="text-xs tabular-nums text-zinc-500">
-            {shown.shareText}
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-10 text-center">
+        {shown ? (
+          <>
+            <span className="text-xs text-zinc-500">{shown.label}</span>
+            <span className="text-lg font-bold tabular-nums">
+              {shown.valueText}
+            </span>
+            <span className="text-xs tabular-nums text-zinc-500">
+              {shown.shareText}
+            </span>
+          </>
+        ) : (
+          <span className="text-xs leading-5 text-zinc-400">
+            触れると
+            <br />
+            くわしく
           </span>
         )}
       </div>

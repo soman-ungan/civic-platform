@@ -11,9 +11,10 @@ import { usePathname } from "next/navigation";
  */
 export function tabsFor(pathname: string) {
   const slug = pathname.split("/")[1] ?? "";
+  // swipe: その画面の横フリックで隣のタブへ移るか。まちのお金は、横フリックを欄の切り替えに使う（ユーザーと決定）
   const tabs = [
-    { href: `/${slug}`, label: "トピック" },
-    { href: `/${slug}/finances`, label: "まちのお金" },
+    { href: `/${slug}`, label: "トピック", swipe: true },
+    { href: `/${slug}/finances`, label: "まちのお金", swipe: false },
   ];
   return { tabs, current: tabs.findIndex((t) => t.href === pathname) };
 }

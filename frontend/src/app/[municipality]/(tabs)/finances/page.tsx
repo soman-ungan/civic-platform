@@ -5,7 +5,7 @@ import { Suspense } from "react";
 
 import { FinanceBars } from "@/components/finance-bars";
 import { FinanceNature } from "@/components/finance-nature";
-import { FinanceSection } from "@/components/finance-section";
+import { FinanceCarousel } from "@/components/finance-carousel";
 import { FinanceTrend } from "@/components/finance-trend";
 import { InfoTip } from "@/components/info-tip";
 import { PageSlide } from "@/components/page-slide";
@@ -97,76 +97,94 @@ async function FinancesView({
         <div className="mx-auto w-full max-w-md px-4 pt-2 pb-6">
           <p className="mb-1 text-xs leading-5 text-zinc-500">
             {municipality.name}
-            が1年間に使ったお金（決算）を、1人あたりにして見ています。ⓘ
+            が1年間に使ったお金（決算）です。左右にフリックすると、ほかの見方に切り替わります。ⓘ
             で説明が出ます。
           </p>
 
-          <FinanceSection
-            title="これまでの推移"
-            defaultOpen
-            lead={
-              <>
-                分野ごとの歳出を積み上げています。費目を選ぶと、表示・非表示を切り替えられます。
-                {f.years.includes(2020) &&
-                  "令和2年度は、国の特別定額給付金（1人10万円）などで、どの自治体も大きく増えています。"}
-              </>
-            }
-          >
-            <FinanceTrend
-              trend={f.trend}
-              latestOrder={latestOrder}
-              selectedYear={f.fiscal_year}
-            />
-          </FinanceSection>
-
-          <FinanceSection
-            title="何に使ったか"
-            lead="分野ごとの歳出（目的別）。1人あたりの額と、全体に占める割合です。"
-          >
-            <FinanceBars kind="purpose" items={f.expenditure_purpose} donut />
-          </FinanceSection>
-
-          <FinanceSection
-            title="お金の使い方で見る"
-            lead="同じ歳出を、使い方で分けたもの（性質別）。行を開くと中身が出ます。"
-          >
-            <FinanceNature items={f.expenditure_nature} />
-          </FinanceSection>
-
-          <FinanceSection
-            title="どこから来たか"
-            lead={
-              <>
-                歳入（総額{" "}
-                {f.revenue_total !== null ? thousandYen(f.revenue_total) : "—"}
-                ）。税のほか、国や県からのお金、借り入れ（地方債）などです。
-              </>
-            }
-          >
-            <FinanceBars kind="revenue" items={f.revenue} limit={8} />
-          </FinanceSection>
-
-          {f.indicators.length > 0 && (
-            <FinanceSection title="財政の指標">
-              <dl className="flex flex-col gap-2">
-                {f.indicators.map((i) => {
-                  const note = termNote("indicator", i.key);
-                  return (
-                    <div
-                      key={i.key}
-                      className="flex items-center justify-between gap-2 text-sm"
-                    >
-                      <dt className="flex items-center gap-1 font-medium">
-                        {i.key}
-                        {note && <InfoTip label={i.key} note={note} />}
-                      </dt>
-                      <dd className="tabular-nums">{indicatorText(i)}</dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            </FinanceSection>
-          )}
+          <FinanceCarousel
+            sections={[
+              {
+                id: "trend",
+                title: "これまでの推移",
+                lead: (
+                  <>
+                    分野ごとの歳出を積み上げています。費目を選ぶと、表示・非表示を切り替えられます。
+                    {f.years.includes(2020) &&
+                      "令和2年度は、国の特別定額給付金（1人10万円）などで、どの自治体も大きく増えています。"}
+                  </>
+                ),
+                content: (
+                  <FinanceTrend
+                    trend={f.trend}
+                    latestOrder={latestOrder}
+                    selectedYear={f.fiscal_year}
+                  />
+                ),
+              },
+              {
+                id: "purpose",
+                title: "何に使ったか",
+                lead: "分野ごとの歳出（目的別）。1人あたりの額と、全体に占める割合です。",
+                content: (
+                  <FinanceBars
+                    kind="purpose"
+                    items={f.expenditure_purpose}
+                    donut
+                  />
+                ),
+              },
+              {
+                id: "nature",
+                title: "お金の使い方で見る",
+                lead: "同じ歳出を、使い方で分けたもの（性質別）。行を開くと中身が出ます。",
+                content: <FinanceNature items={f.expenditure_nature} />,
+              },
+              {
+                id: "revenue",
+                title: "どこから来たか",
+                lead: (
+                  <>
+                    歳入（総額{" "}
+                    {f.revenue_total !== null
+                      ? thousandYen(f.revenue_total)
+                      : "—"}
+                    ）。税のほか、国や県からのお金、借り入れ（地方債）などです。
+                  </>
+                ),
+                content: (
+                  <FinanceBars
+                    kind="revenue"
+                    items={f.revenue}
+                    limit={8}
+                    donut
+                  />
+                ),
+              },
+              {
+                id: "indicators",
+                title: "財政の指標",
+                content: (
+                  <dl className="flex flex-col gap-2">
+                    {f.indicators.map((i) => {
+                      const note = termNote("indicator", i.key);
+                      return (
+                        <div
+                          key={i.key}
+                          className="flex items-center justify-between gap-2 text-sm"
+                        >
+                          <dt className="flex items-center gap-1 font-medium">
+                            {i.key}
+                            {note && <InfoTip label={i.key} note={note} />}
+                          </dt>
+                          <dd className="tabular-nums">{indicatorText(i)}</dd>
+                        </div>
+                      );
+                    })}
+                  </dl>
+                ),
+              },
+            ]}
+          />
 
           <footer className="mt-4 text-xs leading-5 text-zinc-500">
             <p>

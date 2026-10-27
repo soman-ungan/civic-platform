@@ -44,6 +44,38 @@ body {
   }
 }
 
+/* まちのお金の欄の切り替え（components/finance-carousel.tsx。めくる向きに少しずらす。視差効果を減らす設定では動かさない） */
+@media (prefers-reduced-motion: no-preference) {
+  .carousel-next {
+    animation: carousel-next 220ms ease-out;
+  }
+  .carousel-prev {
+    animation: carousel-prev 220ms ease-out;
+  }
+}
+
+@keyframes carousel-next {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes carousel-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /*
  * このまちとの関わり方の色（グループの色・賛否の緑と赤と紛れない配色）。
  * dataviz スキルの validate_palette.js で、隣り合う区分の判別（色覚の多様性を含む）を
