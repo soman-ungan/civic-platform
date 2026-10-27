@@ -42,7 +42,10 @@ async fn seeds_apply_to_schema() {
     .fetch_all(&pool)
     .await
     .unwrap();
-    assert_eq!(districts, ["黒羽", "大田原", "湯津上"]);
+    assert_eq!(
+        districts,
+        ["親園", "金田", "黒羽", "野崎", "大田原", "佐久山", "湯津上"]
+    );
 }
 
 #[tokio::test]
@@ -53,7 +56,7 @@ async fn seeds_are_idempotent() {
 
     assert_eq!(count(&pool, "prefectures").await, 47);
     assert_eq!(count(&pool, "municipalities").await, 1);
-    assert_eq!(count(&pool, "districts").await, 3);
+    assert_eq!(count(&pool, "districts").await, 7);
 }
 
 fn dev_seeds_dir() -> &'static Path {
