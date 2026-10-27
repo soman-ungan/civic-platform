@@ -57,18 +57,26 @@ async fn latest_year_with_per_capita_and_share() {
     let res = get(&state, "/api/municipalities/otawara/finances").await;
     assert_eq!(res.status, StatusCode::OK);
     let j = &res.json;
-    assert_eq!(j["years"], serde_json::json!([2022, 2023]));
+    assert_eq!(
+        j["years"],
+        serde_json::json!([
+            {"fiscal_year": 2022, "settlement": true, "budget": false},
+            {"fiscal_year": 2023, "settlement": true, "budget": false},
+        ])
+    );
     assert_eq!(j["fiscal_year"], 2023);
-    assert_eq!(j["population"], 100);
-    assert_eq!(j["expenditure_total"], 1000);
+    assert!(j["budget"].is_null());
+    let s = &j["settlement"];
+    assert_eq!(s["population"], 100);
+    assert_eq!(s["expenditure_total"], 1000);
     // 750 千円 ÷ 100 人 = 7,500 円
-    assert_eq!(j["expenditure_purpose"][0]["key"], "民生費");
-    assert_eq!(j["expenditure_purpose"][0]["per_capita"], 7500);
-    assert_eq!(j["expenditure_purpose"][0]["share"], 0.75);
+    assert_eq!(s["expenditure_purpose"][0]["key"], "民生費");
+    assert_eq!(s["expenditure_purpose"][0]["per_capita"], 7500);
+    assert_eq!(s["expenditure_purpose"][0]["share"], 0.75);
     // 「-」は null のまま
-    assert!(j["expenditure_purpose"][2]["value"].is_null());
-    assert_eq!(j["indicators"][0]["value"], 0.63);
-    assert_eq!(j["source"]["page_url"], "https://example.jp/card-24.html");
+    assert!(s["expenditure_purpose"][2]["value"].is_null());
+    assert_eq!(s["indicators"][0]["value"], 0.63);
+    assert_eq!(s["source"]["page_url"], "https://example.jp/card-24.html");
     assert_eq!(j["trend"][0]["expenditure_purpose"]["民生費"], 600);
     assert_eq!(j["trend"][0]["population"], 110);
 }
@@ -77,7 +85,10 @@ async fn latest_year_with_per_capita_and_share() {
 async fn other_years_and_municipalities() {
     let (pool, state) = setup().await;
     let res = get(&state, "/api/municipalities/otawara/finances?year=2022").await;
-    assert_eq!(res.json["expenditure_purpose"][0]["value"], 600);
+    assert_eq!(
+        res.json["settlement"]["expenditure_purpose"][0]["value"],
+        600
+    );
     let res = get(&state, "/api/municipalities/otawara/finances?year=2010").await;
     assert_eq!(res.status, StatusCode::NOT_FOUND);
 
@@ -86,8 +97,8 @@ async fn other_years_and_municipalities() {
     assert_eq!(res.status, StatusCode::NOT_FOUND);
     common::activate_second_municipality(&pool).await;
     let res = get(&state, "/api/municipalities/nasushiobara/finances").await;
-    assert_eq!(res.json["expenditure_total"], 99000);
-    assert_eq!(res.json["years"], serde_json::json!([2023]));
+    assert_eq!(res.json["settlement"]["expenditure_total"], 99000);
+    assert_eq!(res.json["years"].as_array().unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -115,4 +126,75 @@ async fn no_finances_without_data() {
     );
     let res = get(&state, "/api/municipalities/otawara/topics/t1").await;
     assert!(res.json["finances"].is_null());
+}
+
+/// 2024年度の予算（2つの事業。1つは福祉の分野）を足す。`status` は draft か published
+async fn add_budget(pool: &sqlx::SqlitePool, status: &str) {
+    sqlx::raw_sql(&format!(
+        "
+        INSERT INTO documents (id, municipality_id, kind, title, url, sha256, char_count, imported_at) VALUES
+            ('db24', '092100', 'budget', '当初予算の概要 2024年度', 'https://example.jp/R6gaiyou.pdf', 'hb24', 1, '2026-10-27T00:00:00Z');
+        INSERT INTO budgets (id, municipality_id, fiscal_year, status, document_id, total, created_at) VALUES
+            ('b24', '092100', 2024, '{status}', 'db24', 2000, '2026-10-27T00:00:00Z');
+        INSERT INTO budget_items (budget_id, category, item_key, position, value) VALUES
+            ('b24', 'expenditure_purpose', '民生費', 1, 1500),
+            ('b24', 'expenditure_purpose', '教育費', 2, 500);
+        INSERT INTO budget_projects (id, budget_id, position, name, amount, flag, plan_label, page) VALUES
+            ('bp1', 'b24', 1, '子育て支援事業費', 300, 'new', '政策２ 子育て', 12),
+            ('bp2', 'b24', 2, '道路維持費', 900, NULL, NULL, 14);
+        INSERT INTO budget_project_tags (project_id, tag_id) VALUES ('bp1', 'field-fukushi');
+        "
+    ))
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn budget_years_use_the_latest_population() {
+    let (pool, state) = setup().await;
+    add_budget(&pool, "published").await;
+    let res = get(&state, "/api/municipalities/otawara/finances").await;
+    let j = &res.json;
+    // 予算だけの年度が最新になる
+    assert_eq!(j["fiscal_year"], 2024);
+    assert_eq!(
+        j["years"][2],
+        serde_json::json!({"fiscal_year": 2024, "settlement": false, "budget": true})
+    );
+    assert!(j["settlement"].is_null());
+    let b = &j["budget"];
+    assert_eq!(b["total"], 2000);
+    // 2024年度の人口は無いので、2023年度の人口（100人）で割る
+    assert_eq!(b["population_year"], 2023);
+    assert_eq!(b["expenditure_purpose"][0]["per_capita"], 15000);
+    // 主な事業は金額の大きい順
+    assert_eq!(b["projects"][0]["name"], "道路維持費");
+    assert_eq!(b["projects"][1]["flag"], "new");
+    assert_eq!(b["projects"][1]["tags"][0]["name"], "福祉・介護");
+    assert_eq!(b["source"]["url"], "https://example.jp/R6gaiyou.pdf");
+}
+
+#[tokio::test]
+async fn draft_budgets_are_hidden() {
+    let (pool, state) = setup().await;
+    add_budget(&pool, "draft").await;
+    let res = get(&state, "/api/municipalities/otawara/finances").await;
+    assert_eq!(res.json["fiscal_year"], 2023);
+    assert!(res.json["budget"].is_null());
+    let res = get(&state, "/api/municipalities/otawara/finances?year=2024").await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+    let res = get(&state, "/api/municipalities/otawara/topics/t1").await;
+    assert!(res.json["finances"]["budget"].is_null());
+}
+
+#[tokio::test]
+async fn topic_detail_shows_projects_of_its_field() {
+    let (pool, state) = setup().await;
+    add_budget(&pool, "published").await;
+    let res = get(&state, "/api/municipalities/otawara/topics/t1").await;
+    let b = &res.json["finances"]["budget"];
+    assert_eq!(b["fiscal_year"], 2024);
+    assert_eq!(b["project_count"], 1);
+    assert_eq!(b["projects"][0]["name"], "子育て支援事業費");
 }
