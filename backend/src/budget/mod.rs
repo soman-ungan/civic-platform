@@ -191,14 +191,28 @@ pub fn check(raw: Raw, pages: &[String], tags: &HashMap<String, String>) -> Chec
         // 同じ費目が2回出たら足す（「その他」にまとめた分など）
         let mut merged: Vec<(String, i64)> = Vec::new();
         for item in items {
-            let key = item.key.trim().to_owned();
+            let mut key = item.key.trim().to_owned();
             if let Some(keys) = keys
                 && !keys.contains(&key.as_str())
             {
-                out.notes
-                    .push(format!("{category}: 一覧に無い費目「{key}」は使わない"));
-                merged.clear();
-                break;
+                if category == "expenditure_nature" {
+                    // 性質別の分け方は自治体ごとに少し違う（那須町は「投資・出資金」と「貸付金」を分ける）。
+                    // 決算カードの区分に寄せ、当てはまらなければ「その他」にまとめる（合計は確かめる）
+                    let to = if ["投資", "出資", "貸付"].iter().any(|w| key.starts_with(w)) {
+                        "投資・出資金・貸付金"
+                    } else {
+                        "その他"
+                    };
+                    out.notes.push(format!(
+                        "{category}: 一覧に無い費目「{key}」は「{to}」にまとめた"
+                    ));
+                    key = to.to_owned();
+                } else {
+                    out.notes
+                        .push(format!("{category}: 一覧に無い費目「{key}」は使わない"));
+                    merged.clear();
+                    break;
+                }
             }
             match merged.iter_mut().find(|(k, _)| *k == key) {
                 Some((_, v)) => *v += item.value,

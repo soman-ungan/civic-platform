@@ -105,8 +105,19 @@ fn categories_that_do_not_add_up_are_dropped() {
     r.expenditure_purpose = vec![item("民生費", 700), item("教育費", 299)];
     r.expenditure_nature = vec![item("人件費", 500), item("架空の性質", 500)];
     let checked = budget::check(r, &pages(), &tags());
-    let categories: Vec<_> = checked.items.iter().map(|(c, _, _)| *c).collect();
-    assert!(categories.iter().all(|c| *c == "revenue"));
+    // 目的別は合計が合わないので捨てる
+    assert!(
+        !checked
+            .items
+            .iter()
+            .any(|(c, _, _)| *c == "expenditure_purpose")
+    );
+    // 性質別の一覧に無い費目は「その他」にまとめる（合計は合う）
+    assert!(
+        checked
+            .items
+            .contains(&("expenditure_nature", "その他".to_string(), 500))
+    );
     assert!(checked.notes.iter().any(|n| n.contains("合わない")));
     assert!(checked.notes.iter().any(|n| n.contains("架空の性質")));
 }
@@ -179,10 +190,24 @@ async fn draft_is_saved_replaced_and_published() {
 #[test]
 #[ignore = "data/private/budget/ に実物の PDF と AI の応答が要る"]
 fn real_otawara_r8() {
-    let (Ok(pdf), Ok(json)) = (
-        std::fs::read("../data/private/budget/R8yosangaiyou.pdf"),
-        std::fs::read_to_string("../data/private/budget/r8-extraction.json"),
-    ) else {
+    check_real(
+        "../data/private/budget/R8yosangaiyou.pdf",
+        "../data/private/budget/r8-extraction.json",
+    );
+}
+
+/// 那須町の令和8年度の概要（ほかの自治体でも使えるかの確かめ）
+#[test]
+#[ignore = "data/private/budget/neighbors/ に実物の PDF と AI の応答が要る"]
+fn real_nasu_r8() {
+    check_real(
+        "../data/private/budget/neighbors/nasu-R8gaiyou.pdf",
+        "../data/private/budget/neighbors/nasu-r8-extraction.json",
+    );
+}
+
+fn check_real(pdf: &str, json: &str) {
+    let (Ok(pdf), Ok(json)) = (std::fs::read(pdf), std::fs::read_to_string(json)) else {
         return;
     };
     let raw: Raw = serde_json::from_str(&json).unwrap();
@@ -200,4 +225,10 @@ fn real_otawara_r8() {
     }
     println!("{} / {total}", checked.projects.len());
     assert_eq!(checked.projects.len(), total);
+    for category in ["revenue", "expenditure_purpose", "expenditure_nature"] {
+        assert!(
+            checked.items.iter().any(|(c, _, _)| *c == category),
+            "{category} が無い"
+        );
+    }
 }
