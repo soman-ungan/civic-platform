@@ -53,7 +53,62 @@ export type TopicSource = {
   url: string | null;
 };
 
-export type TopicDetail = Topic & { sources: TopicSource[] };
+export type TopicDetail = Topic & {
+  sources: TopicSource[];
+  /** トピックの分野に関係する市のお金（決算カード）。対応する費目が無ければ null */
+  finances: TopicFinances | null;
+};
+
+// ===== まちのお金（backend/src/routes/finances.rs） =====
+
+export type FinanceAmount = {
+  key: string;
+  /** 千円。原表が「-」なら null */
+  value: number | null;
+  /** 市民1人あたり（円） */
+  per_capita: number | null;
+  /** 区分の合計に占める割合（0〜1） */
+  share: number | null;
+};
+
+export type FinanceIndicator = {
+  key: string;
+  value: number | null;
+  unit: "thousand_yen" | "ratio";
+};
+
+export type FinanceSource = {
+  title: string;
+  /** 決算カードの年度のページ */
+  page_url: string | null;
+  excel_url: string | null;
+};
+
+export type Finances = {
+  years: number[];
+  fiscal_year: number;
+  population: number | null;
+  revenue_total: number | null;
+  expenditure_total: number | null;
+  revenue: FinanceAmount[];
+  expenditure_purpose: FinanceAmount[];
+  expenditure_nature: FinanceAmount[];
+  indicators: FinanceIndicator[];
+  trend: {
+    fiscal_year: number;
+    population: number | null;
+    /** 目的別歳出（千円） */
+    expenditure_purpose: Record<string, number | null>;
+  }[];
+  source: FinanceSource;
+};
+
+export type TopicFinances = {
+  fiscal_year: number;
+  population: number | null;
+  items: FinanceAmount[];
+  source: FinanceSource;
+};
 
 export type TopicList = {
   topics: Topic[];

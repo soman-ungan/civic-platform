@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { TopicInteraction } from "@/components/topic-interaction";
+import { TopicFinances } from "@/components/topic-finances";
 import { TopicSources } from "@/components/topic-sources";
 import { apiGet } from "@/lib/api-server";
 import { SOURCE_LABELS } from "@/lib/labels";
@@ -67,6 +68,7 @@ async function TopicView({
           </p>
         )}
         <TopicSources sources={topic.sources} />
+        <TopicFinances slug={municipality.slug} finances={topic.finances} />
         {topic.source_url && topic.sources.length === 0 && (
           <a
             href={topic.source_url}

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { headers } from "next/headers";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
@@ -46,11 +47,21 @@ async function Timeline({
 
   return (
     <>
-      <header className="mb-4">
-        <p className="text-xs text-zinc-500">{municipality.prefecture_name}</p>
-        <h1 className="text-2xl font-bold tracking-tight">
-          {municipality.name}
-        </h1>
+      <header className="mb-4 flex items-end justify-between gap-2">
+        <div>
+          <p className="text-xs text-zinc-500">
+            {municipality.prefecture_name}
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {municipality.name}
+          </h1>
+        </div>
+        <Link
+          href={`/${municipality.slug}/finances`}
+          className="inline-flex min-h-11 items-center text-sm text-sky-700 underline-offset-2 hover:underline dark:text-sky-400"
+        >
+          まちのお金 →
+        </Link>
       </header>
       {consensus && consensus.length > 0 && (
         <ConsensusPins slug={municipality.slug} items={consensus} />
