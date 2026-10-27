@@ -14,13 +14,12 @@ import type { MunicipalityDetail, TopicDetail } from "@/lib/types";
 export default function TopicPage({
   params,
 }: PageProps<"/[municipality]/topics/[id]">) {
+  // トピックのタイトルとタグは固定のヘッダーにし、説明・投票・みんなの意見の部分だけをスクロールする
   return (
-    <main className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-md flex-col px-4 py-6">
-        <Suspense fallback={<TopicSkeleton />}>
-          <TopicView params={params} />
-        </Suspense>
-      </div>
+    <main className="flex min-h-0 flex-1 flex-col">
+      <Suspense fallback={<TopicSkeleton />}>
+        <TopicView params={params} />
+      </Suspense>
     </main>
   );
 }
@@ -40,58 +39,69 @@ async function TopicView({
 
   return (
     <>
-      <Link
-        href={`/${municipality.slug}`}
-        className="mb-4 inline-flex h-11 items-center text-sm text-zinc-600 dark:text-zinc-400"
-      >
-        ← {municipality.name}のトピック
-      </Link>
-
-      <article className="mb-6">
-        <p className="mb-1 text-xs text-zinc-500">
-          {SOURCE_LABELS[topic.source_type]}
-        </p>
-        <h1 className="text-xl font-bold leading-snug">{topic.title}</h1>
-        {topic.tags.length > 0 && (
-          <ul className="mt-2 flex flex-wrap gap-1.5">
-            {topic.tags.map((tag) => (
-              <li
-                key={tag.id}
-                className="text-xs text-sky-700 dark:text-sky-400"
-              >
-                #{tag.name}
-              </li>
-            ))}
-          </ul>
-        )}
-        {topic.description && (
-          <p className="mt-3 text-sm leading-6 text-zinc-700 dark:text-zinc-300">
-            {topic.description}
-          </p>
-        )}
-        <TopicSources sources={topic.sources} />
-        <TopicFinances slug={municipality.slug} finances={topic.finances} />
-        {topic.source_url && topic.sources.length === 0 && (
-          <a
-            href={topic.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-block text-sm underline underline-offset-2"
+      <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="mx-auto w-full max-w-md px-4 pb-3">
+          <Link
+            href={`/${municipality.slug}`}
+            className="inline-flex h-10 items-center text-sm text-zinc-600 dark:text-zinc-400"
           >
-            元の資料を見る
-          </a>
-        )}
-      </article>
+            ← {municipality.name}のトピック
+          </Link>
+          <p className="mb-0.5 text-xs text-zinc-500">
+            {SOURCE_LABELS[topic.source_type]}
+          </p>
+          <h1 className="text-lg leading-snug font-bold">{topic.title}</h1>
+          {topic.tags.length > 0 && (
+            <ul className="-mx-4 mt-1.5 flex gap-2 overflow-x-auto px-4 whitespace-nowrap [scrollbar-width:none]">
+              {topic.tags.map((tag) => (
+                <li
+                  key={tag.id}
+                  className="text-xs text-sky-700 dark:text-sky-400"
+                >
+                  #{tag.name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </header>
 
-      <TopicInteraction slug={municipality.slug} topicId={topic.id} />
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto flex w-full max-w-md flex-col px-4 pt-3 pb-6">
+          <article className="mb-6">
+            {topic.description && (
+              <p className="text-sm leading-6 text-zinc-700 dark:text-zinc-300">
+                {topic.description}
+              </p>
+            )}
+            <TopicSources sources={topic.sources} />
+            <TopicFinances slug={municipality.slug} finances={topic.finances} />
+            {topic.source_url && topic.sources.length === 0 && (
+              <a
+                href={topic.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-block text-sm underline underline-offset-2"
+              >
+                元の資料を見る
+              </a>
+            )}
+          </article>
+
+          <TopicInteraction slug={municipality.slug} topicId={topic.id} />
+        </div>
+      </div>
     </>
   );
 }
 
 function TopicSkeleton() {
   return (
-    <div aria-hidden className="animate-pulse">
-      <div className="mb-6 h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-800" />
+    <div
+      aria-hidden
+      className="mx-auto w-full max-w-md animate-pulse px-4 py-3"
+    >
+      <div className="mb-4 h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-800" />
       <div className="mb-3 h-6 w-3/4 rounded bg-zinc-200 dark:bg-zinc-800" />
       <div className="mb-8 h-16 rounded bg-zinc-100 dark:bg-zinc-900" />
       <div className="h-48 rounded-3xl bg-zinc-100 dark:bg-zinc-900" />
