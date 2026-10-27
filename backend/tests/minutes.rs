@@ -450,3 +450,46 @@ async fn short_chair_remarks_are_not_sent() {
     // 発言の番号は元のまま
     assert!(sent.contains("[2] 鈴木花子議員"), "{sent}");
 }
+
+#[tokio::test]
+async fn empty_topics_are_retried_once() {
+    let (pool, llm, fake, moderation) = setup(true).await;
+    let empty =
+        json!({"topics": [{"title": "", "description": "", "sources": [], "statements": []}]});
+    fake.push_json(empty.clone());
+    fake.push_json(extraction_reply());
+    for _ in 0..3 {
+        fake.push_json(approve());
+    }
+    let Outcome::Imported(report) = import(
+        &pool,
+        &llm,
+        "claude-opus-5-5",
+        &moderation,
+        &input(),
+        false,
+        false,
+    )
+    .await
+    .unwrap() else {
+        panic!("取り込めていない")
+    };
+    assert_eq!(report.topics.len(), 1, "{:?}", report.notes);
+
+    // 2回続けて空なら、やり直しは1回まで
+    fake.push_json(empty.clone());
+    fake.push_json(empty);
+    let before = fake.requests().len();
+    import(
+        &pool,
+        &llm,
+        "claude-opus-5-5",
+        &moderation,
+        &input(),
+        true,
+        false,
+    )
+    .await
+    .unwrap();
+    assert_eq!(fake.requests().len() - before, 2);
+}

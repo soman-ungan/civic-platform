@@ -101,6 +101,24 @@ documents
 
 - 抽出の結果からトピックのカードを作る。トピックは自動タグ付け（フェーズ4）を通る
 
+## 会議録の手動取り込み（フェーズ5a で実装）
+
+自動取得の許可が出るまで、運営者が手でコピーした会議録を取り込む（ADR 0004）。
+
+1. 会議録を UTF-8 のテキストで `data/private/minutes/` に置く（git の管理外）。会議名・開催日・会議録のページの URL を控える
+2. `import minutes ... --dry-run` で、発言の数・発言者・名簿に無い首長・議員・議事日程を確かめる
+3. 名簿に無い人がいれば、`data/seeds/030_officials_*.sql` に登録して `seed` する
+4. `import minutes ...` で下書きを作る。`topics show` で確かめ、`topics edit` などで手直しして `topics publish`
+
+読み取りの形は `collector_sources`（`kind = 'minutes'`、`adapter = 'manual_upload'`）の `config` で自治体ごとに差し替えられる。
+
+| 設定 | 既定 | 意味 |
+|---|---|---|
+| `speaker_pattern` | `^[○◆◎▲□◇]\s*(?P<role>…)\s*[（(](?P<name>…)[）)]` | 発言の見出し（記号 + 役職（氏名）） |
+| `skip_pattern` | `^(△\|（…）$)` | 発言ではない行（節の見出し、ト書き） |
+| `agenda_pattern` | `^(追加)?日程第` | 議事日程の行 |
+| `topical_agenda_pattern` | `一般質問\|代表質問` | トピックを作る議事。これが無い会議録は取り込まない |
+
 ## 公人と発言者（会議録）
 
 - 公人の表（例: `public_officials`）: 氏名、役職（首長・議員など）、自治体、任期の開始・終了。改選・辞職・補欠選挙は任期で表し、過去の記録との対応を保つ

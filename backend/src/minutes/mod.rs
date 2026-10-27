@@ -221,8 +221,22 @@ pub async fn import(
         effort: Effort::Medium,
         max_tokens: 32_000,
     };
-    let value = llm.structured(pool, &request).await?;
-    let raw: extract::RawOutput = serde_json::from_value(value)?;
+    // まれに、中身の無いトピックだけが返ることがある（タイトルが空）。そのときは1回だけやり直す
+    let mut raw: extract::RawOutput;
+    let mut attempt = 0;
+    loop {
+        let value = llm.structured(pool, &request).await?;
+        // 指示文を直すときの確認用（RUST_LOG=backend=debug で出る）
+        tracing::debug!(output = %value, "extraction output");
+        raw = serde_json::from_value(value)?;
+        let degenerate =
+            !raw.topics.is_empty() && raw.topics.iter().all(|t| t.title.trim().is_empty());
+        if !degenerate || attempt == 1 {
+            break;
+        }
+        tracing::warn!("extraction returned only empty topics; retrying once");
+        attempt += 1;
+    }
     // 引用と意見の根拠は、AI に送った発言の中から選ばれていること
     let (checked, mut notes) = extract::check(raw, &speeches, &prepared.names);
 

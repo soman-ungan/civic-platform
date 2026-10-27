@@ -284,6 +284,18 @@ pub async fn set_tag(
     add: bool,
 ) -> Result<(), EditError> {
     if add {
+        // 地区タグ（district-<地区 ID>）がまだ無ければ、地区の一覧から作る
+        if let Some(district_id) = tag_id.strip_prefix("district-") {
+            sqlx::query(
+                "INSERT INTO tags (id, kind, name, district_id)
+                 SELECT $1, 'district', name, id FROM districts WHERE id = $2
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(tag_id)
+            .bind(district_id)
+            .execute(pool)
+            .await?;
+        }
         // 地区タグは、そのトピックの自治体の地区に限る
         let ok: Option<String> = sqlx::query_scalar(
             "SELECT g.id FROM tags g, topics t

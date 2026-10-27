@@ -138,6 +138,22 @@ async fn operator_can_edit_topic_statements_and_tags() {
     drafts::set_tag(&pool, "t1", "field-koutsu", true)
         .await
         .unwrap();
+    // まだタグの無い地区でも、その自治体の地区なら付けられる（タグを作る）
+    sqlx::query("INSERT INTO districts (id, municipality_id, name, name_kana) VALUES ('092100-sakuyama', '092100', '佐久山', 'さくやま')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    drafts::set_tag(&pool, "t1", "district-092100-sakuyama", true)
+        .await
+        .unwrap();
+    drafts::set_tag(&pool, "t1", "district-092100-sakuyama", false)
+        .await
+        .unwrap();
+    assert!(
+        drafts::set_tag(&pool, "t1", "district-092100-missing", true)
+            .await
+            .is_err()
+    );
     let tags: Vec<(String, String)> = sqlx::query_as(
         "SELECT tag_id, assigned_by FROM topic_tags WHERE topic_id = 't1' ORDER BY tag_id",
     )

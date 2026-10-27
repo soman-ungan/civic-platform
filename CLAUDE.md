@@ -56,6 +56,13 @@ civic-platform/
 - 首長・議員などの人物はタグにしない。議員ごとの記録はフェーズ5で、会議録の発言者の記載から機械的に対応付ける（LLM に推測させない）。投票の対象の意見の文には議員名を入れない。
 - 行政資料の収集は「エージェント」にせず、設定に従う決まった手順のコードにする。原本は保持しない（`docs/design/collection.md`）。
 
+## 会議録の原則（`docs/adr/0004-assembly-minutes.md`）
+- 名前を出すのは選挙で選ばれた公人（首長・議員）だけ。`public_officials` と会議録の発言者の記載から機械的に対応付ける。職員は職名だけ（AI にも氏名を渡さない）。
+- 引用は会議録の原文にそのまま含まれるものだけ。説明と意見に氏名を入れない（プログラムで確かめる）。
+- 最初の意見は議会で実際に出た主張だけを出発点にする（根拠の発言を `statement_sources` に記録。API では返さない）。AI に新しい選択肢を作らせない。
+- AI が作ったトピックは下書き（`topics.status = 'draft'`）。運営者が確かめてから公開する。下書きは API のどこにも出さない。
+- 手でコピーした会議録は `data/private/`（git の管理外）に置く。リポジトリに入れない。
+
 ## 技術方針
 - DB: 開発は SQLite、将来 PostgreSQL へ移行。
   - SQL は両方で動く書き方を優先（SQLite 固有関数を避ける）。
@@ -105,7 +112,12 @@ civic-platform/
     - `cargo run -- moderation list | approve <id> | reject <id> | retry` — 確認待ち（flagged / pending）の意見を扱う（認証のフェーズ6までは CLI）
     - `cargo run -- tag [--topic <id>] [--force]` — 自動タグ付け（通常は60秒ごとにバックグラウンドで、タグの無いトピックを処理）。`--force` は AI のタグだけを付け直す
     - `cargo run -- eval moderation|tagging [--model <id>] [--limit <n>]` — `evals/*.jsonl` で評価する。**実際の API を呼ぶので費用がかかる**
-    - 分野タグの共通語彙は `data/seeds/020_field_tags.sql`
+    - 分野タグの共通語彙は `data/seeds/020_field_tags.sql`（定義は `tags.description`、判断基準は `docs/design/tagging-criteria.md`）
+  - 会議録（`EXTRACTION_MODEL`、既定 Opus 5.5。抽出の1日の上限は `LLM_EXTRACTION_DAILY_BUDGET_USD` で別枠）
+    - `cargo run -- import minutes --municipality <slug> --file <path> --title <会議名> --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again] [--force]` — 会議録からトピックの下書きを作る。`--dry-run` は AI を呼ばずに発言者・名簿に無い人・議事日程を出す。一般質問・代表質問の無い会議録は飛ばす（`--force` で取り込む）。**実際の API を呼ぶので費用がかかる**（1日分でおよそ 0.3〜0.4 ドル）
+    - `cargo run -- topics drafts | show <id> | publish <id> | archive <id>` — 下書きの確認と公開
+    - `cargo run -- topics edit <id> [--title] [--description]` / `topics statement add|edit|remove ...` / `topics tag add|remove <topic_id> <tag_id>` — 手直し
+    - 公人の名簿は `data/seeds/030_officials_<団体コード>_<slug>.sql`
   - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト（`data/seeds/` の適用テストも含む）
   - `sqlx migrate add <name>` / `sqlx migrate run` / `sqlx migrate info`
   - `migrations/` の変更は `build.rs` により自動で再ビルドされる
