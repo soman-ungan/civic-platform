@@ -248,3 +248,41 @@ async fn text_without_speakers_is_reported() {
         Outcome::NoUtterances
     ));
 }
+
+#[tokio::test]
+async fn published_topic_shows_sources() {
+    let (pool, llm, fake, moderation) = setup(true).await;
+    fake.push_json(extraction_reply());
+    for _ in 0..3 {
+        fake.push_json(approve());
+    }
+    let Outcome::Imported(report) =
+        import(&pool, &llm, "claude-opus-5-5", &moderation, &input(), false)
+            .await
+            .unwrap()
+    else {
+        panic!("取り込めていない")
+    };
+    let topic_id = &report.topics[0].0;
+    backend::drafts::set_status(&pool, topic_id, "published")
+        .await
+        .unwrap();
+
+    let state = common::test_state(pool);
+    let res = common::request(
+        &state,
+        "GET",
+        &format!("/api/municipalities/otawara/topics/{topic_id}"),
+        None,
+        None,
+    )
+    .await;
+    let sources = res.json["sources"].as_array().unwrap();
+    assert_eq!(sources.len(), 3);
+    assert_eq!(sources[0]["speaker"], "鈴木花子議員");
+    assert_eq!(sources[2]["speaker"], "保健福祉部長");
+    assert_eq!(sources[0]["held_on"], "2025-09-05");
+    assert_eq!(res.json["source_type"], "assembly");
+    common::assert_no_key(&res.json, "official_id");
+    assert!(!res.json.to_string().contains("佐藤"));
+}

@@ -50,6 +50,24 @@ pub struct Topic {
     pub voted_count: i64,
 }
 
+/// 詳細: トピックと、議会のトピックの出典
+#[derive(Debug, Serialize)]
+pub struct TopicDetail {
+    #[serde(flatten)]
+    pub topic: Topic,
+    pub sources: Vec<TopicSource>,
+}
+
+/// 出典（会議録の発言からの引用）。発言者は公人なら氏名つき、職員は職名だけ
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TopicSource {
+    pub speaker: String,
+    pub quote: String,
+    pub document_title: String,
+    pub held_on: Option<String>,
+    pub url: Option<String>,
+}
+
 /// トピックへの参加状態。承認済みの意見だけで数える（意見が増えれば completed は in_progress に戻る）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -262,7 +280,7 @@ pub async fn detail(
     State(state): State<AppState>,
     Path((slug, topic_id)): Path<(String, String)>,
     MaybeParticipant(user_id): MaybeParticipant,
-) -> Result<Json<Topic>, ApiError> {
+) -> Result<Json<TopicDetail>, ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
 
     let row: TopicRow = sqlx::query_as(&format!("{SELECT_TOPIC} AND t.id = $2"))
@@ -281,5 +299,16 @@ pub async fn detail(
         .get(&row.id)
         .copied()
         .unwrap_or(0);
-    Ok(Json(into_topic(row, tags, voted_count)))
+    let sources = sqlx::query_as(
+        "SELECT s.speaker_label AS speaker, s.quote, d.title AS document_title, d.held_on, d.url
+         FROM topic_sources s JOIN documents d ON d.id = s.document_id
+         WHERE s.topic_id = $1 ORDER BY s.position",
+    )
+    .bind(&row.id)
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(TopicDetail {
+        topic: into_topic(row, tags, voted_count),
+        sources,
+    }))
 }
