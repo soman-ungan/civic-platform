@@ -7,7 +7,7 @@ const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8080";
 const DEFAULT_SEEDS_DIR: &str = "../data/seeds";
 const DEFAULT_DEV_SEEDS_DIR: &str = "../data/dev-seeds";
 const DEFAULT_MODERATION_MODEL: &str = "claude-sonnet-5-5";
-const DEFAULT_TAGGING_MODEL: &str = "claude-haiku-5-5";
+const DEFAULT_TAGGING_MODEL: &str = "claude-sonnet-5-5";
 const DEFAULT_LLM_DAILY_BUDGET_USD: f64 = 1.0;
 
 pub struct Config {
