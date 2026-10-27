@@ -174,3 +174,30 @@ async fn draft_is_saved_replaced_and_published() {
     // 別の自治体には入っていない
     assert!(budget::load(&pool, "092134", 2026).await.unwrap().is_none());
 }
+
+/// 大田原市の令和8年度の概要の実物と、そのときの AI の応答（data/private/ に保存したもの）で確かめる
+#[test]
+#[ignore = "data/private/budget/ に実物の PDF と AI の応答が要る"]
+fn real_otawara_r8() {
+    let (Ok(pdf), Ok(json)) = (
+        std::fs::read("../data/private/budget/R8yosangaiyou.pdf"),
+        std::fs::read_to_string("../data/private/budget/r8-extraction.json"),
+    ) else {
+        return;
+    };
+    let raw: Raw = serde_json::from_str(&json).unwrap();
+    let total = raw.projects.len();
+    let tags: HashMap<String, String> = raw
+        .projects
+        .iter()
+        .flat_map(|p| p.tags.clone())
+        .map(|t| (t.clone(), t))
+        .collect();
+    let pages = budget::pdftext::page_texts(&pdf).unwrap();
+    let checked = budget::check(raw, &pages, &tags);
+    for n in &checked.notes {
+        println!("{n}");
+    }
+    println!("{} / {total}", checked.projects.len());
+    assert_eq!(checked.projects.len(), total);
+}
