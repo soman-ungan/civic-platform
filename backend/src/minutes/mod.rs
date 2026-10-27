@@ -18,7 +18,7 @@ use sqlx::SqlitePool;
 use crate::llm::{Effort, Llm, Purpose, Request};
 use crate::moderation::{Moderation, Verdict};
 use crate::util::{new_id, now_iso};
-use parse::{DEFAULT_SPEAKER_PATTERN, Utterance, normalize_name};
+use parse::{Patterns, Utterance, normalize_name};
 
 /// 一度に取り込める文字数の上限（これを超えたら分けて取り込む）
 pub const MAX_CHARS: usize = 300_000;
@@ -51,8 +51,9 @@ pub struct Prepared {
     pub existing_document: Option<String>,
 }
 
-/// 自治体の会議録の見出しの形。`collector_sources.config.speaker_pattern` があればそれを使う
-pub async fn speaker_pattern(pool: &SqlitePool, municipality_id: &str) -> anyhow::Result<Regex> {
+/// 自治体の会議録の読み取りの形。`collector_sources.config` の `speaker_pattern` /
+/// `skip_pattern` があればそれを使う
+pub async fn patterns(pool: &SqlitePool, municipality_id: &str) -> anyhow::Result<Patterns> {
     let config: Option<String> = sqlx::query_scalar(
         "SELECT config FROM collector_sources
          WHERE municipality_id = $1 AND kind = 'minutes' AND adapter = 'manual_upload'",
@@ -60,16 +61,22 @@ pub async fn speaker_pattern(pool: &SqlitePool, municipality_id: &str) -> anyhow
     .bind(municipality_id)
     .fetch_optional(pool)
     .await?;
-    let pattern = config
-        .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
-        .and_then(|v| v["speaker_pattern"].as_str().map(str::to_owned))
-        .unwrap_or_else(|| DEFAULT_SPEAKER_PATTERN.to_owned());
-    Ok(Regex::new(&pattern)?)
+    let config: serde_json::Value = config
+        .and_then(|c| serde_json::from_str(&c).ok())
+        .unwrap_or_default();
+    let mut patterns = Patterns::default();
+    if let Some(p) = config["speaker_pattern"].as_str() {
+        patterns.speaker = Regex::new(p)?;
+    }
+    if let Some(p) = config["skip_pattern"].as_str() {
+        patterns.skip = Regex::new(p)?;
+    }
+    Ok(patterns)
 }
 
 pub async fn prepare(pool: &SqlitePool, input: &Input) -> anyhow::Result<Prepared> {
-    let pattern = speaker_pattern(pool, &input.municipality_id).await?;
-    let utterances = parse::parse(&input.text, &pattern);
+    let patterns = patterns(pool, &input.municipality_id).await?;
+    let utterances = parse::parse(&input.text, &patterns);
     let sha256: String = Sha256::digest(input.text.as_bytes())
         .iter()
         .map(|b| format!("{b:02x}"))

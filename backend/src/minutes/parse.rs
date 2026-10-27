@@ -11,8 +11,11 @@
 //! ◎保健福祉部長（佐藤次郎君） ご質問にお答えします。
 //! ```
 //!
-//! 形式は自治体ごとに違うので、見出しの正規表現は設定（`collector_sources.config` の
-//! `speaker_pattern`）で差し替えられる。名前付きグループ `role` と `name` を持つこと。
+//! 発言ではない行（「△開議の宣告」のような節の見出し、「（市長　〇〇登壇）」のようなト書き）は
+//! 飛ばす。
+//!
+//! 形式は自治体ごとに違うので、正規表現は設定（`collector_sources.config` の `speaker_pattern`
+//! と `skip_pattern`）で差し替えられる。`speaker_pattern` は名前付きグループ `role` と `name` を持つこと。
 
 use std::sync::LazyLock;
 
@@ -20,7 +23,24 @@ use regex::Regex;
 
 /// 既定の見出しの形: 行頭の記号、役職、括弧の中の氏名
 pub const DEFAULT_SPEAKER_PATTERN: &str =
-    r"^[○◆◎△▲□◇]\s*(?P<role>[^（(\s]+?)\s*[（(](?P<name>[^）)]+?)[）)]\s*";
+    r"^[○◆◎▲□◇]\s*(?P<role>[^（(\s]+?)\s*[（(](?P<name>[^）)]+?)[）)]\s*";
+/// 既定の、発言ではない行: △の節の見出し、括弧だけのト書き
+pub const DEFAULT_SKIP_PATTERN: &str = r"^(△|[（(][^）)]*[）)]\s*$)";
+
+/// 会議録の読み取りの形
+pub struct Patterns {
+    pub speaker: Regex,
+    pub skip: Regex,
+}
+
+impl Default for Patterns {
+    fn default() -> Self {
+        Self {
+            speaker: Regex::new(DEFAULT_SPEAKER_PATTERN).unwrap(),
+            skip: Regex::new(DEFAULT_SKIP_PATTERN).unwrap(),
+        }
+    }
+}
 
 /// 発言者の種類
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,11 +125,14 @@ fn classify(role: &str) -> SpeakerKind {
 }
 
 /// テキストを発言に分ける。最初の見出しより前（表紙・出席者の一覧など）は使わない
-pub fn parse(text: &str, pattern: &Regex) -> Vec<Utterance> {
+pub fn parse(text: &str, patterns: &Patterns) -> Vec<Utterance> {
     let mut out: Vec<Utterance> = Vec::new();
     for line in text.lines() {
         let trimmed = line.trim_start_matches([' ', '\u{3000}', '\t']);
-        if let Some(caps) = pattern.captures(trimmed) {
+        if patterns.skip.is_match(trimmed) {
+            continue;
+        }
+        if let Some(caps) = patterns.speaker.captures(trimmed) {
             let role = caps["role"].trim().to_owned();
             let name = normalize_name(&caps["name"]);
             let rest = trimmed[caps.get(0).unwrap().end()..].trim().to_owned();
@@ -142,47 +165,64 @@ mod tests {
 出席議員（20名）
    1番  鈴木花子      2番  田中次郎
 
+△開議の宣告
 ○議長（高橋　一郎君）　ただいまから本日の会議を開きます。
+△鈴木花子議員
 ◆12番（鈴木　花子君）　通告に従い質問します。
 放課後児童クラブの待機児童について伺います。
-◎市長（山田一郎君）　お答えいたします。
+○議長（高橋　一郎君）　山田一郎市長。
+　　　　　　　（市長　山田一郎登壇）
+◎市長（山田一郎）　お答えいたします。
 ◎保健福祉部長（佐藤次郎君）　ご質問にお答えします。
 ";
 
     #[test]
     fn splits_and_classifies() {
-        let pattern = Regex::new(DEFAULT_SPEAKER_PATTERN).unwrap();
-        let u = parse(SAMPLE, &pattern);
-        assert_eq!(u.len(), 4);
+        let u = parse(SAMPLE, &Patterns::default());
+        assert_eq!(u.len(), 5);
         assert_eq!(
             (u[0].kind, u[0].name.as_str(), u[0].role.as_str()),
             (SpeakerKind::Chair, "高橋一郎", "議長")
         );
         assert_eq!(u[1].kind, SpeakerKind::Councilor);
         assert_eq!(u[1].name, "鈴木花子");
+        // 節の見出し（△）は前の発言に入らない
+        assert_eq!(u[0].body, "ただいまから本日の会議を開きます。");
         assert_eq!(
             u[1].body,
             "通告に従い質問します。\n放課後児童クラブの待機児童について伺います。"
         );
-        assert_eq!(u[2].kind, SpeakerKind::Mayor);
-        assert_eq!(u[3].kind, SpeakerKind::Staff);
-        assert_eq!(u[3].no, 4);
+        // ト書きは本文に入らない
+        assert_eq!(u[2].body, "山田一郎市長。");
+        assert_eq!(u[3].kind, SpeakerKind::Mayor);
+        assert_eq!(u[3].name, "山田一郎");
+        assert_eq!(u[4].kind, SpeakerKind::Staff);
+        assert_eq!(u[4].no, 5);
     }
 
     #[test]
     fn labels_hide_staff_names() {
-        let pattern = Regex::new(DEFAULT_SPEAKER_PATTERN).unwrap();
-        let u = parse(SAMPLE, &pattern);
+        let u = parse(SAMPLE, &Patterns::default());
         let labels: Vec<String> = u.iter().map(Utterance::speaker_label).collect();
         assert_eq!(
             labels,
             [
                 "高橋一郎議長",
                 "鈴木花子議員",
+                "高橋一郎議長",
                 "山田一郎市長",
                 "保健福祉部長"
             ]
         );
+    }
+
+    #[test]
+    fn committee_chair_is_councilor() {
+        assert_eq!(classify("民生文教常任委員長"), SpeakerKind::Chair);
+        assert_eq!(classify("予算審査特別委員長"), SpeakerKind::Chair);
+        assert_eq!(classify("教育長"), SpeakerKind::Staff);
+        assert_eq!(classify("副市長"), SpeakerKind::Staff);
+        assert_eq!(classify("１番"), SpeakerKind::Councilor);
     }
 
     #[test]
