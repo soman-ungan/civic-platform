@@ -179,6 +179,25 @@ mod tests {
     }
 
     #[test]
+    fn pdf_goes_before_the_text() {
+        let body = build_body(&Request {
+            purpose: Purpose::Extraction,
+            model: "claude-opus-5-5".into(),
+            system: "指示".into(),
+            user: "書き写してください".into(),
+            schema: json!({"type": "object"}),
+            effort: Effort::Medium,
+            max_tokens: 1024,
+            pdf: Some(b"%PDF".to_vec()),
+        });
+        let content = &body["messages"][0]["content"];
+        assert_eq!(content[0]["type"], "document");
+        assert_eq!(content[0]["source"]["media_type"], "application/pdf");
+        assert_eq!(content[0]["source"]["data"], "JVBERg==");
+        assert_eq!(content[1]["text"], "書き写してください");
+    }
+
+    #[test]
     fn parse_skips_thinking_blocks() {
         let reply = parse_reply(json!({
             "stop_reason": "end_turn",
