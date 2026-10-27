@@ -2,6 +2,9 @@
 
 use std::path::Path;
 
+use backend::llm::Llm;
+use backend::llm::client::AnthropicClient;
+use backend::moderation::{self, Moderation};
 use backend::{AppState, analysis, app, config::Config, db, seed};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
@@ -55,6 +58,28 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // API キーがあれば AI でモデレーションする（無ければ全件承認）
+    let llm = match &config.anthropic_api_key {
+        Some(key) => Some(Llm::anthropic(
+            AnthropicClient::new(key.clone())?,
+            config.llm_daily_budget_usd,
+        )),
+        None => None,
+    };
+    let moderation = match &llm {
+        Some(llm) => Moderation::Llm {
+            llm: llm.clone(),
+            model: config.moderation_model.clone(),
+        },
+        None => Moderation::AutoApprove,
+    };
+
+    // `cargo run -- moderation list | approve <id> | reject <id> | retry`: 確認待ちの意見を扱う
+    if args.first().map(String::as_str) == Some("moderation") {
+        moderation_command(&pool, &moderation, &args[1..]).await?;
+        return Ok(());
+    }
+
     if config.analysis_interval_secs > 0 {
         analysis::store::spawn_worker(
             pool.clone(),
@@ -62,13 +87,67 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    let state = AppState::new(pool, &config.session_secret, config.cookie_secure)?;
+    match &moderation {
+        Moderation::Llm { model, .. } => {
+            tracing::info!(model, "AI moderation enabled");
+            moderation::spawn_retry_worker(
+                pool.clone(),
+                moderation.clone(),
+                std::time::Duration::from_secs(60),
+            );
+        }
+        Moderation::AutoApprove => {
+            tracing::info!("ANTHROPIC_API_KEY が無いので、投稿は自動で承認します");
+        }
+    }
+
+    let state = AppState::new(pool, &config.session_secret, config.cookie_secure)?
+        .with_moderation(moderation);
     let listener = TcpListener::bind(&config.bind_addr).await?;
     tracing::info!("listening on http://{}", listener.local_addr()?);
 
     axum::serve(listener, app(state))
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+    Ok(())
+}
+
+async fn moderation_command(
+    pool: &sqlx::SqlitePool,
+    moderation: &Moderation,
+    args: &[String],
+) -> anyhow::Result<()> {
+    match (args.first().map(String::as_str), args.get(1)) {
+        (Some("list") | None, _) => {
+            let items = moderation::queue(pool).await?;
+            if items.is_empty() {
+                println!("確認待ちの意見はありません");
+            }
+            for item in items {
+                println!(
+                    "{}  [{}]  {}  topic={}\n    {}\n    理由: {}",
+                    item.id,
+                    item.status,
+                    item.created_at,
+                    item.topic_id,
+                    item.body,
+                    item.moderation_note.as_deref().unwrap_or("-"),
+                );
+            }
+        }
+        (Some(cmd @ ("approve" | "reject")), Some(id)) => {
+            if moderation::decide(pool, id, cmd == "approve").await? {
+                println!("{id}: {cmd}");
+            } else {
+                anyhow::bail!("意見が見つかりません: {id}");
+            }
+        }
+        (Some("retry"), _) => {
+            let n = moderation::retry_pending(pool, moderation).await?;
+            println!("{n} 件を判定しました");
+        }
+        _ => anyhow::bail!("使い方: moderation [list | approve <id> | reject <id> | retry]"),
+    }
     Ok(())
 }
 

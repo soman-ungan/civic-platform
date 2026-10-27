@@ -53,6 +53,14 @@ impl AppState {
     }
 }
 
+impl AppState {
+    /// 投稿の判定方式を差し替える（API キーがあるときの LLM、テストの偽の LLM）
+    pub fn with_moderation(mut self, moderation: Moderation) -> Self {
+        self.moderation = moderation;
+        self
+    }
+}
+
 impl FromRef<AppState> for Key {
     fn from_ref(state: &AppState) -> Self {
         state.cookie_key.clone()
