@@ -286,3 +286,27 @@ async fn published_topic_shows_sources() {
     common::assert_no_key(&res.json, "official_id");
     assert!(!res.json.to_string().contains("佐藤"));
 }
+
+#[tokio::test]
+async fn statement_with_failed_moderation_is_kept_as_pending() {
+    let (pool, llm, fake, moderation) = setup(true).await;
+    fake.push_json(extraction_reply());
+    fake.push_transport_error("timeout");
+    fake.push_json(approve());
+    fake.push_json(approve());
+    let Outcome::Imported(report) =
+        import(&pool, &llm, "claude-opus-5-5", &moderation, &input(), false)
+            .await
+            .unwrap()
+    else {
+        panic!("取り込めていない")
+    };
+    assert_eq!(report.topics.len(), 1, "{:?}", report.notes);
+    let statuses: Vec<String> =
+        sqlx::query_scalar("SELECT status FROM statements WHERE topic_id = $1 ORDER BY status")
+            .bind(&report.topics[0].0)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(statuses, ["approved", "approved", "pending"]);
+}

@@ -196,23 +196,25 @@ pub async fn import(
     let raw: extract::RawOutput = serde_json::from_value(value)?;
     let (checked, mut notes) = extract::check(raw, &prepared.utterances, &prepared.names);
 
-    // 最初の意見もモデレーションに通し、承認されたものだけを残す
-    let mut topics = Vec::new();
-    for mut topic in checked {
-        let mut approved = Vec::new();
-        for body in topic.statements {
-            let review = moderation.review(pool, &body).await;
-            if review.verdict == Verdict::Approved {
-                approved.push(body);
-            } else {
-                notes.push(format!(
+    // 最初の意見もモデレーションに通す。承認されたものと、判定できなかったもの（pending。
+    // 通常の投稿と同じく、あとで判定し直す）を残し、非公開・要確認になったものは捨てる
+    let mut topics: Vec<(extract::CheckedTopic, Vec<(String, &'static str)>)> = Vec::new();
+    for topic in checked {
+        let mut kept = Vec::new();
+        for body in &topic.statements {
+            let review = moderation.review(pool, body).await;
+            match review.verdict {
+                Verdict::Approved | Verdict::Pending => {
+                    kept.push((body.clone(), review.verdict.status()));
+                }
+                _ => notes.push(format!(
                     "{}: モデレーションで {} になった意見を捨てた:「{body}」",
                     topic.title,
                     review.verdict.status()
-                ));
+                )),
             }
         }
-        if approved.len() < extract::MIN_STATEMENTS {
+        if kept.len() < extract::MIN_STATEMENTS {
             notes.push(format!(
                 "モデレーションのあと意見が{}件未満なので捨てた: {}",
                 extract::MIN_STATEMENTS,
@@ -220,8 +222,13 @@ pub async fn import(
             ));
             continue;
         }
-        topic.statements = approved;
-        topics.push(topic);
+        if kept.iter().any(|(_, status)| *status == "pending") {
+            notes.push(format!(
+                "{}: 判定できなかった意見を確認待ち（pending）で残した。あとで判定し直す",
+                topic.title
+            ));
+        }
+        topics.push((topic, kept));
     }
 
     // 保存（トピックは下書き）
@@ -249,7 +256,7 @@ pub async fn import(
     };
     let by_no: HashMap<usize, &Utterance> = prepared.utterances.iter().map(|u| (u.no, u)).collect();
     let mut saved = Vec::new();
-    for topic in &topics {
+    for (topic, statements) in &topics {
         let topic_id = new_id();
         let now = now_iso();
         sqlx::query(
@@ -264,14 +271,15 @@ pub async fn import(
         .bind(&now)
         .execute(&mut *tx)
         .await?;
-        for body in &topic.statements {
+        for (body, status) in statements {
             sqlx::query(
                 "INSERT INTO statements (id, topic_id, user_id, body, status, created_at)
-                 VALUES ($1, $2, NULL, $3, 'approved', $4)",
+                 VALUES ($1, $2, NULL, $3, $4, $5)",
             )
             .bind(new_id())
             .bind(&topic_id)
             .bind(body)
+            .bind(status)
             .bind(&now)
             .execute(&mut *tx)
             .await?;
