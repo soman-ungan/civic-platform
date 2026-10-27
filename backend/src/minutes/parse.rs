@@ -27,10 +27,18 @@ pub const DEFAULT_SPEAKER_PATTERN: &str =
 /// 既定の、発言ではない行: △の節の見出し、括弧だけのト書き
 pub const DEFAULT_SKIP_PATTERN: &str = r"^(△|[（(][^）)]*[）)]\s*$)";
 
+/// 既定の、議事日程の行（最初の発言より前にある「日程第１　一般質問」など）
+pub const DEFAULT_AGENDA_PATTERN: &str = r"^(追加)?日程第";
+/// 既定の、トピックを作る議事。これを含む日程が無い会議録（会期の決定・議案の上程・採決だけの日など
+/// 形式的な議事）は取り込まない
+pub const DEFAULT_TOPICAL_AGENDA_PATTERN: &str = "一般質問|代表質問";
+
 /// 会議録の読み取りの形
 pub struct Patterns {
     pub speaker: Regex,
     pub skip: Regex,
+    pub agenda: Regex,
+    pub topical_agenda: Regex,
 }
 
 impl Default for Patterns {
@@ -38,8 +46,30 @@ impl Default for Patterns {
         Self {
             speaker: Regex::new(DEFAULT_SPEAKER_PATTERN).unwrap(),
             skip: Regex::new(DEFAULT_SKIP_PATTERN).unwrap(),
+            agenda: Regex::new(DEFAULT_AGENDA_PATTERN).unwrap(),
+            topical_agenda: Regex::new(DEFAULT_TOPICAL_AGENDA_PATTERN).unwrap(),
         }
     }
+}
+
+/// 議事日程（最初の発言より前にある日程の行）
+pub fn agenda(text: &str, patterns: &Patterns) -> Vec<String> {
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let trimmed = line.trim_start_matches([' ', '\u{3000}', '\t']);
+        if patterns.speaker.is_match(trimmed) {
+            break;
+        }
+        if patterns.agenda.is_match(trimmed) {
+            out.push(trimmed.trim_end_matches([' ', '\u{3000}']).to_owned());
+        }
+    }
+    out
+}
+
+/// 議長の短い進行の発言（「〇〇市長。」「休憩します。」など）。AI に送らない
+pub fn is_procedural(u: &Utterance) -> bool {
+    u.kind == SpeakerKind::Chair && u.body.chars().count() <= 40
 }
 
 /// 発言者の種類
@@ -223,6 +253,16 @@ mod tests {
         assert_eq!(classify("教育長"), SpeakerKind::Staff);
         assert_eq!(classify("副市長"), SpeakerKind::Staff);
         assert_eq!(classify("１番"), SpeakerKind::Councilor);
+    }
+
+    #[test]
+    fn agenda_lines_before_first_speech() {
+        let text = "議事日程\n日程第　１　代表質問\n日程第　２　一般質問\n○議長（高橋一郎）　開会します。\n日程第　３　ではない\n";
+        let p = Patterns::default();
+        assert_eq!(
+            agenda(text, &p),
+            ["日程第　１　代表質問", "日程第　２　一般質問"]
+        );
     }
 
     #[test]

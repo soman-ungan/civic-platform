@@ -49,10 +49,14 @@ pub struct Prepared {
     pub names: Vec<String>,
     /// 既に取り込んだ同じ文書の ID
     pub existing_document: Option<String>,
+    /// 議事日程
+    pub agenda: Vec<String>,
+    /// トピックを作る議事（一般質問・代表質問など）があるか
+    pub topical: bool,
 }
 
 /// 自治体の会議録の読み取りの形。`collector_sources.config` の `speaker_pattern` /
-/// `skip_pattern` があればそれを使う
+/// `skip_pattern` / `agenda_pattern` / `topical_agenda_pattern` があればそれを使う
 pub async fn patterns(pool: &SqlitePool, municipality_id: &str) -> anyhow::Result<Patterns> {
     let config: Option<String> = sqlx::query_scalar(
         "SELECT config FROM collector_sources
@@ -71,12 +75,20 @@ pub async fn patterns(pool: &SqlitePool, municipality_id: &str) -> anyhow::Resul
     if let Some(p) = config["skip_pattern"].as_str() {
         patterns.skip = Regex::new(p)?;
     }
+    if let Some(p) = config["agenda_pattern"].as_str() {
+        patterns.agenda = Regex::new(p)?;
+    }
+    if let Some(p) = config["topical_agenda_pattern"].as_str() {
+        patterns.topical_agenda = Regex::new(p)?;
+    }
     Ok(patterns)
 }
 
 pub async fn prepare(pool: &SqlitePool, input: &Input) -> anyhow::Result<Prepared> {
     let patterns = patterns(pool, &input.municipality_id).await?;
     let utterances = parse::parse(&input.text, &patterns);
+    let agenda = parse::agenda(&input.text, &patterns);
+    let topical = agenda.iter().any(|a| patterns.topical_agenda.is_match(a));
     let sha256: String = Sha256::digest(input.text.as_bytes())
         .iter()
         .map(|b| format!("{b:02x}"))
@@ -134,6 +146,8 @@ pub async fn prepare(pool: &SqlitePool, input: &Input) -> anyhow::Result<Prepare
         unmatched: unmatched.into_iter().collect(),
         names: names.into_iter().collect(),
         existing_document,
+        agenda,
+        topical,
     })
 }
 
@@ -146,6 +160,9 @@ pub enum Outcome {
     Duplicate(String),
     /// 発言が見つからない（見出しの形が違う）
     NoUtterances,
+    /// トピックを作る議事（一般質問など）が無い、形式的な議事の会議録なので取り込まなかった
+    /// （取り込むときは `force`）
+    NotTopical(Vec<String>),
     Imported(Report),
 }
 
@@ -160,7 +177,8 @@ pub struct Report {
 }
 
 /// 会議録を取り込み、トピック案を下書きとして保存する。
-/// `again` なら、取り込み済みの文書からもう一度トピック案を作る（指示文を直して試すとき）
+/// `again` なら、取り込み済みの文書からもう一度トピック案を作る（指示文を直して試すとき）。
+/// `force` なら、形式的な議事だけの会議録でも取り込む
 pub async fn import(
     pool: &SqlitePool,
     llm: &Llm,
@@ -168,6 +186,7 @@ pub async fn import(
     moderation: &Moderation,
     input: &Input,
     again: bool,
+    force: bool,
 ) -> anyhow::Result<Outcome> {
     if input.text.chars().count() > MAX_CHARS {
         anyhow::bail!("会議録が長すぎます（{MAX_CHARS}文字まで）。分けて取り込んでください");
@@ -182,12 +201,22 @@ pub async fn import(
     if let (Some(id), false) = (&prepared.existing_document, again) {
         return Ok(Outcome::Duplicate(id.clone()));
     }
+    if !prepared.topical && !force {
+        return Ok(Outcome::NotTopical(prepared.agenda));
+    }
+    // 議長の短い進行の発言は AI に送らない（発言の番号は変えない）
+    let speeches: Vec<Utterance> = prepared
+        .utterances
+        .iter()
+        .filter(|u| !parse::is_procedural(u))
+        .cloned()
+        .collect();
 
     let request = Request {
         purpose: Purpose::Extraction,
         model: model.to_owned(),
         system: extract::SYSTEM_PROMPT.into(),
-        user: extract::build_input(&input.title, &input.held_on, &prepared.utterances),
+        user: extract::build_input(&input.title, &input.held_on, &speeches),
         schema: extract::schema(),
         effort: Effort::Medium,
         max_tokens: 32_000,

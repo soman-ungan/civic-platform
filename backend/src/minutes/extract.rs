@@ -21,6 +21,8 @@ pub const MIN_STATEMENTS: usize = 3;
 /// 引用の最大文字数（topic_sources.quote と同じ）
 pub const MAX_QUOTE_CHARS: usize = 200;
 const MAX_TITLE_CHARS: usize = 60;
+/// 説明の目安の文字数（出典を除く）。超えても捨てず、運営者に知らせる
+pub const MAX_DESCRIPTION_CHARS: usize = 140;
 const MAX_STATEMENT_CHARS: usize = 140;
 
 pub const SYSTEM_PROMPT: &str = "\
@@ -34,7 +36,7 @@ pub const SYSTEM_PROMPT: &str = "\
 
 # 各項目の書き方
 - title: 30字程度。中立なテーマか問いの形（例:「放課後児童クラブの待機児童をどう減らすか」）
-- description: 200〜400字。何が課題で、どんな考え方や選択肢があるかを、中立に書く
+- description: **140字以内**。何が課題で、どんな考え方や選択肢があるかを、中立に短くまとめる
   - **人の名前を書かない。**「議員から〜という質問があり、市は〜と答えた」のように役割で書く
   - 一方の立場に寄せない。会議録に無い事実を付け足さない
 - sources: そのトピックの根拠になる発言を1〜4件。utterance_no は発言の番号、quote はその発言の本文から**そのまま抜き出した**連続した文字列（1〜2文、200字以内）。要約や言い換えをしない
@@ -156,6 +158,12 @@ pub fn check(
         if title.is_empty() || title.chars().count() > MAX_TITLE_CHARS {
             notes.push(format!("タイトルが空か長すぎるので捨てた: {title}"));
             continue;
+        }
+        let description_chars = description.chars().count();
+        if description_chars > MAX_DESCRIPTION_CHARS {
+            notes.push(format!(
+                "{title}: 説明が{description_chars}字で、{MAX_DESCRIPTION_CHARS}字を超えている（topics edit で直す）"
+            ));
         }
         if let Some(name) = contains_name(&format!("{title}{description}"), names) {
             notes.push(format!(

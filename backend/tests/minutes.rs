@@ -16,6 +16,7 @@ use sqlx::SqlitePool;
 /// 架空の会議録（名前はすべて架空）
 const MINUTES: &str = "\
 令和7年第3回大田原市議会定例会会議録（架空）
+日程第　１　一般質問
 
 ○議長（高橋　一郎君）　ただいまから本日の会議を開きます。
 ◆12番（鈴木　花子君）　通告に従い質問します。
@@ -92,9 +93,17 @@ fn approve() -> Value {
 #[tokio::test]
 async fn stops_when_speakers_are_not_in_roster() {
     let (pool, llm, fake, moderation) = setup(false).await;
-    let outcome = import(&pool, &llm, "claude-opus-5-5", &moderation, &input(), false)
-        .await
-        .unwrap();
+    let outcome = import(
+        &pool,
+        &llm,
+        "claude-opus-5-5",
+        &moderation,
+        &input(),
+        false,
+        false,
+    )
+    .await
+    .unwrap();
     match outcome {
         Outcome::Unmatched(names) => assert_eq!(
             names,
@@ -130,11 +139,17 @@ async fn imports_checked_topics_as_drafts() {
     fake.push_json(approve());
     fake.push_json(approve());
 
-    let Outcome::Imported(report) =
-        import(&pool, &llm, "claude-opus-5-5", &moderation, &input(), false)
-            .await
-            .unwrap()
-    else {
+    let Outcome::Imported(report) = import(
+        &pool,
+        &llm,
+        "claude-opus-5-5",
+        &moderation,
+        &input(),
+        false,
+        false,
+    )
+    .await
+    .unwrap() else {
         panic!("取り込めていない")
     };
     // モデレーションで1件減り、2件になったので捨てられる
@@ -161,11 +176,17 @@ async fn saved_draft_has_sources_and_statements() {
     for _ in 0..3 {
         fake.push_json(approve());
     }
-    let Outcome::Imported(report) =
-        import(&pool, &llm, "claude-opus-5-5", &moderation, &input(), false)
-            .await
-            .unwrap()
-    else {
+    let Outcome::Imported(report) = import(
+        &pool,
+        &llm,
+        "claude-opus-5-5",
+        &moderation,
+        &input(),
+        false,
+        false,
+    )
+    .await
+    .unwrap() else {
         panic!("取り込めていない")
     };
     assert_eq!(report.topics.len(), 1, "{:?}", report.notes);
@@ -213,19 +234,33 @@ async fn saved_draft_has_sources_and_statements() {
     );
 
     // 同じ会議録は二度取り込まない。again なら同じ文書から作り直せる
-    match import(&pool, &llm, "claude-opus-5-5", &moderation, &input(), false)
-        .await
-        .unwrap()
+    match import(
+        &pool,
+        &llm,
+        "claude-opus-5-5",
+        &moderation,
+        &input(),
+        false,
+        false,
+    )
+    .await
+    .unwrap()
     {
         Outcome::Duplicate(id) => assert_eq!(id, report.document_id),
         other => panic!("{other:?}"),
     }
     fake.push_json(json!({"topics": []}));
-    let Outcome::Imported(again) =
-        import(&pool, &llm, "claude-opus-5-5", &moderation, &input(), true)
-            .await
-            .unwrap()
-    else {
+    let Outcome::Imported(again) = import(
+        &pool,
+        &llm,
+        "claude-opus-5-5",
+        &moderation,
+        &input(),
+        true,
+        false,
+    )
+    .await
+    .unwrap() else {
         panic!("作り直せていない")
     };
     assert_eq!(again.document_id, report.document_id);
@@ -242,9 +277,17 @@ async fn text_without_speakers_is_reported() {
     let mut i = input();
     i.text = "見出しの形が違う会議録".into();
     assert!(matches!(
-        import(&pool, &llm, "claude-opus-5-5", &moderation, &i, false)
-            .await
-            .unwrap(),
+        import(
+            &pool,
+            &llm,
+            "claude-opus-5-5",
+            &moderation,
+            &i,
+            false,
+            false
+        )
+        .await
+        .unwrap(),
         Outcome::NoUtterances
     ));
 }
@@ -256,11 +299,17 @@ async fn published_topic_shows_sources() {
     for _ in 0..3 {
         fake.push_json(approve());
     }
-    let Outcome::Imported(report) =
-        import(&pool, &llm, "claude-opus-5-5", &moderation, &input(), false)
-            .await
-            .unwrap()
-    else {
+    let Outcome::Imported(report) = import(
+        &pool,
+        &llm,
+        "claude-opus-5-5",
+        &moderation,
+        &input(),
+        false,
+        false,
+    )
+    .await
+    .unwrap() else {
         panic!("取り込めていない")
     };
     let topic_id = &report.topics[0].0;
@@ -294,11 +343,17 @@ async fn statement_with_failed_moderation_is_kept_as_pending() {
     fake.push_transport_error("timeout");
     fake.push_json(approve());
     fake.push_json(approve());
-    let Outcome::Imported(report) =
-        import(&pool, &llm, "claude-opus-5-5", &moderation, &input(), false)
-            .await
-            .unwrap()
-    else {
+    let Outcome::Imported(report) = import(
+        &pool,
+        &llm,
+        "claude-opus-5-5",
+        &moderation,
+        &input(),
+        false,
+        false,
+    )
+    .await
+    .unwrap() else {
         panic!("取り込めていない")
     };
     assert_eq!(report.topics.len(), 1, "{:?}", report.notes);
@@ -309,4 +364,63 @@ async fn statement_with_failed_moderation_is_kept_as_pending() {
             .await
             .unwrap();
     assert_eq!(statuses, ["approved", "approved", "pending"]);
+}
+
+#[tokio::test]
+async fn procedural_minutes_are_skipped_unless_forced() {
+    let (pool, llm, fake, moderation) = setup(true).await;
+    let mut i = input();
+    i.text = i
+        .text
+        .replace("日程第　１　一般質問", "日程第　１　会期の決定");
+    match import(
+        &pool,
+        &llm,
+        "claude-opus-5-5",
+        &moderation,
+        &i,
+        false,
+        false,
+    )
+    .await
+    .unwrap()
+    {
+        Outcome::NotTopical(agenda) => assert_eq!(agenda, ["日程第　１　会期の決定"]),
+        other => panic!("{other:?}"),
+    }
+    assert!(fake.requests().is_empty(), "AI を呼んではいけない");
+
+    fake.push_json(json!({"topics": []}));
+    assert!(matches!(
+        import(&pool, &llm, "claude-opus-5-5", &moderation, &i, false, true)
+            .await
+            .unwrap(),
+        Outcome::Imported(_)
+    ));
+}
+
+#[tokio::test]
+async fn short_chair_remarks_are_not_sent() {
+    let (pool, llm, fake, moderation) = setup(true).await;
+    let mut i = input();
+    i.text.push_str("○議長（高橋　一郎君）　山田一郎市長。\n");
+    fake.push_json(json!({"topics": []}));
+    import(
+        &pool,
+        &llm,
+        "claude-opus-5-5",
+        &moderation,
+        &i,
+        false,
+        false,
+    )
+    .await
+    .unwrap();
+    let sent = fake.requests()[0]["messages"][0]["content"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(!sent.contains("高橋一郎議長"), "{sent}");
+    // 発言の番号は元のまま
+    assert!(sent.contains("[2] 鈴木花子議員"), "{sent}");
 }

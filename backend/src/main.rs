@@ -113,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // `cargo run -- import minutes --municipality <slug> --file <path> --title <会議名>
-    //   --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again]`: 会議録からトピック案を作る
+    //   --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again] [--force]`: 会議録からトピック案を作る
     if args.first().map(String::as_str) == Some("import") {
         return import_command(&pool, &config, llm.as_ref(), &moderation, &args[1..]).await;
     }
@@ -260,7 +260,7 @@ async fn import_command(
             .and_then(|i| args.get(i + 1))
             .cloned()
     };
-    let usage = "使い方: import minutes --municipality <slug> --file <path> --title <会議名> --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again]";
+    let usage = "使い方: import minutes --municipality <slug> --file <path> --title <会議名> --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again] [--force]";
     if args.first().map(String::as_str) != Some("minutes") {
         anyhow::bail!(usage);
     }
@@ -293,6 +293,17 @@ async fn import_command(
             p.utterances.len(),
             input.text.chars().count()
         );
+        println!(
+            "議事日程: {}",
+            if p.topical {
+                "トピックを作る議事あり"
+            } else {
+                "形式的な議事だけ（取り込まない。取り込むときは --force）"
+            }
+        );
+        for item in &p.agenda {
+            println!("  {item}");
+        }
         let mut speakers: Vec<(String, usize)> = Vec::new();
         for u in &p.utterances {
             let label = u.speaker_label();
@@ -324,6 +335,7 @@ async fn import_command(
         );
     };
     let again = args.iter().any(|a| a == "--again");
+    let force = args.iter().any(|a| a == "--force");
     match minutes::import(
         pool,
         llm,
@@ -331,9 +343,18 @@ async fn import_command(
         moderation,
         &input,
         again,
+        force,
     )
     .await?
     {
+        minutes::Outcome::NotTopical(agenda) => {
+            println!(
+                "一般質問などトピックを作る議事が無いので、取り込みませんでした（取り込むときは --force）:"
+            );
+            for item in agenda {
+                println!("  {item}");
+            }
+        }
         minutes::Outcome::NoUtterances => {
             anyhow::bail!("発言が見つかりません。会議録の見出しの形を確かめてください（--dry-run）")
         }
