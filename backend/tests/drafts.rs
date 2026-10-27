@@ -74,3 +74,91 @@ async fn draft_is_hidden_until_published() {
     let detail = request(&state, "GET", T1, None, None).await;
     assert_eq!(detail.status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn operator_can_edit_topic_statements_and_tags() {
+    let pool = test_pool().await;
+    seed_polarized(&pool).await;
+    sqlx::raw_sql(
+        "INSERT INTO tags (id, kind, name) VALUES ('field-koutsu', 'field', '交通・移動');
+         INSERT INTO tags (id, kind, name, district_id) VALUES
+             ('district-092100-kurobane', 'district', '黒羽', '092100-kurobane'),
+             ('district-092134-shiobara', 'district', '塩原', '092134-shiobara');
+         INSERT INTO topic_tags (topic_id, tag_id, assigned_by) VALUES ('t1', 'field-koutsu', 'ai');",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    drafts::edit_topic(&pool, "t1", None, Some(" 短い説明 "))
+        .await
+        .unwrap();
+    let (title, description): (String, String) =
+        sqlx::query_as("SELECT title, description FROM topics WHERE id = 't1'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        (title.as_str(), description.as_str()),
+        ("大田原のテスト", "短い説明")
+    );
+    assert!(
+        drafts::edit_topic(&pool, "missing", Some("x"), None)
+            .await
+            .is_err()
+    );
+
+    // 投票のある意見は直せない。投票の無い意見は直せる
+    assert!(
+        drafts::edit_statement(&pool, "a0", "直した意見")
+            .await
+            .is_err()
+    );
+    let sid = drafts::add_statement(&pool, "t1", "足した意見")
+        .await
+        .unwrap();
+    drafts::edit_statement(&pool, &sid, "直した意見")
+        .await
+        .unwrap();
+    assert!(
+        drafts::add_statement(&pool, "t1", &"あ".repeat(141))
+            .await
+            .is_err()
+    );
+
+    // 地区タグは、そのトピックの自治体の地区だけ。AI のタグは運営者のタグになる
+    drafts::set_tag(&pool, "t1", "district-092100-kurobane", true)
+        .await
+        .unwrap();
+    assert!(
+        drafts::set_tag(&pool, "t1", "district-092134-shiobara", true)
+            .await
+            .is_err()
+    );
+    drafts::set_tag(&pool, "t1", "field-koutsu", true)
+        .await
+        .unwrap();
+    let tags: Vec<(String, String)> = sqlx::query_as(
+        "SELECT tag_id, assigned_by FROM topic_tags WHERE topic_id = 't1' ORDER BY tag_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        tags,
+        [
+            ("district-092100-kurobane".to_string(), "admin".to_string()),
+            ("field-koutsu".to_string(), "admin".to_string()),
+        ]
+    );
+    drafts::set_tag(&pool, "t1", "field-koutsu", false)
+        .await
+        .unwrap();
+    // 外したあと、AI が付け直さないようタグ付けは済みになる
+    let tagged_at: Option<String> =
+        sqlx::query_scalar("SELECT tagged_at FROM topics WHERE id = 't1'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(tagged_at.is_some());
+}

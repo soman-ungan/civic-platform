@@ -42,8 +42,10 @@ pub struct DraftDetail {
     pub title: String,
     pub description: String,
     pub sources: Vec<SourceLine>,
-    pub statements: Vec<String>,
-    pub tags: Vec<String>,
+    /// (意見の ID, 本文, 状態)
+    pub statements: Vec<(String, String, String)>,
+    /// (タグの ID, 名前, 付けたのは ai / admin)
+    pub tags: Vec<(String, String, String)>,
 }
 
 pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetail>, sqlx::Error> {
@@ -63,14 +65,15 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
     .bind(topic_id)
     .fetch_all(pool)
     .await?;
-    let statements = sqlx::query_scalar(
-        "SELECT body FROM statements WHERE topic_id = $1 AND status = 'approved' ORDER BY id",
+    let statements = sqlx::query_as(
+        "SELECT id, body, status FROM statements
+         WHERE topic_id = $1 AND status IN ('approved', 'pending', 'flagged') ORDER BY id",
     )
     .bind(topic_id)
     .fetch_all(pool)
     .await?;
-    let tags = sqlx::query_scalar(
-        "SELECT g.name FROM topic_tags tt JOIN tags g ON g.id = tt.tag_id
+    let tags = sqlx::query_as(
+        "SELECT g.id, g.name, tt.assigned_by FROM topic_tags tt JOIN tags g ON g.id = tt.tag_id
          WHERE tt.topic_id = $1 ORDER BY g.kind, g.name",
     )
     .bind(topic_id)
@@ -90,8 +93,12 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
 impl DraftDetail {
     pub fn render(&self) -> String {
         let mut out = format!(
-            "{}  [{}]\n# {}\n\n{}\n\n## 出典\n",
-            self.id, self.status, self.title, self.description
+            "{}  [{}]\n# {}\n\n{}\n（説明 {} 字）\n\n## 出典\n",
+            self.id,
+            self.status,
+            self.title,
+            self.description,
+            self.description.chars().count()
         );
         for s in &self.sources {
             out.push_str(&format!(
@@ -105,17 +112,21 @@ impl DraftDetail {
             ));
         }
         out.push_str("\n## 最初の意見\n");
-        for body in &self.statements {
-            out.push_str(&format!("- {body}\n"));
-        }
-        out.push_str(&format!(
-            "\n## タグ\n{}\n",
-            if self.tags.is_empty() {
-                "（まだ付いていない）".to_owned()
+        for (id, body, status) in &self.statements {
+            let mark = if status == "approved" {
+                String::new()
             } else {
-                self.tags.join("、")
-            }
-        ));
+                format!("[{status}] ")
+            };
+            out.push_str(&format!("- {mark}{body}\n  {id}\n"));
+        }
+        out.push_str("\n## タグ\n");
+        if self.tags.is_empty() {
+            out.push_str("（まだ付いていない）\n");
+        }
+        for (id, name, by) in &self.tags {
+            out.push_str(&format!("- {name}（{id}、{by}）\n"));
+        }
         out
     }
 }
@@ -133,4 +144,166 @@ pub async fn set_status(
         .execute(pool)
         .await?;
     Ok(result.rows_affected() > 0)
+}
+
+/// 運営者の手直しの失敗
+#[derive(Debug, thiserror::Error)]
+pub enum EditError {
+    #[error("見つかりません: {0}")]
+    NotFound(String),
+    #[error("{0}")]
+    Invalid(String),
+    #[error(transparent)]
+    Database(#[from] sqlx::Error),
+}
+
+/// 意見の本文の確かめ（投稿と同じく1〜140文字）
+fn check_body(body: &str) -> Result<String, EditError> {
+    let body = body.trim();
+    let chars = body.chars().count();
+    if !(1..=140).contains(&chars) {
+        return Err(EditError::Invalid(format!(
+            "意見は1〜140文字にしてください（{chars}文字）"
+        )));
+    }
+    Ok(body.to_owned())
+}
+
+/// タイトル・説明を直す
+pub async fn edit_topic(
+    pool: &SqlitePool,
+    topic_id: &str,
+    title: Option<&str>,
+    description: Option<&str>,
+) -> Result<(), EditError> {
+    if let Some(title) = title.map(str::trim)
+        && title.is_empty()
+    {
+        return Err(EditError::Invalid("タイトルが空です".into()));
+    }
+    let result = sqlx::query(
+        "UPDATE topics SET title = COALESCE($1, title), description = COALESCE($2, description)
+         WHERE id = $3",
+    )
+    .bind(title.map(str::trim))
+    .bind(description.map(str::trim))
+    .bind(topic_id)
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(EditError::NotFound(topic_id.to_owned()));
+    }
+    Ok(())
+}
+
+/// 最初の意見を足す（運営者の意見として、投稿者なし・承認済み）
+pub async fn add_statement(
+    pool: &SqlitePool,
+    topic_id: &str,
+    body: &str,
+) -> Result<String, EditError> {
+    let body = check_body(body)?;
+    let exists: Option<String> = sqlx::query_scalar("SELECT id FROM topics WHERE id = $1")
+        .bind(topic_id)
+        .fetch_optional(pool)
+        .await?;
+    if exists.is_none() {
+        return Err(EditError::NotFound(topic_id.to_owned()));
+    }
+    let id = crate::util::new_id();
+    sqlx::query(
+        "INSERT INTO statements (id, topic_id, user_id, body, status, created_at)
+         VALUES ($1, $2, NULL, $3, 'approved', $4)",
+    )
+    .bind(&id)
+    .bind(topic_id)
+    .bind(&body)
+    .bind(crate::util::now_iso())
+    .execute(pool)
+    .await?;
+    Ok(id)
+}
+
+/// 意見の本文を直す。投票がある意見は直せない（投票した人が見た内容と変わってしまうため）
+pub async fn edit_statement(
+    pool: &SqlitePool,
+    statement_id: &str,
+    body: &str,
+) -> Result<(), EditError> {
+    let body = check_body(body)?;
+    let votes: Option<i64> = sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM votes v WHERE v.statement_id = s.id)
+         FROM statements s WHERE s.id = $1",
+    )
+    .bind(statement_id)
+    .fetch_optional(pool)
+    .await?;
+    match votes {
+        None => return Err(EditError::NotFound(statement_id.to_owned())),
+        Some(n) if n > 0 => {
+            return Err(EditError::Invalid(format!(
+                "投票が{n}件ある意見は直せません。取り下げて（statement remove）新しく足してください"
+            )));
+        }
+        Some(_) => {}
+    }
+    sqlx::query("UPDATE statements SET body = $1 WHERE id = $2")
+        .bind(&body)
+        .bind(statement_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// タグを付ける（運営者のタグとして）・外す
+pub async fn set_tag(
+    pool: &SqlitePool,
+    topic_id: &str,
+    tag_id: &str,
+    add: bool,
+) -> Result<(), EditError> {
+    if add {
+        // 地区タグは、そのトピックの自治体の地区に限る
+        let ok: Option<String> = sqlx::query_scalar(
+            "SELECT g.id FROM tags g, topics t
+             WHERE g.id = $1 AND t.id = $2
+               AND (g.kind = 'field'
+                    OR EXISTS (SELECT 1 FROM districts d
+                               WHERE d.id = g.district_id AND d.municipality_id = t.municipality_id))",
+        )
+        .bind(tag_id)
+        .bind(topic_id)
+        .fetch_optional(pool)
+        .await?;
+        if ok.is_none() {
+            return Err(EditError::Invalid(format!(
+                "トピック {topic_id} に付けられるタグではありません: {tag_id}"
+            )));
+        }
+        // AI が付けていたものは運営者のタグにする
+        sqlx::query(
+            "INSERT INTO topic_tags (topic_id, tag_id, assigned_by) VALUES ($1, $2, 'admin')
+             ON CONFLICT (topic_id, tag_id) DO UPDATE SET assigned_by = 'admin'",
+        )
+        .bind(topic_id)
+        .bind(tag_id)
+        .execute(pool)
+        .await?;
+    } else {
+        let result = sqlx::query("DELETE FROM topic_tags WHERE topic_id = $1 AND tag_id = $2")
+            .bind(topic_id)
+            .bind(tag_id)
+            .execute(pool)
+            .await?;
+        if result.rows_affected() == 0 {
+            return Err(EditError::NotFound(format!("{topic_id} の {tag_id}")));
+        }
+        // 外したタグを AI が付け直さないよう、タグ付けを済みにしておく
+        sqlx::query("UPDATE topics SET tagged_at = COALESCE(tagged_at, $1) WHERE id = $2")
+            .bind(crate::util::now_iso())
+            .bind(topic_id)
+            .execute(pool)
+            .await?;
+    }
+    Ok(())
 }

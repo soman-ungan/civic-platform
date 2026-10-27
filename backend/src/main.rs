@@ -418,7 +418,61 @@ async fn topics_command(pool: &sqlx::SqlitePool, args: &[String]) -> anyhow::Res
                 anyhow::bail!("トピックが見つかりません: {id}");
             }
         }
-        _ => anyhow::bail!("使い方: topics [drafts | show <id> | publish <id> | archive <id>]"),
+        // topics edit <id> [--title <タイトル>] [--description <説明>]
+        (Some("edit"), Some(id)) => {
+            let option = |name: &str| {
+                args.iter()
+                    .position(|a| a == name)
+                    .and_then(|i| args.get(i + 1))
+                    .map(String::as_str)
+            };
+            let (title, description) = (option("--title"), option("--description"));
+            if title.is_none() && description.is_none() {
+                anyhow::bail!(
+                    "使い方: topics edit <id> [--title <タイトル>] [--description <説明>]"
+                );
+            }
+            drafts::edit_topic(pool, id, title, description).await?;
+            println!("{id}: 直しました");
+        }
+        // topics statement add <topic_id> <本文> | edit <意見の ID> <本文> | remove <意見の ID>
+        (Some("statement"), Some(cmd)) => match (cmd.as_str(), args.get(2), args.get(3)) {
+            ("add", Some(topic_id), Some(body)) => {
+                let sid = drafts::add_statement(pool, topic_id, body).await?;
+                println!("{sid}: 足しました");
+            }
+            ("edit", Some(sid), Some(body)) => {
+                drafts::edit_statement(pool, sid, body).await?;
+                println!("{sid}: 直しました");
+            }
+            ("remove", Some(sid), None) => {
+                if !moderation::decide(pool, sid, false).await? {
+                    anyhow::bail!("意見が見つかりません: {sid}");
+                }
+                println!("{sid}: 取り下げました");
+            }
+            _ => anyhow::bail!(
+                "使い方: topics statement add <topic_id> <本文> | edit <意見の ID> <本文> | remove <意見の ID>"
+            ),
+        },
+        // topics tag add|remove <topic_id> <tag_id>
+        (Some("tag"), Some(cmd)) if cmd == "add" || cmd == "remove" => {
+            let (Some(topic_id), Some(tag_id)) = (args.get(2), args.get(3)) else {
+                anyhow::bail!("使い方: topics tag add|remove <topic_id> <tag_id>");
+            };
+            drafts::set_tag(pool, topic_id, tag_id, cmd == "add").await?;
+            println!(
+                "{topic_id}: {tag_id} を{}",
+                if cmd == "add" {
+                    "付けました"
+                } else {
+                    "外しました"
+                }
+            );
+        }
+        _ => anyhow::bail!(
+            "使い方: topics [drafts | show <id> | publish <id> | archive <id> | edit <id> ... | statement ... | tag ...]"
+        ),
     }
     Ok(())
 }
