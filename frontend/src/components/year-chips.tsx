@@ -5,6 +5,8 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 
+import type { FinanceYear } from "@/lib/types";
+
 /**
  * 年度のボタン（1行。横にスクロールして選ぶ）。選んでいる年度が見えるように、表示したときに寄せる。
  * 横のスクロールをタブのスワイプと取り違えないように `data-swipe-ignore`
@@ -15,7 +17,7 @@ export function YearChips({
   selected,
 }: {
   slug: string;
-  years: number[];
+  years: FinanceYear[];
   selected: number;
 }) {
   const current = useRef<HTMLAnchorElement>(null);
@@ -30,7 +32,7 @@ export function YearChips({
       className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]"
     >
       <ul className="flex w-max gap-1.5">
-        {[...years].reverse().map((y) => {
+        {[...years].reverse().map(({ fiscal_year: y, settlement }) => {
           const active = y === selected;
           return (
             <li key={y}>
@@ -46,6 +48,8 @@ export function YearChips({
                 }`}
               >
                 {y}年度
+                {/* 決算がまだ無く、予算だけの年度 */}
+                {!settlement && <span className="ml-1 opacity-70">予算</span>}
               </Link>
             </li>
           );
