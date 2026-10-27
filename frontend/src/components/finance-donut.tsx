@@ -85,7 +85,7 @@ export function FinanceDonut({ slices }: { slices: DonutSlice[] }) {
           </>
         ) : (
           <span className="text-xs leading-5 text-zinc-400">
-            触れると
+            タップで
             <br />
             くわしく
           </span>

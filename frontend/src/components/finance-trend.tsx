@@ -2,6 +2,7 @@
 
 "use client";
 
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { termNote } from "@/lib/finance-terms";
@@ -37,8 +38,8 @@ function niceStep(max: number): number {
 /**
  * 歳出の推移（目的別の積み上げの縦棒）。横軸は年度、縦軸は金額（0 から）。
  * 1人あたり（円）と総額を切り替えられ、費目のチップで表示・非表示を切り替える（最初は全部 = 歳出の合計）。
- * 色は費目に付け、表示を切り替えても変えない。最初はヘッダーで選んだ年度をハイライトし、
- * 棒に触れると、その年度に移って内訳を下に出す
+ * 色は費目に付け、表示を切り替えても変えない。ヘッダーで選んだ年度をハイライトする。
+ * 棒をタップすると、ヘッダーの年度もその年度に切り替える（URL の ?year= を変える。2つの年度の選び方を連動させる）
  */
 export function FinanceTrend({
   trend,
@@ -53,8 +54,22 @@ export function FinanceTrend({
 }) {
   const [mode, setMode] = useState<Mode>("per_capita");
   const [hidden, setHidden] = useState<Set<string>>(new Set());
-  /** 棒に触れて選んだ年度。触れるまではヘッダーの年度 */
-  const [touchedYear, setTouchedYear] = useState<number | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  /** 棒をタップして、ページの切り替えを待っている年度（待つ間もハイライトを先に移す） */
+  const [pendingYear, setPendingYear] = useState<number | null>(null);
+  const [lastSelected, setLastSelected] = useState(selectedYear);
+  if (lastSelected !== selectedYear) {
+    // ヘッダー（またはタップ）で年度が切り替わったら、待ちを終える
+    setLastSelected(selectedYear);
+    setPendingYear(null);
+  }
+
+  function selectYear(year: number) {
+    if (year === selectedYear) return;
+    setPendingYear(year);
+    router.replace(`${pathname}?year=${year}`, { scroll: false });
+  }
 
   const top = latestOrder.slice(0, TOP_SERIES);
   const series = [...top, OTHER].map((key, i) => ({
@@ -94,7 +109,7 @@ export function FinanceTrend({
   const band = innerW / stacks.length;
   const barW = band * 0.64;
   const y = (v: number) => PAD_TOP + innerH * (1 - v / max);
-  const wanted = touchedYear ?? selectedYear;
+  const wanted = pendingYear ?? selectedYear;
   const found = stacks.findIndex((s) => s.year === wanted);
   const shownIndex = found >= 0 ? found : stacks.length - 1;
   const shown = stacks[shownIndex];
@@ -249,7 +264,7 @@ export function FinanceTrend({
                 <g
                   key={s.year}
                   opacity={i === shownIndex ? 1 : 0.55}
-                  onClick={() => setTouchedYear(s.year)}
+                  onClick={() => selectYear(s.year)}
                   className="cursor-pointer"
                 >
                   {/* 触れる範囲は棒より広い（年度の帯の全体）。選んでいる年度は薄い帯でハイライトする */}
@@ -333,7 +348,7 @@ export function FinanceTrend({
               ))}
             </ul>
             <p className="mt-1.5 text-zinc-500">
-              棒に触れると、その年度の内訳が出ます。
+              棒をタップすると、その年度に切り替わります。
             </p>
           </div>
 
