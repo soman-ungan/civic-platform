@@ -5,6 +5,7 @@ use std::path::Path;
 use backend::llm::Llm;
 use backend::llm::client::AnthropicClient;
 use backend::moderation::{self, Moderation};
+use backend::tagging::{self, Tagger};
 use backend::{AppState, analysis, app, config::Config, db, seed};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
@@ -74,6 +75,34 @@ async fn main() -> anyhow::Result<()> {
         None => Moderation::AutoApprove,
     };
 
+    let tagger = llm.as_ref().map(|llm| Tagger {
+        llm: llm.clone(),
+        model: config.tagging_model.clone(),
+    });
+
+    // `cargo run -- tag [--topic <id>] [--force]`: トピックに自動でタグを付けて終了する
+    if args.first().map(String::as_str) == Some("tag") {
+        let Some(tagger) = &tagger else {
+            anyhow::bail!("ANTHROPIC_API_KEY が設定されていないため、タグ付けできません");
+        };
+        let force = args.iter().any(|a| a == "--force");
+        let topic = args
+            .iter()
+            .position(|a| a == "--topic")
+            .and_then(|i| args.get(i + 1));
+        match topic {
+            Some(topic_id) => {
+                let outcome = tagging::tag_topic(&pool, tagger, topic_id, force).await?;
+                println!("{topic_id}: {outcome:?}");
+            }
+            None => {
+                let n = tagging::run_untagged(&pool, tagger).await?;
+                println!("{n} 件のトピックをタグ付けしました");
+            }
+        }
+        return Ok(());
+    }
+
     // `cargo run -- moderation list | approve <id> | reject <id> | retry`: 確認待ちの意見を扱う
     if args.first().map(String::as_str) == Some("moderation") {
         moderation_command(&pool, &moderation, &args[1..]).await?;
@@ -97,8 +126,11 @@ async fn main() -> anyhow::Result<()> {
             );
         }
         Moderation::AutoApprove => {
-            tracing::info!("ANTHROPIC_API_KEY が無いので、投稿は自動で承認します");
+            tracing::info!("ANTHROPIC_API_KEY が無いので、投稿は自動で承認し、タグ付けはしません");
         }
+    }
+    if let Some(tagger) = tagger {
+        tagging::spawn_worker(pool.clone(), tagger, std::time::Duration::from_secs(60));
     }
 
     let state = AppState::new(pool, &config.session_secret, config.cookie_secure)?

@@ -9,6 +9,7 @@ pub mod moderation;
 pub mod participant;
 pub mod routes;
 pub mod seed;
+pub mod tagging;
 pub mod util;
 
 use axum::Router;
