@@ -4,170 +4,312 @@
 
 import { useState } from "react";
 
-import { fiscalYearLabel, roughYen } from "@/lib/money";
+import { termNote } from "@/lib/finance-terms";
+import { fiscalYearLabel, roughYen, thousandYen } from "@/lib/money";
 import type { Finances } from "@/lib/types";
 
 const WIDTH = 320;
-const HEIGHT = 150;
-const PAD_X = 16;
-const PAD_TOP = 12;
-const PAD_BOTTOM = 22;
-const TOTAL = "歳出の合計";
+const HEIGHT = 190;
+const PAD_LEFT = 38;
+const PAD_RIGHT = 4;
+const PAD_TOP = 8;
+const PAD_BOTTOM = 20;
+/** 系列の色は8色まで（dataviz）。最新の年度の上位7費目と「その他」 */
+const TOP_SERIES = 7;
+const OTHER = "その他";
+/** 積み上げの段の間のすき間（px） */
+const GAP = 2;
+
+type Mode = "per_capita" | "total";
 
 /** 2015 → H27、2020 → R2（軸の目盛り用の短い表記） */
 function shortYear(year: number): string {
   return year >= 2019 ? `R${year - 2018}` : `H${year - 1988}`;
 }
 
+/** 目盛りの間隔（1・2・2.5・5 × 10^n）を、4目盛りほどになるように選ぶ */
+function niceStep(max: number): number {
+  const raw = max / 4;
+  const base = 10 ** Math.floor(Math.log10(raw));
+  return [1, 2, 2.5, 5, 10].map((m) => m * base).find((s) => s >= raw) ?? raw;
+}
+
 /**
- * 1人あたりの歳出の推移（1系列の折れ線）。費目を選ぶと、その費目の推移に切り替わる。
- * 縦軸は 0 から（量の比較なので）。触れた年度の値を上に出す（スマホでも読めるように、タップでも選べる）
+ * 歳出の推移（目的別の積み上げの縦棒）。横軸は年度、縦軸は金額（0 から）。
+ * 1人あたり（円）と総額を切り替えられ、費目のチップで表示・非表示を切り替える（最初は全部 = 歳出の合計）。
+ * 色は費目に付け、表示を切り替えても変えない。棒に触れると、その年度の内訳を下に出す
  */
 export function FinanceTrend({
   trend,
-  keys,
+  latestOrder,
 }: {
   trend: Finances["trend"];
-  /** 選べる費目（大きい順） */
-  keys: string[];
+  /** 最新の年度の目的別歳出の費目（大きい順） */
+  latestOrder: string[];
 }) {
-  const [selected, setSelected] = useState(TOTAL);
-  const [active, setActive] = useState<number | null>(null);
+  const [mode, setMode] = useState<Mode>("per_capita");
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<number | null>(null);
 
-  const points = trend.flatMap((t) => {
-    const value =
-      selected === TOTAL
-        ? Object.values(t.expenditure_purpose).reduce<number>(
-            (a, v) => a + (v ?? 0),
-            0,
-          )
-        : t.expenditure_purpose[selected];
-    if (value === null || value === undefined || !t.population) return [];
-    return [{ year: t.fiscal_year, perCapita: (value * 1000) / t.population }];
-  });
-  if (points.length < 2) return null;
+  const top = latestOrder.slice(0, TOP_SERIES);
+  const series = [...top, OTHER].map((key, i) => ({
+    key,
+    color: `var(--series-${i + 1})`,
+  }));
+  const years = trend.filter((t) => t.population);
+  if (years.length < 2) return null;
 
-  const max = Math.max(...points.map((p) => p.perCapita)) * 1.1;
-  const x = (i: number) =>
-    PAD_X + (i * (WIDTH - PAD_X * 2)) / (points.length - 1);
-  const y = (v: number) =>
-    PAD_TOP + (1 - v / max) * (HEIGHT - PAD_TOP - PAD_BOTTOM);
-  const shownIndex = active ?? points.length - 1;
-  const shown = points[shownIndex];
-  const path = points
-    .map((p, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(p.perCapita)}`)
-    .join(" ");
-
-  const pick = (clientX: number, rect: DOMRect) => {
-    const px = ((clientX - rect.left) / rect.width) * WIDTH;
-    const i = Math.round(
-      ((px - PAD_X) / (WIDTH - PAD_X * 2)) * (points.length - 1),
-    );
-    setActive(Math.min(points.length - 1, Math.max(0, i)));
+  /** 年度・系列ごとの値（mode の単位） */
+  const valueOf = (t: Finances["trend"][number], key: string): number => {
+    const raw =
+      key === OTHER
+        ? Object.entries(t.expenditure_purpose)
+            .filter(([k]) => !top.includes(k))
+            .reduce((a, [, v]) => a + (v ?? 0), 0)
+        : (t.expenditure_purpose[key] ?? 0);
+    return mode === "per_capita" ? (raw * 1000) / (t.population ?? 1) : raw;
   };
+  const format = (v: number) =>
+    mode === "per_capita" ? roughYen(v) : thousandYen(v);
+  const visible = series.filter((s) => !hidden.has(s.key));
+  const stacks = years.map((t) => ({
+    year: t.fiscal_year,
+    parts: visible.map((s) => ({ ...s, value: valueOf(t, s.key) })),
+  }));
+  const totals = stacks.map((s) => s.parts.reduce((a, p) => a + p.value, 0));
+  const step = niceStep(Math.max(...totals, 1));
+  const max = step * Math.ceil(Math.max(...totals, 1) / step);
+  const ticks = Array.from(
+    { length: Math.round(max / step) + 1 },
+    (_, i) => i * step,
+  );
+
+  const innerW = WIDTH - PAD_LEFT - PAD_RIGHT;
+  const innerH = HEIGHT - PAD_TOP - PAD_BOTTOM;
+  const band = innerW / stacks.length;
+  const barW = band * 0.64;
+  const y = (v: number) => PAD_TOP + innerH * (1 - v / max);
+  const shownIndex = selected ?? stacks.length - 1;
+  const shown = stacks[shownIndex];
+
+  const tickLabel = (v: number) =>
+    v === 0
+      ? "0"
+      : mode === "per_capita"
+        ? `${(v / 10_000).toLocaleString("ja-JP")}万`
+        : `${(v / 100_000).toLocaleString("ja-JP")}億`;
+
+  function toggle(key: string) {
+    setHidden((h) => {
+      const next = new Set(h);
+      if (next.has(key)) {
+        next.delete(key);
+      } else if (next.size < series.length - 1) {
+        // 全部を消すと何も描けないので、最後の1つは残す
+        next.add(key);
+      }
+      return next;
+    });
+  }
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {[TOTAL, ...keys].map((k) => (
+      <div
+        role="group"
+        aria-label="単位"
+        className="mb-3 inline-flex rounded-full border border-zinc-300 p-0.5 text-xs dark:border-zinc-700"
+      >
+        {(
+          [
+            ["per_capita", "1人あたり"],
+            ["total", "総額"],
+          ] as const
+        ).map(([m, label]) => (
           <button
-            key={k}
+            key={m}
             type="button"
-            onClick={() => {
-              setSelected(k);
-              setActive(null);
-            }}
-            aria-pressed={selected === k}
-            className={`min-h-9 rounded-full border px-3 text-xs ${
-              selected === k
-                ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                : "border-zinc-300 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+            aria-pressed={mode === m}
+            onClick={() => setMode(m)}
+            className={`min-h-8 rounded-full px-3 ${
+              mode === m
+                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                : "text-zinc-600 dark:text-zinc-400"
             }`}
           >
-            {k}
+            {label}
           </button>
         ))}
       </div>
-      <p className="text-sm" aria-live="polite">
-        <span className="text-zinc-500">{fiscalYearLabel(shown.year)}</span>{" "}
-        <span className="font-semibold tabular-nums">
-          {roughYen(shown.perCapita)}
-        </span>
-        <span className="text-xs text-zinc-500">（1人あたり）</span>
-      </p>
+
+      <ul aria-label="表示する費目" className="mb-3 flex flex-wrap gap-1.5">
+        {series.map((s) => {
+          const on = !hidden.has(s.key);
+          return (
+            <li key={s.key}>
+              <button
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggle(s.key)}
+                title={termNote("purpose", s.key) ?? undefined}
+                className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 text-xs ${
+                  on
+                    ? "border-zinc-400 text-zinc-800 dark:border-zinc-500 dark:text-zinc-200"
+                    : "border-zinc-200 text-zinc-400 line-through dark:border-zinc-800 dark:text-zinc-600"
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className="inline-block h-2.5 w-2.5 rounded-sm"
+                  style={{
+                    background: on ? s.color : "transparent",
+                    outline: `1.5px solid ${s.color}`,
+                  }}
+                />
+                {s.key === OTHER
+                  ? `その他（${Math.max(latestOrder.length - TOP_SERIES, 0)}項目）`
+                  : s.key}
+              </button>
+            </li>
+          );
+        })}
+        {hidden.size > 0 && (
+          <li>
+            <button
+              type="button"
+              onClick={() => setHidden(new Set())}
+              className="inline-flex min-h-9 items-center px-2 text-xs text-sky-700 underline underline-offset-2 dark:text-sky-400"
+            >
+              すべて表示
+            </button>
+          </li>
+        )}
+      </ul>
+
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         data-swipe-ignore
-        className="mt-1 w-full touch-none select-none"
+        className="w-full touch-pan-y select-none"
         role="img"
-        aria-label={`${selected}の1人あたりの推移`}
-        onPointerMove={(e) =>
-          pick(e.clientX, e.currentTarget.getBoundingClientRect())
-        }
-        onPointerDown={(e) =>
-          pick(e.clientX, e.currentTarget.getBoundingClientRect())
-        }
-        onPointerLeave={() => setActive(null)}
+        aria-label={`歳出の推移（${mode === "per_capita" ? "1人あたり" : "総額"}）`}
       >
-        <line
-          x1={PAD_X}
-          x2={WIDTH - PAD_X}
-          y1={HEIGHT - PAD_BOTTOM}
-          y2={HEIGHT - PAD_BOTTOM}
-          className="stroke-zinc-300 dark:stroke-zinc-700"
-          strokeWidth={1}
-        />
-        <line
-          x1={x(shownIndex)}
-          x2={x(shownIndex)}
-          y1={PAD_TOP}
-          y2={HEIGHT - PAD_BOTTOM}
-          className="stroke-zinc-300 dark:stroke-zinc-600"
-          strokeWidth={1}
-          strokeDasharray="3 3"
-        />
-        <path
-          d={path}
-          fill="none"
-          strokeWidth={2}
-          strokeLinejoin="round"
-          className="stroke-sky-600 dark:stroke-sky-400"
-        />
-        {points.map((p, i) => (
-          <circle
-            key={p.year}
-            cx={x(i)}
-            cy={y(p.perCapita)}
-            r={i === shownIndex ? 4.5 : 3}
-            strokeWidth={2}
-            className="fill-sky-600 stroke-white dark:fill-sky-400 dark:stroke-zinc-950"
-          />
-        ))}
-        {points.map((p, i) =>
-          i === 0 || i === points.length - 1 || i % 3 === 0 ? (
+        {ticks.map((t) => (
+          <g key={t}>
+            <line
+              x1={PAD_LEFT}
+              x2={WIDTH - PAD_RIGHT}
+              y1={y(t)}
+              y2={y(t)}
+              strokeWidth={1}
+              className={
+                t === 0
+                  ? "stroke-zinc-400 dark:stroke-zinc-600"
+                  : "stroke-zinc-200 dark:stroke-zinc-800"
+              }
+            />
             <text
-              key={p.year}
-              x={x(i)}
-              y={HEIGHT - 6}
-              textAnchor="middle"
-              className="fill-zinc-500 text-[10px]"
+              x={PAD_LEFT - 4}
+              y={y(t) + 3}
+              textAnchor="end"
+              className="fill-zinc-500 text-[9px]"
             >
-              {shortYear(p.year)}
+              {tickLabel(t)}
             </text>
-          ) : null,
-        )}
+          </g>
+        ))}
+        {stacks.map((s, i) => {
+          const x = PAD_LEFT + band * i + (band - barW) / 2;
+          let acc = 0;
+          return (
+            <g
+              key={s.year}
+              opacity={i === shownIndex ? 1 : 0.55}
+              onClick={() => setSelected(i)}
+              className="cursor-pointer"
+            >
+              {/* 触れる範囲は棒より広い（年度の帯の全体） */}
+              <rect
+                x={PAD_LEFT + band * i}
+                y={PAD_TOP}
+                width={band}
+                height={innerH}
+                fill="transparent"
+              />
+              {s.parts.map((p) => {
+                const y0 = y(acc);
+                acc += p.value;
+                const h = y0 - y(acc);
+                return h - GAP > 0 ? (
+                  <rect
+                    key={p.key}
+                    x={x}
+                    y={y(acc) + GAP}
+                    width={barW}
+                    height={h - GAP}
+                    fill={p.color}
+                  />
+                ) : null;
+              })}
+              <text
+                x={PAD_LEFT + band * i + band / 2}
+                y={HEIGHT - 6}
+                textAnchor="middle"
+                className={`text-[9px] ${
+                  i === shownIndex
+                    ? "fill-zinc-900 font-semibold dark:fill-zinc-100"
+                    : "fill-zinc-500"
+                }`}
+              >
+                {shortYear(s.year)}
+              </text>
+            </g>
+          );
+        })}
       </svg>
+
+      <div
+        className="mt-2 rounded-xl bg-zinc-50 p-3 text-xs dark:bg-zinc-900"
+        aria-live="polite"
+      >
+        <p className="mb-1.5 flex justify-between text-sm">
+          <span className="font-semibold">{fiscalYearLabel(shown.year)}</span>
+          <span className="tabular-nums">
+            {hidden.size > 0 ? "表示中の合計 " : "合計 "}
+            <span className="font-semibold">{format(totals[shownIndex])}</span>
+          </span>
+        </p>
+        <ul className="flex flex-col gap-0.5">
+          {[...shown.parts].reverse().map((p) => (
+            <li key={p.key} className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className="inline-block h-2 w-2 rounded-sm"
+                  style={{ background: p.color }}
+                />
+                {p.key}
+              </span>
+              <span className="tabular-nums text-zinc-600 dark:text-zinc-400">
+                {format(p.value)}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-1.5 text-zinc-500">
+          棒に触れると、その年度の内訳が出ます。
+        </p>
+      </div>
+
       <details className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
         <summary className="cursor-pointer py-1">数値の一覧</summary>
         <table className="mt-1 w-full tabular-nums">
           <tbody>
-            {points.map((p) => (
+            {stacks.map((s, i) => (
               <tr
-                key={p.year}
+                key={s.year}
                 className="border-t border-zinc-100 dark:border-zinc-800"
               >
-                <td className="py-1">{fiscalYearLabel(p.year)}</td>
-                <td className="py-1 text-right">{roughYen(p.perCapita)}</td>
+                <td className="py-1">{fiscalYearLabel(s.year)}</td>
+                <td className="py-1 text-right">{format(totals[i])}</td>
               </tr>
             ))}
           </tbody>
