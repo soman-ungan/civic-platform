@@ -4,6 +4,7 @@ pub mod analysis;
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod llm;
 pub mod moderation;
 pub mod participant;
 pub mod routes;

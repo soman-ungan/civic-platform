@@ -76,6 +76,7 @@ async fn all_tables_exist() {
         [
             "collector_sources",
             "districts",
+            "llm_usage",
             "municipalities",
             "municipality_stats",
             "prefectures",

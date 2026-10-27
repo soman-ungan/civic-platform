@@ -6,6 +6,9 @@ const DEFAULT_DATABASE_URL: &str = "sqlite://../data/civic.db?mode=rwc";
 const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8080";
 const DEFAULT_SEEDS_DIR: &str = "../data/seeds";
 const DEFAULT_DEV_SEEDS_DIR: &str = "../data/dev-seeds";
+const DEFAULT_MODERATION_MODEL: &str = "claude-sonnet-5-5";
+const DEFAULT_TAGGING_MODEL: &str = "claude-haiku-5-5";
+const DEFAULT_LLM_DAILY_BUDGET_USD: f64 = 1.0;
 
 pub struct Config {
     pub database_url: String,
@@ -17,6 +20,12 @@ pub struct Config {
     pub cookie_secure: bool,
     /// 分析の再計算の間隔（秒）。0 なら定期実行しない
     pub analysis_interval_secs: u64,
+    /// Claude API のキー。無ければ AI の機能を使わない（モデレーションは自動承認、タグ付けはしない）
+    pub anthropic_api_key: Option<String>,
+    pub moderation_model: String,
+    pub tagging_model: String,
+    /// LLM の1日（UTC）の費用の上限（米ドル）。超えたら呼ばない
+    pub llm_daily_budget_usd: f64,
 }
 
 impl Config {
@@ -38,6 +47,17 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(10),
+            anthropic_api_key: env::var("ANTHROPIC_API_KEY")
+                .ok()
+                .filter(|v| !v.trim().is_empty()),
+            moderation_model: env::var("MODERATION_MODEL")
+                .unwrap_or_else(|_| DEFAULT_MODERATION_MODEL.into()),
+            tagging_model: env::var("TAGGING_MODEL")
+                .unwrap_or_else(|_| DEFAULT_TAGGING_MODEL.into()),
+            llm_daily_budget_usd: env::var("LLM_DAILY_BUDGET_USD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(DEFAULT_LLM_DAILY_BUDGET_USD),
         })
     }
 }
