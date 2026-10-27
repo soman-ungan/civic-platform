@@ -105,6 +105,11 @@ struct LlmVerdict {
 
 impl Moderation {
     pub async fn review(&self, pool: &SqlitePool, body: &str) -> Review {
+        self.review_as(pool, body, Purpose::Moderation).await
+    }
+
+    /// 用途を指定して判定する（評価のときは `Purpose::Eval` で使用量を分けて記録する）
+    pub async fn review_as(&self, pool: &SqlitePool, body: &str, purpose: Purpose) -> Review {
         let (llm, model) = match self {
             Self::AutoApprove => {
                 return Review {
@@ -115,7 +120,7 @@ impl Moderation {
             Self::Llm { llm, model } => (llm, model),
         };
         let request = Request {
-            purpose: Purpose::Moderation,
+            purpose,
             model: model.clone(),
             system: SYSTEM_PROMPT.into(),
             user: format!("次の投稿を判定してください。\n<post>\n{body}\n</post>"),

@@ -6,7 +6,7 @@ use backend::llm::Llm;
 use backend::llm::client::AnthropicClient;
 use backend::moderation::{self, Moderation};
 use backend::tagging::{self, Tagger};
-use backend::{AppState, analysis, app, config::Config, db, seed};
+use backend::{AppState, analysis, app, config::Config, db, eval, seed};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -99,6 +99,55 @@ async fn main() -> anyhow::Result<()> {
                 let n = tagging::run_untagged(&pool, tagger).await?;
                 println!("{n} 件のトピックをタグ付けしました");
             }
+        }
+        return Ok(());
+    }
+
+    // `cargo run -- eval moderation|tagging [--model <id>] [--limit <n>] [--file <path>]`:
+    // 評価データを実際の API で判定し、結果を出す（費用がかかる）
+    if args.first().map(String::as_str) == Some("eval") {
+        let Some(llm) = &llm else {
+            anyhow::bail!("ANTHROPIC_API_KEY が設定されていないため、評価できません");
+        };
+        let option = |name: &str| {
+            args.iter()
+                .position(|a| a == name)
+                .and_then(|i| args.get(i + 1))
+                .cloned()
+        };
+        let limit = option("--limit")
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(usize::MAX);
+        match args.get(1).map(String::as_str) {
+            Some("moderation") => {
+                let model = option("--model").unwrap_or(config.moderation_model.clone());
+                let file = option("--file").unwrap_or("../evals/moderation.jsonl".into());
+                let cases: Vec<eval::ModerationCase> = eval::load(Path::new(&file))?;
+                let cases = &cases[..cases.len().min(limit)];
+                println!("モデレーションの評価: {model}、{} 件", cases.len());
+                let moderation = Moderation::Llm {
+                    llm: llm.clone(),
+                    model,
+                };
+                let report = eval::run_moderation(&pool, &moderation, cases).await?;
+                print!("{}", report.render());
+            }
+            Some("tagging") => {
+                let model = option("--model").unwrap_or(config.tagging_model.clone());
+                let file = option("--file").unwrap_or("../evals/tagging.jsonl".into());
+                let cases: Vec<eval::TaggingCase> = eval::load(Path::new(&file))?;
+                let cases = &cases[..cases.len().min(limit)];
+                println!("タグ付けの評価: {model}、{} 件", cases.len());
+                let tagger = Tagger {
+                    llm: llm.clone(),
+                    model,
+                };
+                let report = eval::run_tagging(&pool, &tagger, cases).await?;
+                print!("{}", report.render());
+            }
+            _ => anyhow::bail!(
+                "使い方: eval moderation|tagging [--model <id>] [--limit <n>] [--file <path>]"
+            ),
         }
         return Ok(());
     }

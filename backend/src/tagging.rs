@@ -95,52 +95,18 @@ pub async fn tag_topic(
         return Ok(Outcome::Skipped);
     }
 
-    // 候補: 名前 → ID（分野）、名前 → 地区 ID（その自治体の地区だけ）
-    let fields: HashMap<String, String> =
-        sqlx::query_as::<_, (String, String)>("SELECT name, id FROM tags WHERE kind = 'field'")
-            .fetch_all(pool)
-            .await?
-            .into_iter()
-            .collect();
-    let districts: HashMap<String, String> = sqlx::query_as::<_, (String, String)>(
-        "SELECT name, id FROM districts WHERE municipality_id = $1",
+    let Classified {
+        field_ids,
+        district_ids,
+    } = classify(
+        pool,
+        tagger,
+        &topic.municipality_id,
+        &topic.title,
+        topic.description.as_deref().unwrap_or(""),
+        Purpose::Tagging,
     )
-    .bind(&topic.municipality_id)
-    .fetch_all(pool)
-    .await?
-    .into_iter()
-    .collect();
-
-    let request = Request {
-        purpose: Purpose::Tagging,
-        model: tagger.model.clone(),
-        system: SYSTEM_PROMPT.into(),
-        user: format!(
-            "次のトピックを分類してください。\n<title>{}</title>\n<description>{}</description>",
-            topic.title,
-            topic.description.as_deref().unwrap_or("")
-        ),
-        schema: schema(&fields, &districts),
-        effort: Effort::Low,
-        max_tokens: 1024,
-    };
-    let chosen = match tagger.llm.structured(pool, &request).await {
-        Ok(value) => serde_json::from_value::<LlmTags>(value)
-            .map_err(|e| LlmError::Invalid(e.to_string()))?,
-        Err(LlmError::Refusal) => {
-            // 安全上の理由で分類されなかった。繰り返し呼ばないよう、タグ無しで済みにする
-            tracing::warn!(topic_id, "tagging refused");
-            LlmTags {
-                fields: vec![],
-                districts: vec![],
-            }
-        }
-        Err(err) => return Err(err.into()),
-    };
-
-    // 候補の中のものだけを、上限までの数で使う（構造化出力で守られるが、念のため確かめる）
-    let field_ids = pick(&chosen.fields, &fields, MAX_FIELDS);
-    let district_ids = pick(&chosen.districts, &districts, MAX_DISTRICTS);
+    .await?;
 
     let mut tx = pool.begin().await?;
     if force {
@@ -186,6 +152,72 @@ pub async fn tag_topic(
         .await?;
     tx.commit().await?;
     Ok(Outcome::Tagged(tag_ids))
+}
+
+/// 分類の結果
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Classified {
+    /// 分野タグの ID
+    pub field_ids: Vec<String>,
+    /// 地区の ID（districts.id）
+    pub district_ids: Vec<String>,
+}
+
+/// タイトルと説明から、分野と地区を選ぶ（DB には保存しない）。
+/// 安全上の理由で分類されなかったときは、どちらも空にする
+pub async fn classify(
+    pool: &SqlitePool,
+    tagger: &Tagger,
+    municipality_id: &str,
+    title: &str,
+    description: &str,
+    purpose: Purpose,
+) -> Result<Classified, TagError> {
+    // 候補: 名前 → ID（分野）、名前 → 地区 ID（その自治体の地区だけ）
+    let fields: HashMap<String, String> =
+        sqlx::query_as::<_, (String, String)>("SELECT name, id FROM tags WHERE kind = 'field'")
+            .fetch_all(pool)
+            .await?
+            .into_iter()
+            .collect();
+    let districts: HashMap<String, String> = sqlx::query_as::<_, (String, String)>(
+        "SELECT name, id FROM districts WHERE municipality_id = $1",
+    )
+    .bind(municipality_id)
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .collect();
+
+    let request = Request {
+        purpose,
+        model: tagger.model.clone(),
+        system: SYSTEM_PROMPT.into(),
+        user: format!(
+            "次のトピックを分類してください。\n<title>{title}</title>\n<description>{description}</description>"
+        ),
+        schema: schema(&fields, &districts),
+        effort: Effort::Low,
+        max_tokens: 1024,
+    };
+    let chosen = match tagger.llm.structured(pool, &request).await {
+        Ok(value) => serde_json::from_value::<LlmTags>(value)
+            .map_err(|e| LlmError::Invalid(e.to_string()))?,
+        Err(LlmError::Refusal) => {
+            tracing::warn!(title, "tagging refused");
+            LlmTags {
+                fields: vec![],
+                districts: vec![],
+            }
+        }
+        Err(err) => return Err(err.into()),
+    };
+
+    // 候補の中のものだけを、上限までの数で使う（構造化出力で守られるが、念のため確かめる）
+    Ok(Classified {
+        field_ids: pick(&chosen.fields, &fields, MAX_FIELDS),
+        district_ids: pick(&chosen.districts, &districts, MAX_DISTRICTS),
+    })
 }
 
 /// 名前を ID に直す。候補にない名前と重複は捨て、上限までにする
