@@ -102,6 +102,7 @@ civic-platform/
   - 自治体の取り違えを防ぐため、テスト用 seed には最低2自治体を入れる。
 
 ## よく使うコマンド（整備され次第更新する）
+- 運営のコマンドの全体（利用する人向け）は `docs/cli.md`。コマンドを足したり変えたりしたら、そちらも直す
 - 初回: `cp .env.example .env`（`.env` はルートに1つ。backend / sqlx-cli は親ディレクトリを遡って読み、frontend は `next.config.ts` でルートの `.env` を読む）
   - `.env.example` に変数が増えたら手元の `.env` にも追記する（`NEXT_PUBLIC_SOURCE_URL` が無いと本番ビルドが失敗する）
   - `SESSION_SECRET`（参加者 Cookie の署名鍵）は必須。`openssl rand -hex 32` で作る。未設定・32 バイト未満なら backend は起動しない
