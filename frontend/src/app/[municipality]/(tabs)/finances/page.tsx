@@ -102,15 +102,8 @@ async function FinancesView({
           </p>
 
           <FinanceSection
-            title="何に使ったか"
-            lead="分野ごとの歳出（目的別）。1人あたりの額と、全体に占める割合です。"
-            defaultOpen
-          >
-            <FinanceBars kind="purpose" items={f.expenditure_purpose} />
-          </FinanceSection>
-
-          <FinanceSection
             title="これまでの推移"
+            defaultOpen
             lead={
               <>
                 分野ごとの歳出を積み上げています。費目を選ぶと、表示・非表示を切り替えられます。
@@ -119,7 +112,25 @@ async function FinancesView({
               </>
             }
           >
-            <FinanceTrend trend={f.trend} latestOrder={latestOrder} />
+            <FinanceTrend
+              trend={f.trend}
+              latestOrder={latestOrder}
+              selectedYear={f.fiscal_year}
+            />
+          </FinanceSection>
+
+          <FinanceSection
+            title="何に使ったか"
+            lead="分野ごとの歳出（目的別）。1人あたりの額と、全体に占める割合です。"
+          >
+            <FinanceBars kind="purpose" items={f.expenditure_purpose} donut />
+          </FinanceSection>
+
+          <FinanceSection
+            title="お金の使い方で見る"
+            lead="同じ歳出を、使い方で分けたもの（性質別）。行を開くと中身が出ます。"
+          >
+            <FinanceNature items={f.expenditure_nature} />
           </FinanceSection>
 
           <FinanceSection
@@ -133,13 +144,6 @@ async function FinancesView({
             }
           >
             <FinanceBars kind="revenue" items={f.revenue} limit={8} />
-          </FinanceSection>
-
-          <FinanceSection
-            title="お金の種類で見る"
-            lead="同じ歳出を、分野ではなく使い方の種類で分けたもの（性質別）。行を開くと中身が出ます。"
-          >
-            <FinanceNature items={f.expenditure_nature} />
           </FinanceSection>
 
           {f.indicators.length > 0 && (

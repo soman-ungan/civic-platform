@@ -104,9 +104,9 @@ export function termNote(kind: TermKind, key: string): string | null {
   return null;
 }
 
-/** 性質別の歳出の4区分（ユーザーと決定。2026-10-27） */
+/** 性質別の歳出の5区分（お金の使い方で見る。ユーザーと決定。2026-10-27） */
 export type NatureGroup = {
-  id: "fixed" | "investment" | "repayment" | "other";
+  id: "fixed" | "running" | "investment" | "repayment" | "other";
   label: string;
   note: string;
   keys: string[];
@@ -116,26 +116,32 @@ export const NATURE_GROUPS: NatureGroup[] = [
   {
     id: "fixed",
     label: "固定費",
-    note: "人件費（職員の給与など）と扶助費（福祉の給付）。法律や制度で決まっていて、毎年ほぼ必ず出ていくお金",
+    note: "職員の給与と、福祉の給付。毎年ほぼ必ず出ていく",
     keys: ["人件費", "扶助費"],
   },
   {
+    id: "running",
+    label: "流動費",
+    note: "委託や光熱費、補修、団体や別の会計への支出。毎年の運営に使い、見直しの余地がある",
+    keys: ["物件費", "維持補修費", "補助費等", "繰出金"],
+  },
+  {
     id: "investment",
-    label: "投資的",
-    note: "建物・道路・橋などをつくる費用と、災害の復旧の費用。年によって大きく変わる",
+    label: "投資",
+    note: "建物や道路をつくる費用と、災害の復旧",
     keys: ["投資的経費"],
   },
   {
     id: "repayment",
     label: "返済",
-    note: "借金（地方債）の元金と利子の返済",
+    note: "借金の返済",
     keys: ["公債費"],
   },
   {
     id: "other",
     label: "その他",
-    note: "業務の委託料、団体への補助、国民健康保険などの別の会計への支出、貯金（基金）への積み立てなど",
-    // 上の3つに入らない費目はすべてここ（年度による費目の増減に耐えるため）
+    note: "貯金や、出資・貸し付けなど",
+    // 上の4つに入らない費目はすべてここ（年度による費目の増減に耐えるため）
     keys: [],
   },
 ];

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { FinanceDonut } from "@/components/finance-donut";
 import { InfoTip } from "@/components/info-tip";
 import { NATURE_GROUPS, natureGroupOf, termNote } from "@/lib/finance-terms";
 import { roughYen, shareText } from "@/lib/money";
 import type { FinanceAmount } from "@/lib/types";
 
 /**
- * お金の種類で見る（性質別の歳出を4区分にまとめたもの）。
- * 割合を1本の帯（部分と全体）で見せ、その下に区分ごとの行を並べる。区分の行を開くと中身の費目が出る。
- * 4色は系列の色の1〜4番目。帯の中に文字は入れず、行の色見本と文字で示す（色だけに頼らない）
+ * お金の使い方で見る（性質別の歳出を5区分にまとめたもの）。
+ * 割合を円グラフで見せ、その下に区分ごとの行を並べる。区分の行を開くと中身の費目が出る。
+ * 5色は系列の色の1〜5番目。円の中に文字は入れず、行の色見本と文字で示す（色だけに頼らない）
  */
 export function FinanceNature({ items }: { items: FinanceAmount[] }) {
   const total = items.reduce((a, i) => a + (i.value ?? 0), 0);
@@ -30,25 +31,20 @@ export function FinanceNature({ items }: { items: FinanceAmount[] }) {
 
   return (
     <div>
-      <div
-        className="mb-4 flex h-3 gap-0.5 overflow-hidden rounded-full"
-        role="img"
-        aria-label={groups
-          .map((g) => `${g.label} ${shareText(g.value / total)}`)
-          .join("、")}
-      >
-        {groups.map((g) =>
-          g.value > 0 ? (
-            <div
-              key={g.id}
-              style={{
-                width: `${(g.value / total) * 100}%`,
-                background: g.color,
-              }}
-            />
-          ) : null,
-        )}
-      </div>
+      <FinanceDonut
+        slices={groups
+          .filter((g) => g.value > 0)
+          .map((g) => ({
+            key: g.id,
+            label: g.label,
+            value: g.value,
+            valueText: roughYen(g.perCapita),
+            shareText: shareText(g.value / total),
+            color: g.color,
+          }))}
+        totalLabel="1人あたり"
+        totalText={roughYen(groups.reduce((a, g) => a + g.perCapita, 0))}
+      />
       <ul className="flex flex-col">
         {groups.map((g) => (
           <li
