@@ -6,7 +6,7 @@ use backend::llm::Llm;
 use backend::llm::client::AnthropicClient;
 use backend::moderation::{self, Moderation};
 use backend::tagging::{self, Tagger};
-use backend::{AppState, analysis, app, config::Config, db, eval, seed};
+use backend::{AppState, analysis, app, config::Config, db, drafts, eval, seed};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -56,6 +56,12 @@ async fn main() -> anyhow::Result<()> {
                 tracing::info!(topics = n, "analysis finished");
             }
         }
+        return Ok(());
+    }
+
+    // `cargo run -- topics drafts | show <id> | publish <id> | archive <id>`: 下書きの確認と公開
+    if args.first().map(String::as_str) == Some("topics") {
+        topics_command(&pool, &args[1..]).await?;
         return Ok(());
     }
 
@@ -228,6 +234,41 @@ async fn moderation_command(
             println!("{n} 件を判定しました");
         }
         _ => anyhow::bail!("使い方: moderation [list | approve <id> | reject <id> | retry]"),
+    }
+    Ok(())
+}
+
+async fn topics_command(pool: &sqlx::SqlitePool, args: &[String]) -> anyhow::Result<()> {
+    match (args.first().map(String::as_str), args.get(1)) {
+        (Some("drafts") | None, _) => {
+            let items = drafts::list(pool).await?;
+            if items.is_empty() {
+                println!("下書きのトピックはありません");
+            }
+            for d in items {
+                println!(
+                    "{}  {}  [{}]  {}",
+                    d.id, d.created_at, d.municipality_id, d.title
+                );
+            }
+        }
+        (Some("show"), Some(id)) => match drafts::show(pool, id).await? {
+            Some(detail) => print!("{}", detail.render()),
+            None => anyhow::bail!("トピックが見つかりません: {id}"),
+        },
+        (Some(cmd @ ("publish" | "archive")), Some(id)) => {
+            let status = if cmd == "publish" {
+                "published"
+            } else {
+                "archived"
+            };
+            if drafts::set_status(pool, id, status).await? {
+                println!("{id}: {status}");
+            } else {
+                anyhow::bail!("トピックが見つかりません: {id}");
+            }
+        }
+        _ => anyhow::bail!("使い方: topics [drafts | show <id> | publish <id> | archive <id>]"),
     }
     Ok(())
 }

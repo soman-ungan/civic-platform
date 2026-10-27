@@ -3,6 +3,7 @@
 pub mod analysis;
 pub mod config;
 pub mod db;
+pub mod drafts;
 pub mod error;
 pub mod eval;
 pub mod llm;
