@@ -15,10 +15,12 @@ export default function TopicPage({
   params,
 }: PageProps<"/[municipality]/topics/[id]">) {
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-6">
-      <Suspense fallback={<TopicSkeleton />}>
-        <TopicView params={params} />
-      </Suspense>
+    <main className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-md flex-col px-4 py-6">
+        <Suspense fallback={<TopicSkeleton />}>
+          <TopicView params={params} />
+        </Suspense>
+      </div>
     </main>
   );
 }

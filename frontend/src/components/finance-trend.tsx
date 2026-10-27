@@ -97,6 +97,7 @@ export function FinanceTrend({
       </p>
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        data-swipe-ignore
         className="mt-1 w-full touch-none select-none"
         role="img"
         aria-label={`${selected}の1人あたりの推移`}

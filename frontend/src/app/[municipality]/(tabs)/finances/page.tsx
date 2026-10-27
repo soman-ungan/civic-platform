@@ -6,6 +6,7 @@ import { Suspense } from "react";
 
 import { FinanceBars } from "@/components/finance-bars";
 import { FinanceTrend } from "@/components/finance-trend";
+import { PageSlide } from "@/components/page-slide";
 import { apiGet } from "@/lib/api-server";
 import {
   SOURCE_NOTE,
@@ -37,12 +38,17 @@ export default function FinancesPage({
   params,
   searchParams,
 }: PageProps<"/[municipality]/finances">) {
+  // 自治体名とタブは (tabs)/layout.tsx の固定のヘッダー。この下は全体をスクロールする
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-6">
-      <Suspense fallback={<FinancesSkeleton />}>
-        <FinancesView params={params} searchParams={searchParams} />
-      </Suspense>
-    </main>
+    <PageSlide>
+      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto w-full max-w-md px-4 py-4">
+          <Suspense fallback={<FinancesSkeleton />}>
+            <FinancesView params={params} searchParams={searchParams} />
+          </Suspense>
+        </div>
+      </main>
+    </PageSlide>
   );
 }
 
@@ -74,21 +80,10 @@ async function FinancesView({
 
   return (
     <>
-      <Link
-        href={`/${municipality.slug}`}
-        className="mb-4 inline-flex h-11 items-center text-sm text-zinc-600 dark:text-zinc-400"
-      >
-        ← {municipality.name}のトピック
-      </Link>
-
-      <header className="mb-4">
-        <p className="text-xs text-zinc-500">{municipality.name}</p>
-        <h1 className="text-2xl font-bold tracking-tight">まちのお金</h1>
-        <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-          {municipality.name}
-          が1年間に使ったお金（決算）を、1人あたりにして見ています。
-        </p>
-      </header>
+      <p className="mb-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+        {municipality.name}
+        が1年間に使ったお金（決算）を、1人あたりにして見ています。
+      </p>
 
       <nav aria-label="年度" className="mb-5 flex flex-wrap gap-1.5">
         {[...f.years].reverse().map((y) => (

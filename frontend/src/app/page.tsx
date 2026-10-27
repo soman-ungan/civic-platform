@@ -10,18 +10,22 @@ import type { Municipality } from "@/lib/types";
 // ここに来るのは 0 件または複数件のとき（自治体選択の UI はフェーズ8「展開」で作り込む）。
 export default function Home() {
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">
-          市民参加プラットフォーム
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-          まちの議事録・予算・決算をわかりやすく見せ、みんなの合意点を見つける場所です。
-        </p>
-      </header>
-      <Suspense fallback={<p className="text-sm text-zinc-500">読み込み中…</p>}>
-        <MunicipalityList />
-      </Suspense>
+    <main className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-md flex-col px-4 py-8">
+        <header className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight">
+            市民参加プラットフォーム
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+            まちの議事録・予算・決算をわかりやすく見せ、みんなの合意点を見つける場所です。
+          </p>
+        </header>
+        <Suspense
+          fallback={<p className="text-sm text-zinc-500">読み込み中…</p>}
+        >
+          <MunicipalityList />
+        </Suspense>
+      </div>
     </main>
   );
 }
