@@ -6,7 +6,7 @@ use backend::llm::Llm;
 use backend::llm::client::AnthropicClient;
 use backend::moderation::{self, Moderation};
 use backend::tagging::{self, Tagger};
-use backend::{AppState, analysis, app, config::Config, db, drafts, eval, seed};
+use backend::{AppState, analysis, app, config::Config, db, drafts, eval, minutes, seed};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -67,10 +67,13 @@ async fn main() -> anyhow::Result<()> {
 
     // API キーがあれば AI でモデレーションする（無ければ全件承認）
     let llm = match &config.anthropic_api_key {
-        Some(key) => Some(Llm::anthropic(
-            AnthropicClient::new(key.clone())?,
-            config.llm_daily_budget_usd,
-        )),
+        Some(key) => Some(
+            Llm::anthropic(
+                AnthropicClient::new(key.clone())?,
+                config.llm_daily_budget_usd,
+            )
+            .with_extraction_budget(config.llm_extraction_daily_budget_usd),
+        ),
         None => None,
     };
     let moderation = match &llm {
@@ -107,6 +110,12 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         return Ok(());
+    }
+
+    // `cargo run -- import minutes --municipality <slug> --file <path> --title <会議名>
+    //   --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again]`: 会議録からトピック案を作る
+    if args.first().map(String::as_str) == Some("import") {
+        return import_command(&pool, &config, llm.as_ref(), &moderation, &args[1..]).await;
     }
 
     // `cargo run -- eval moderation|tagging [--model <id>] [--limit <n>] [--file <path>]`:
@@ -234,6 +243,126 @@ async fn moderation_command(
             println!("{n} 件を判定しました");
         }
         _ => anyhow::bail!("使い方: moderation [list | approve <id> | reject <id> | retry]"),
+    }
+    Ok(())
+}
+
+async fn import_command(
+    pool: &sqlx::SqlitePool,
+    config: &Config,
+    llm: Option<&Llm>,
+    moderation: &Moderation,
+    args: &[String],
+) -> anyhow::Result<()> {
+    let option = |name: &str| {
+        args.iter()
+            .position(|a| a == name)
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+    };
+    let usage = "使い方: import minutes --municipality <slug> --file <path> --title <会議名> --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again]";
+    if args.first().map(String::as_str) != Some("minutes") {
+        anyhow::bail!(usage);
+    }
+    let (Some(slug), Some(file), Some(title), Some(held_on)) = (
+        option("--municipality"),
+        option("--file"),
+        option("--title"),
+        option("--held-on"),
+    ) else {
+        anyhow::bail!(usage);
+    };
+    let municipality_id: String =
+        sqlx::query_scalar("SELECT id FROM municipalities WHERE slug = $1")
+            .bind(&slug)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("自治体が見つかりません: {slug}"))?;
+    let input = minutes::Input {
+        municipality_id,
+        title,
+        held_on,
+        url: option("--url"),
+        text: std::fs::read_to_string(&file)?,
+    };
+
+    if args.iter().any(|a| a == "--dry-run") {
+        let p = minutes::prepare(pool, &input).await?;
+        println!(
+            "発言 {} 件（{} 文字）",
+            p.utterances.len(),
+            input.text.chars().count()
+        );
+        let mut speakers: Vec<(String, usize)> = Vec::new();
+        for u in &p.utterances {
+            let label = u.speaker_label();
+            match speakers.iter_mut().find(|(l, _)| *l == label) {
+                Some((_, n)) => *n += 1,
+                None => speakers.push((label, 1)),
+            }
+        }
+        for (label, n) in speakers {
+            println!("  {label}: {n} 件");
+        }
+        if p.unmatched.is_empty() {
+            println!("首長・議員はすべて名簿と対応付けられました");
+        } else {
+            println!("名簿に無い首長・議員（data/seeds/030_officials_*.sql に登録してください）:");
+            for name in &p.unmatched {
+                println!("  {name}");
+            }
+        }
+        if let Some(id) = p.existing_document {
+            println!("この会議録は取り込み済みです（document {id}）。作り直すときは --again");
+        }
+        return Ok(());
+    }
+
+    let Some(llm) = llm else {
+        anyhow::bail!(
+            "ANTHROPIC_API_KEY が設定されていないため、取り込めません（--dry-run は使えます）"
+        );
+    };
+    let again = args.iter().any(|a| a == "--again");
+    match minutes::import(
+        pool,
+        llm,
+        &config.extraction_model,
+        moderation,
+        &input,
+        again,
+    )
+    .await?
+    {
+        minutes::Outcome::NoUtterances => {
+            anyhow::bail!("発言が見つかりません。会議録の見出しの形を確かめてください（--dry-run）")
+        }
+        minutes::Outcome::Unmatched(names) => {
+            println!("名簿に無い首長・議員がいるので止めました。登録してからやり直してください:");
+            for name in names {
+                println!("  {name}");
+            }
+        }
+        minutes::Outcome::Duplicate(id) => {
+            println!("この会議録は取り込み済みです（document {id}）。作り直すときは --again");
+        }
+        minutes::Outcome::Imported(report) => {
+            println!(
+                "発言 {} 件から、下書きを {} 件作りました",
+                report.utterances,
+                report.topics.len()
+            );
+            for (id, title) in &report.topics {
+                println!("  {id}  {title}");
+            }
+            if !report.notes.is_empty() {
+                println!("捨てたもの:");
+                for note in &report.notes {
+                    println!("  {note}");
+                }
+            }
+            println!("確認: cargo run -- topics show <id> → topics publish <id>");
+        }
     }
     Ok(())
 }

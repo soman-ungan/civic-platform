@@ -9,6 +9,8 @@ const DEFAULT_DEV_SEEDS_DIR: &str = "../data/dev-seeds";
 const DEFAULT_MODERATION_MODEL: &str = "claude-sonnet-5-5";
 const DEFAULT_TAGGING_MODEL: &str = "claude-sonnet-5-5";
 const DEFAULT_LLM_DAILY_BUDGET_USD: f64 = 1.0;
+const DEFAULT_EXTRACTION_MODEL: &str = "claude-opus-5-5";
+const DEFAULT_LLM_EXTRACTION_DAILY_BUDGET_USD: f64 = 5.0;
 
 pub struct Config {
     pub database_url: String,
@@ -26,6 +28,10 @@ pub struct Config {
     pub tagging_model: String,
     /// LLM の1日（UTC）の費用の上限（米ドル）。超えたら呼ばない
     pub llm_daily_budget_usd: f64,
+    /// 会議録などからの抽出に使うモデル
+    pub extraction_model: String,
+    /// 抽出の1日（UTC）の費用の上限（米ドル）。モデレーション・タグ付けとは別枠
+    pub llm_extraction_daily_budget_usd: f64,
 }
 
 impl Config {
@@ -58,6 +64,12 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(DEFAULT_LLM_DAILY_BUDGET_USD),
+            extraction_model: env::var("EXTRACTION_MODEL")
+                .unwrap_or_else(|_| DEFAULT_EXTRACTION_MODEL.into()),
+            llm_extraction_daily_budget_usd: env::var("LLM_EXTRACTION_DAILY_BUDGET_USD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(DEFAULT_LLM_EXTRACTION_DAILY_BUDGET_USD),
         })
     }
 }

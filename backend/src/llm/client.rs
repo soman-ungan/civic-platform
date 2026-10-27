@@ -13,8 +13,6 @@ use super::{LlmError, Reply, Request, Usage};
 
 pub const API_VERSION: &str = "2026-10-21";
 const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
-/// 1回の試行のタイムアウト
-const TIMEOUT: Duration = Duration::from_secs(15);
 /// 混雑（429・5xx）のときに再試行する回数
 const MAX_RETRIES: u32 = 1;
 
@@ -35,7 +33,7 @@ impl AnthropicClient {
         // TLS の暗号処理に ring を使う（aws-lc は OpenSSL 系のライセンスを含むため使わない）。
         // 2回目以降の呼び出しでは既に設定済みなので、結果は無視する
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let http = reqwest::Client::builder().timeout(TIMEOUT).build()?;
+        let http = reqwest::Client::builder().build()?;
         Ok(Self {
             http,
             api_key,
@@ -43,7 +41,8 @@ impl AnthropicClient {
         })
     }
 
-    pub async fn send(&self, body: &Value) -> Result<Reply, LlmError> {
+    /// `timeout` は1回の試行のタイムアウト（用途ごとに `Purpose::timeout`）
+    pub async fn send(&self, body: &Value, timeout: Duration) -> Result<Reply, LlmError> {
         let url = format!("{}/v1/messages", self.base_url);
         let mut attempt = 0;
         loop {
@@ -52,6 +51,7 @@ impl AnthropicClient {
                 .post(&url)
                 .header("x-api-key", &self.api_key)
                 .header("anthropic-version", API_VERSION)
+                .timeout(timeout)
                 .json(body)
                 .send()
                 .await

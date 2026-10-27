@@ -13,6 +13,7 @@ pub mod pricing;
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use chrono::Utc;
 use serde::Deserialize;
@@ -28,6 +29,8 @@ pub enum Purpose {
     Moderation,
     Tagging,
     Eval,
+    /// 会議録・行政資料からの抽出。1回が高く時間もかかるので、上限とタイムアウトを別にする
+    Extraction,
 }
 
 impl Purpose {
@@ -36,6 +39,15 @@ impl Purpose {
             Self::Moderation => "moderation",
             Self::Tagging => "tagging",
             Self::Eval => "eval",
+            Self::Extraction => "extraction",
+        }
+    }
+
+    /// 1回の試行のタイムアウト。抽出は長い文書を読むので長くする
+    pub fn timeout(self) -> Duration {
+        match self {
+            Self::Extraction => Duration::from_secs(600),
+            _ => Duration::from_secs(15),
         }
     }
 }
@@ -117,8 +129,10 @@ pub enum LlmError {
 #[derive(Clone)]
 pub struct Llm {
     backend: Backend,
-    /// 1日（UTC）の費用の上限（100万分の1ドル）
+    /// 1日（UTC）の費用の上限（100万分の1ドル）。抽出以外
     daily_budget_micro_usd: i64,
+    /// 抽出の1日の費用の上限。モデレーション・タグ付けの上限を使い切らないよう別にする
+    extraction_budget_micro_usd: i64,
 }
 
 #[derive(Clone)]
@@ -133,7 +147,14 @@ impl Llm {
         Self {
             backend: Backend::Anthropic(client),
             daily_budget_micro_usd: usd_to_micro(daily_budget_usd),
+            extraction_budget_micro_usd: usd_to_micro(daily_budget_usd),
         }
+    }
+
+    /// 抽出の1日の上限を設定する（既定は抽出以外と同じ額）
+    pub fn with_extraction_budget(mut self, usd: f64) -> Self {
+        self.extraction_budget_micro_usd = usd_to_micro(usd);
+        self
     }
 
     /// テスト用の偽の LLM と、その応答を差し替える口
@@ -143,6 +164,7 @@ impl Llm {
             Self {
                 backend: Backend::Fake(fake.clone()),
                 daily_budget_micro_usd: usd_to_micro(daily_budget_usd),
+                extraction_budget_micro_usd: usd_to_micro(daily_budget_usd),
             },
             fake,
         )
@@ -150,12 +172,20 @@ impl Llm {
 
     /// 構造化出力で呼び出し、応答の JSON を返す。使用量は成否にかかわらず記録する
     pub async fn structured(&self, pool: &SqlitePool, req: &Request) -> Result<Value, LlmError> {
-        if spent_today(pool).await? >= self.daily_budget_micro_usd {
+        let (spent, budget) = if req.purpose == Purpose::Extraction {
+            (
+                spent_today_extraction(pool).await?,
+                self.extraction_budget_micro_usd,
+            )
+        } else {
+            (spent_today(pool).await?, self.daily_budget_micro_usd)
+        };
+        if spent >= budget {
             return Err(LlmError::BudgetExceeded);
         }
         let body = client::build_body(req);
         let reply = match &self.backend {
-            Backend::Anthropic(c) => c.send(&body).await?,
+            Backend::Anthropic(c) => c.send(&body, req.purpose.timeout()).await?,
             Backend::Fake(f) => f.send(body)?,
         };
         let result = interpret(&reply);
@@ -188,14 +218,26 @@ fn usd_to_micro(usd: f64) -> i64 {
     (usd * 1_000_000.0).round() as i64
 }
 
-/// 今日（UTC）の推定費用の合計（100万分の1ドル）
+/// 今日（UTC）の推定費用の合計（100万分の1ドル）。抽出以外
 pub async fn spent_today(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
+    spent_since_midnight(pool, false).await
+}
+
+/// 今日（UTC）の抽出の推定費用の合計（100万分の1ドル）
+pub async fn spent_today_extraction(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
+    spent_since_midnight(pool, true).await
+}
+
+async fn spent_since_midnight(pool: &SqlitePool, extraction: bool) -> Result<i64, sqlx::Error> {
     let start = format!("{}T00:00:00.000Z", Utc::now().format("%Y-%m-%d"));
-    let (sum,): (Option<i64>,) =
-        sqlx::query_as("SELECT SUM(cost_micro_usd) FROM llm_usage WHERE created_at >= $1")
-            .bind(start)
-            .fetch_one(pool)
-            .await?;
+    let (sum,): (Option<i64>,) = sqlx::query_as(
+        "SELECT SUM(cost_micro_usd) FROM llm_usage
+         WHERE created_at >= $1 AND (purpose = 'extraction') = $2",
+    )
+    .bind(start)
+    .bind(extraction)
+    .fetch_one(pool)
+    .await?;
     Ok(sum.unwrap_or(0))
 }
 
