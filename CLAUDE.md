@@ -118,6 +118,10 @@ civic-platform/
     - `cargo run -- topics drafts | show <id> | publish <id> | archive <id>` — 下書きの確認と公開
     - `cargo run -- topics edit <id> [--title] [--description]` / `topics statement add|edit|remove ...` / `topics tag add|remove <topic_id> <tag_id>` — 手直し
     - 公人の名簿は `data/seeds/030_officials_<団体コード>_<slug>.sql`
+  - 収集（`docs/design/collection.md`。User-Agent に入れる連絡先 `COLLECTOR_CONTACT` が必須。AI は使わない）
+    - `cargo run -- collect list` — 収集先・規約の確認日・最後の取得
+    - `cargo run -- collect run [--source <id>] [--year <n>] [--dry-run]` — 有効な収集先から取得する（総務省の決算カード → `settlement_items` と `municipality_stats`）。取得はすべて `collect::fetch::Fetcher` を通す（robots.txt・間隔・条件付き取得）。規約の確認の記録（`terms_url`・`terms_checked_at`）が無い収集先は動かない
+    - 費目と分野タグの対応は `data/seeds/025_settlement_item_tags.sql`（おおまか。画面でも注記する）
   - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト（`data/seeds/` の適用テストも含む）
   - `sqlx migrate add <name>` / `sqlx migrate run` / `sqlx migrate info`
   - `migrations/` の変更は `build.rs` により自動で再ビルドされる
@@ -131,13 +135,15 @@ civic-platform/
   - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗（Polis の優先度で重み付けした抽選）
   - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・`statements_by_group`・`group_composition`（グループごとの関わり方の構成）・関わり方ごとの集計（分析対象が5人未満なら insufficient。関わり方の集計は二次秘匿済み）
     - **そのトピックのすべての承認済み意見に投票するまでは `locked`（残り件数）を返す**。全体の傾向に投票が左右されないようにするため。意見が増えれば再びロックされる
+  - `GET /municipalities/{slug}/finances?year=` — まちのお金（決算カード）。金額は千円、`per_capita` は円。年度を省くと最新。トピックの詳細の `finances` は、分野タグに対応する目的別歳出
   - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。投票を終えたトピックの分だけを返す（Cookie が無ければ空）
   - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`
   - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）。判定の結果 `status`（approved / rejected / flagged / pending）と、rejected のときは言い換えの提案 `suggestion` を返す
   - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別（認証はフェーズ6）。CI は `.github/workflows/ci.yml`
 - 自治体の追加: `data/seeds/010_municipality_<団体コード>_<slug>.sql` を1ファイル追加し、`cargo run -- seed`
   - 書式は `010_municipality_092100_otawara.sql` に倣う。全 INSERT に `ON CONFLICT DO NOTHING` を付ける
-  - 地区 ID は `<団体コード>-<ローマ字>`。人口統計は出典 URL 付きで `municipality_stats` に入れる
+  - 地区 ID は `<団体コード>-<ローマ字>`
+  - 決算カードの収集先（`soumu_settlement_card`）を1行足して `collect run` すると、人口（`municipality_stats`）も決算カードから入る。設定は全市町村で同じ（大田原市の行をそのまま写し、id と municipality_id だけ変える）
 
 ## 開発フェーズ
 1. 土台: モノレポ雛形、DB マイグレーション（行政区分マスタ含む）、大田原市の seed、ヘルスチェック API、フロント雛形
