@@ -67,28 +67,37 @@ async function TopicView({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col px-4 pt-3 pb-6">
-          <article className="mb-6">
-            {topic.description && (
-              <p className="text-sm leading-6 text-zinc-700 dark:text-zinc-300">
-                {topic.description}
-              </p>
-            )}
-            <TopicSources sources={topic.sources} />
-            <TopicFinances slug={municipality.slug} finances={topic.finances} />
-            {topic.source_url && topic.sources.length === 0 && (
-              <a
-                href={topic.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-block text-sm underline underline-offset-2"
-              >
-                元の資料を見る
-              </a>
-            )}
-          </article>
-
-          <TopicInteraction slug={municipality.slug} topicId={topic.id} />
+        <div className="mx-auto flex w-full max-w-md flex-col px-4 pb-6">
+          <TopicInteraction
+            slug={municipality.slug}
+            topicId={topic.id}
+            intro={
+              topic.description ? (
+                <p className="text-sm leading-6 text-zinc-700 dark:text-zinc-300">
+                  {topic.description}
+                </p>
+              ) : undefined
+            }
+            context={
+              <div className="mb-6">
+                <TopicSources sources={topic.sources} />
+                <TopicFinances
+                  slug={municipality.slug}
+                  finances={topic.finances}
+                />
+                {topic.source_url && topic.sources.length === 0 && (
+                  <a
+                    href={topic.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block text-sm underline underline-offset-2"
+                  >
+                    元の資料を見る
+                  </a>
+                )}
+              </div>
+            }
+          />
         </div>
       </div>
     </>
