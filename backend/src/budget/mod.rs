@@ -540,6 +540,16 @@ pub fn render(checked: &Checked, pdf_url: Option<&str>) -> String {
     s
 }
 
+#[derive(sqlx::FromRow)]
+struct ProjectRow {
+    id: String,
+    name: String,
+    amount: i64,
+    flag: Option<String>,
+    plan_label: Option<String>,
+    page: i64,
+}
+
 /// 保存済みの予算を `Checked` の形で読む（`budget show`）
 pub async fn load(
     pool: &SqlitePool,
@@ -563,7 +573,7 @@ pub async fn load(
     .bind(&id)
     .fetch_all(pool)
     .await?;
-    let projects: Vec<(String, String, i64, Option<String>, Option<String>, i64)> = sqlx::query_as(
+    let projects: Vec<ProjectRow> = sqlx::query_as(
         "SELECT id, name, amount, flag, plan_label, page FROM budget_projects WHERE budget_id = $1 ORDER BY position",
     )
     .bind(&id)
@@ -593,21 +603,21 @@ pub async fn load(
                 .collect(),
             projects: projects
                 .into_iter()
-                .map(|(pid, name, amount, flag, plan_label, page)| Project {
+                .map(|r| Project {
                     tag_ids: tags
                         .iter()
-                        .filter(|(p, _)| *p == pid)
+                        .filter(|(p, _)| *p == r.id)
                         .map(|(_, t)| t.clone())
                         .collect(),
-                    name,
-                    amount,
-                    flag: match flag.as_deref() {
+                    name: r.name,
+                    amount: r.amount,
+                    flag: match r.flag.as_deref() {
                         Some("new") => Some("new"),
                         Some("expanded") => Some("expanded"),
                         _ => None,
                     },
-                    plan_label,
-                    page,
+                    plan_label: r.plan_label,
+                    page: r.page,
                 })
                 .collect(),
             notes: Vec::new(),
