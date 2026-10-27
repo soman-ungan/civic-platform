@@ -451,14 +451,23 @@ async fn collect_command(
                 fiscal_year: option("--year").map(|y| y.parse()).transpose()?,
             };
             let only = option("--source");
-            let targets: Vec<_> = sources
+            // AI で資料を読む収集先（予算の概要）は費用がかかるので、--source で選ぶか --ai を付けたときだけ動かす
+            let with_ai = args.iter().any(|a| a == "--ai");
+            let uses_ai = |s: &collect::Source| s.adapter == "html_link_list";
+            let (targets, skipped): (Vec<_>, Vec<_>) = sources
                 .into_iter()
                 .filter(|s| match &only {
                     Some(id) => s.id == *id,
                     // 手動の取り込み（会議録など）は自動では取得しない
                     None => s.is_enabled && s.adapter != "manual_upload",
                 })
-                .collect();
+                .partition(|s| only.is_some() || with_ai || !uses_ai(s));
+            for s in &skipped {
+                println!(
+                    "{}: AI で資料を読む（費用がかかる）ので飛ばしました。動かすときは --source {} か --ai",
+                    s.id, s.id
+                );
+            }
             if targets.is_empty() {
                 anyhow::bail!("処理する収集先がありません（collect list で確かめてください）");
             }
@@ -477,7 +486,9 @@ async fn collect_command(
                 }
             }
         }
-        _ => anyhow::bail!("使い方: collect [list | run [--source <id>] [--year <n>] [--dry-run]]"),
+        _ => anyhow::bail!(
+            "使い方: collect [list | run [--source <id>] [--year <n>] [--dry-run] [--ai]]"
+        ),
     }
     Ok(())
 }
