@@ -32,6 +32,8 @@ pub struct Config {
     pub extraction_model: String,
     /// 抽出の1日（UTC）の費用の上限（米ドル）。モデレーション・タグ付けとは別枠
     pub llm_extraction_daily_budget_usd: f64,
+    /// 収集の User-Agent に入れる運営者の連絡先（URL かメールアドレス）。無ければ収集しない
+    pub collector_contact: Option<String>,
 }
 
 impl Config {
@@ -70,6 +72,9 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(DEFAULT_LLM_EXTRACTION_DAILY_BUDGET_USD),
+            collector_contact: env::var("COLLECTOR_CONTACT")
+                .ok()
+                .filter(|v| !v.trim().is_empty()),
         })
     }
 }

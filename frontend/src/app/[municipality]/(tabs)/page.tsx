@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { ConsensusPins } from "@/components/consensus-pins";
+import { PageSlide } from "@/components/page-slide";
 import { TopicFeed } from "@/components/topic-feed";
 import { apiGet } from "@/lib/api-server";
 import type {
@@ -17,12 +18,16 @@ export default function MunicipalityPage({
   params,
   searchParams,
 }: PageProps<"/[municipality]">) {
+  // 自治体名とタブは (tabs)/layout.tsx の固定のヘッダー。ここでは合意点とタグの列も固定し、
+  // トピックのカードの一覧だけをスクロールさせる（TopicFeed）
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-6">
-      <Suspense fallback={<TimelineSkeleton />}>
-        <Timeline params={params} searchParams={searchParams} />
-      </Suspense>
-    </main>
+    <PageSlide>
+      <main className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col px-4 pt-3">
+        <Suspense fallback={<TimelineSkeleton />}>
+          <Timeline params={params} searchParams={searchParams} />
+        </Suspense>
+      </main>
+    </PageSlide>
   );
 }
 
@@ -46,12 +51,6 @@ async function Timeline({
 
   return (
     <>
-      <header className="mb-4">
-        <p className="text-xs text-zinc-500">{municipality.prefecture_name}</p>
-        <h1 className="text-2xl font-bold tracking-tight">
-          {municipality.name}
-        </h1>
-      </header>
       {consensus && consensus.length > 0 && (
         <ConsensusPins slug={municipality.slug} items={consensus} />
       )}
@@ -68,8 +67,8 @@ async function Timeline({
 function TimelineSkeleton() {
   return (
     <div aria-hidden className="animate-pulse">
-      <div className="mb-2 h-3 w-16 rounded bg-zinc-200 dark:bg-zinc-800" />
-      <div className="mb-6 h-7 w-32 rounded bg-zinc-200 dark:bg-zinc-800" />
+      <div className="mb-3 h-11 rounded-2xl bg-zinc-100 dark:bg-zinc-900" />
+      <div className="mb-4 h-9 w-2/3 rounded-full bg-zinc-100 dark:bg-zinc-900" />
       {[0, 1, 2].map((i) => (
         <div
           key={i}

@@ -44,6 +44,38 @@ body {
   }
 }
 
+/* まちのお金の欄の切り替え（components/finance-carousel.tsx。めくる向きに少しずらす。視差効果を減らす設定では動かさない） */
+@media (prefers-reduced-motion: no-preference) {
+  .carousel-next {
+    animation: carousel-next 220ms ease-out;
+  }
+  .carousel-prev {
+    animation: carousel-prev 220ms ease-out;
+  }
+}
+
+@keyframes carousel-next {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes carousel-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /*
  * このまちとの関わり方の色（グループの色・賛否の緑と赤と紛れない配色）。
  * dataviz スキルの validate_palette.js で、隣り合う区分の判別（色覚の多様性を含む）を
@@ -64,5 +96,76 @@ body {
     --residency-commuter: #c98500;
     --residency-related: #d55181;
     --residency-hidden: #52525b;
+  }
+}
+
+/* タブの切り替えのスライド（components/page-slide.tsx。Next.js の view transitions のガイドのとおり） */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(.nav-forward) {
+    --slide-offset: -60px;
+    animation:
+      150ms ease-in both fade reverse,
+      300ms ease-in-out both slide reverse;
+  }
+  ::view-transition-new(.nav-forward) {
+    --slide-offset: 60px;
+    animation:
+      210ms ease-out 100ms both fade,
+      300ms ease-in-out both slide;
+  }
+  ::view-transition-old(.nav-back) {
+    --slide-offset: 60px;
+    animation:
+      150ms ease-in both fade reverse,
+      300ms ease-in-out both slide reverse;
+  }
+  ::view-transition-new(.nav-back) {
+    --slide-offset: -60px;
+    animation:
+      210ms ease-out 100ms both fade,
+      300ms ease-in-out both slide;
+  }
+}
+
+@keyframes slide {
+  from {
+    translate: var(--slide-offset);
+  }
+  to {
+    translate: 0;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* グラフの系列の色（dataviz の検証済みの8色。ライトとダークで別に選んだもの。順に使い、色は系列に付ける） */
+:root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #6250d6;
+  --series-8: #e34948;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
   }
 }

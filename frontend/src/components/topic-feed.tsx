@@ -3,12 +3,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { SOURCE_LABELS } from "@/lib/labels";
 import type { Participation, Tag, Topic } from "@/lib/types";
 
-/** トピック一覧。タグのタップで、取得済みの一覧をその場で絞り込む（URL の ?tag= も更新） */
+/**
+ * トピック一覧。タグのタップで、取得済みの一覧をその場で絞り込む（URL の ?tag= も更新）。
+ * タグの列は固定し、カードの一覧だけがスクロールする（親は縦の flex で高さが決まっている）
+ */
 export function TopicFeed({
   slug,
   topics,
@@ -23,9 +26,11 @@ export function TopicFeed({
   const [selected, setSelected] = useState<string | null>(
     tags.some((t) => t.id === initialTag) ? initialTag : null,
   );
+  const listRef = useRef<HTMLDivElement>(null);
 
   function select(tagId: string | null) {
     setSelected(tagId);
+    listRef.current?.scrollTo({ top: 0 });
     const url = tagId
       ? `/${slug}?tag=${encodeURIComponent(tagId)}`
       : `/${slug}`;
@@ -41,7 +46,8 @@ export function TopicFeed({
       {tags.length > 0 && (
         <nav
           aria-label="タグで絞り込む"
-          className="-mx-4 mb-4 overflow-x-auto px-4"
+          data-swipe-ignore
+          className="-mx-4 shrink-0 overflow-x-auto px-4 pb-3"
         >
           <ul className="flex w-max gap-2">
             <li>
@@ -63,21 +69,26 @@ export function TopicFeed({
         </nav>
       )}
 
-      {visible.length === 0 ? (
-        <p className="py-8 text-center text-sm text-zinc-500">
-          {topics.length === 0
-            ? "まだトピックがありません。"
-            : "このタグのトピックはありません。"}
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {visible.map((topic) => (
-            <li key={topic.id}>
-              <TopicCard slug={slug} topic={topic} />
-            </li>
-          ))}
-        </ul>
-      )}
+      <div
+        ref={listRef}
+        className="-mx-4 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4"
+      >
+        {visible.length === 0 ? (
+          <p className="py-8 text-center text-sm text-zinc-500">
+            {topics.length === 0
+              ? "まだトピックがありません。"
+              : "このタグのトピックはありません。"}
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {visible.map((topic) => (
+              <li key={topic.id}>
+                <TopicCard slug={slug} topic={topic} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </>
   );
 }

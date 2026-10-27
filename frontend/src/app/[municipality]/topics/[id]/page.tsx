@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { TopicInteraction } from "@/components/topic-interaction";
+import { TopicFinances } from "@/components/topic-finances";
 import { TopicSources } from "@/components/topic-sources";
 import { apiGet } from "@/lib/api-server";
 import { SOURCE_LABELS } from "@/lib/labels";
@@ -14,10 +15,12 @@ export default function TopicPage({
   params,
 }: PageProps<"/[municipality]/topics/[id]">) {
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-6">
-      <Suspense fallback={<TopicSkeleton />}>
-        <TopicView params={params} />
-      </Suspense>
+    <main className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-md flex-col px-4 py-6">
+        <Suspense fallback={<TopicSkeleton />}>
+          <TopicView params={params} />
+        </Suspense>
+      </div>
     </main>
   );
 }
@@ -67,6 +70,7 @@ async function TopicView({
           </p>
         )}
         <TopicSources sources={topic.sources} />
+        <TopicFinances slug={municipality.slug} finances={topic.finances} />
         {topic.source_url && topic.sources.length === 0 && (
           <a
             href={topic.source_url}

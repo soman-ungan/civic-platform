@@ -10,7 +10,7 @@ use sqlx::SqlitePool;
 use crate::AppState;
 use crate::error::ApiError;
 use crate::participant::MaybeParticipant;
-use crate::routes::municipalities;
+use crate::routes::{finances, municipalities};
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Tag {
@@ -56,6 +56,8 @@ pub struct TopicDetail {
     #[serde(flatten)]
     pub topic: Topic,
     pub sources: Vec<TopicSource>,
+    /// トピックの分野に関係する市のお金（決算カード）。対応する費目が無ければ null
+    pub finances: Option<finances::TopicFinances>,
 }
 
 /// 出典（会議録の発言からの引用）。発言者は公人なら氏名つき、職員は職名だけ
@@ -307,8 +309,10 @@ pub async fn detail(
     .bind(&row.id)
     .fetch_all(&state.pool)
     .await?;
+    let finances = finances::for_topic(&state.pool, &municipality.id, &row.id).await?;
     Ok(Json(TopicDetail {
         topic: into_topic(row, tags, voted_count),
         sources,
+        finances,
     }))
 }

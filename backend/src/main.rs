@@ -6,7 +6,7 @@ use backend::llm::Llm;
 use backend::llm::client::AnthropicClient;
 use backend::moderation::{self, Moderation};
 use backend::tagging::{self, Tagger};
-use backend::{AppState, analysis, app, config::Config, db, drafts, eval, minutes, seed};
+use backend::{AppState, analysis, app, collect, config::Config, db, drafts, eval, minutes, seed};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -57,6 +57,11 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         return Ok(());
+    }
+
+    // `cargo run -- collect list | run [--source <id>] [--year <n>] [--dry-run]`: 行政資料の収集
+    if args.first().map(String::as_str) == Some("collect") {
+        return collect_command(&pool, &config, &args[1..]).await;
     }
 
     // `cargo run -- topics drafts | show <id> | publish <id> | archive <id>`: 下書きの確認と公開
@@ -384,6 +389,78 @@ async fn import_command(
             }
             println!("確認: cargo run -- topics show <id> → topics publish <id>");
         }
+    }
+    Ok(())
+}
+
+async fn collect_command(
+    pool: &sqlx::SqlitePool,
+    config: &Config,
+    args: &[String],
+) -> anyhow::Result<()> {
+    let option = |name: &str| {
+        args.iter()
+            .position(|a| a == name)
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+    };
+    let sources = collect::sources(pool).await?;
+    match args.first().map(String::as_str) {
+        Some("list") | None => {
+            if sources.is_empty() {
+                println!("収集先はありません");
+            }
+            for s in sources {
+                let terms = s
+                    .config_json()
+                    .ok()
+                    .and_then(|c| c.get("terms_checked_at")?.as_str().map(str::to_owned));
+                println!(
+                    "{}  [{}] {} / {}  {}  規約の確認: {}  最後の取得: {}",
+                    s.id,
+                    s.municipality_id,
+                    s.kind,
+                    s.adapter,
+                    if s.is_enabled { "有効" } else { "無効" },
+                    terms.as_deref().unwrap_or("なし"),
+                    s.last_crawled_at.as_deref().unwrap_or("-"),
+                );
+            }
+        }
+        Some("run") => {
+            let Some(contact) = &config.collector_contact else {
+                anyhow::bail!(
+                    "COLLECTOR_CONTACT が設定されていないため、収集できません（User-Agent に入れる運営者の連絡先）"
+                );
+            };
+            let options = collect::Options {
+                dry_run: args.iter().any(|a| a == "--dry-run"),
+                fiscal_year: option("--year").map(|y| y.parse()).transpose()?,
+            };
+            let only = option("--source");
+            let targets: Vec<_> = sources
+                .into_iter()
+                .filter(|s| match &only {
+                    Some(id) => s.id == *id,
+                    // 手動の取り込み（会議録など）は自動では取得しない
+                    None => s.is_enabled && s.adapter != "manual_upload",
+                })
+                .collect();
+            if targets.is_empty() {
+                anyhow::bail!("処理する収集先がありません（collect list で確かめてください）");
+            }
+            for source in targets {
+                println!("== {} ({})", source.id, source.adapter);
+                let report = collect::run_source(pool, &source, contact, &options).await?;
+                for line in &report.lines {
+                    println!("  {line}");
+                }
+                for warning in &report.warnings {
+                    println!("  警告: {warning}");
+                }
+            }
+        }
+        _ => anyhow::bail!("使い方: collect [list | run [--source <id>] [--year <n>] [--dry-run]]"),
     }
     Ok(())
 }

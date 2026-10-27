@@ -19,7 +19,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ja" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">
+      {/* 画面の高さに固定し、スクロールは各ページの中で行う（ヘッダーとフッターを常に表示するため） */}
+      <body className="flex h-dvh flex-col overflow-hidden">
         {children}
         <SiteFooter />
       </body>
