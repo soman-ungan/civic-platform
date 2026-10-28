@@ -71,9 +71,9 @@
 
 ### 運営者の作業（認証のフェーズ6までは CLI）
 
-- `cargo run -- moderation list` — flagged と pending の一覧（判定の理由つき）
-- `cargo run -- moderation approve <id>` / `reject <id>` / `retry`
-- `cargo run -- tag [--topic <id>] [--force]` — `--force` は AI のタグだけを付け直す（運営者のタグは残す）
+- `cargo run -- list statement` — flagged と pending の一覧（判定の理由つき）
+- `cargo run -- moderate statement --id <id> --approve` / `--reject`、`moderate statement`（判定待ちをやり直す）
+- `cargo run -- classify topic [--id <id>] [--force]` — `--force` は AI のタグだけを付け直す（運営者のタグは残す）
 - `cargo run -- eval moderation|tagging [--model <id>] [--limit <n>]` — 実際の API を使うので費用がかかる
 
 ## 評価の結果（2026-10-27）

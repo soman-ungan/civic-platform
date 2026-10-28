@@ -28,7 +28,7 @@ civic-platform/
 │   ├── src/routes/       API（自治体・トピック・投票・分析・まちのお金）
 │   ├── src/progress.rs   参加のルール（進み具合・分析を見られるか・参加できるトピックか）。ルールはここだけで変える
 │   ├── src/status.rs     意見と公開の状態の型（DB の CHECK と同じ値）
-│   ├── src/cli/          運営のコマンド（clap。docs/cli.md）
+│   ├── src/cli/          運営のコマンド（clap。<動詞> <対象>。段階ごとに ingest / records / process。docs/cli.md）
 │   ├── src/collect/      行政資料の収集アダプタ
 │   └── src/{analysis,moderation,tagging,minutes,budget,llm}/  分析・AI・取り込み
 ├── frontend/             Next.js (App Router) / TypeScript / Tailwind CSS
@@ -123,24 +123,29 @@ civic-platform/
     - 架空の参加者120人と投票も入るので、DB を初期化した直後から分析（意見マップ・グループ・合意点）を確認できる。`cargo run` で起動すると、ワーカーがすぐに分析を計算する
     - 投票データ `110_sample_votes_092100_otawara.sql` は `python3 scripts/generate_sample_votes.py > data/dev-seeds/110_sample_votes_092100_otawara.sql` で生成する（手で編集しない。シード固定で毎回同じ出力）
     - サンプルで分析が出ることは `cargo test --test seeds` で確かめている
-  - `cargo run -- analyze [--topic <id>] [--force]` — 分析を今すぐ再計算する（通常は `ANALYSIS_INTERVAL_SECS`（既定 10 秒）ごとにバックグラウンドで、投票が変わったトピックだけ再計算される）
+  - **運営のコマンドは `cargo run -- <動詞> <対象> [オプション]`**（`docs/plans/2026-10-28-cli-verbs.md`）。動詞は段階ごと: 資料を DB に入れる `fetch`/`extract`/`import`（対象 settlement・budget・minutes）、DB を見る・直す `list`/`show`/`edit`/`add`/`remove`/`publish`/`archive`（budget・settlement・minutes・topic・statement・tag・source）、判定・計算 `moderate`/`classify`/`analyze`（topic・statement）。どれを指すかはすべてオプション（`-m <slug>`・`-y <年度>`・`--id`・`--file`・`--topic`）
+    - その対象には要らない処理（`extract settlement`・`fetch minutes` など）は「何もしません」と出して終了コード 0。段階に無い対象は clap が弾く
+    - コマンドを足すときは、段階を決めてから `src/cli/{ingest,records,process}.rs` のどれかに置く
+  - `cargo run -- analyze topic [--id <id>] [--force]` — 分析を今すぐ再計算する（通常は `ANALYSIS_INTERVAL_SECS`（既定 10 秒）ごとにバックグラウンドで、投票が変わったトピックだけ再計算される）
   - AI（`ANTHROPIC_API_KEY` があるときだけ。モデルは `MODERATION_MODEL` / `TAGGING_MODEL`、1日の費用の上限は `LLM_DAILY_BUDGET_USD`。使用量と推定費用は `llm_usage`）
-    - `cargo run -- moderation list | approve <id> | reject <id> | retry` — 確認待ち（flagged / pending）の意見を扱う（認証のフェーズ6までは CLI）
-    - `cargo run -- tag [--topic <id>] [--force]` — 自動タグ付け（通常は60秒ごとにバックグラウンドで、タグの無いトピックを処理）。`--force` は AI のタグだけを付け直す
+    - `cargo run -- list statement` / `moderate statement [--id <id> --approve|--reject]` — 確認待ち（flagged / pending）の意見の一覧と判定（`--id` が無ければ判定待ちを AI でやり直す。認証のフェーズ6までは CLI）
+    - `cargo run -- classify topic [--id <id>] [--force]` — 自動タグ付け（通常は60秒ごとにバックグラウンドで、タグの無いトピックを処理）。`--force` は AI のタグだけを付け直す
     - `cargo run -- eval moderation|tagging [--model <id>] [--limit <n>]` — `evals/*.jsonl` で評価する。**実際の API を呼ぶので費用がかかる**
     - 分野タグの共通語彙は `data/seeds/020_field_tags.sql`（定義は `tags.description`、判断基準は `docs/design/tagging-criteria.md`）
-  - 会議録（`EXTRACTION_MODEL`、既定 Opus 5.5。抽出の1日の上限は `LLM_EXTRACTION_DAILY_BUDGET_USD` で別枠）
-    - `cargo run -- import minutes --municipality <slug> --file <path> --title <会議名> --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again] [--force]` — 会議録からトピックの下書きを作る。`--dry-run` は AI を呼ばずに発言者・名簿に無い人・議事日程を出す。一般質問・代表質問の無い会議録は飛ばす（`--force` で取り込む）。**実際の API を呼ぶので費用がかかる**（1日分でおよそ 0.3〜0.4 ドル）
-    - 共同作業で取り込む（API を使わない）: `cargo run -- extraction prompt minutes|budget ...` で指示文・出力の形・入力を書き出し、Claude Code が JSON を作って `import minutes|budget ... --extraction <json>`（API の時と同じ検査を通る）。手順は `.claude/commands/import-minutes.md`・`import-budget.md`。どちらで作ったかは `documents.extraction`
-    - `cargo run -- topics drafts | show <id> | publish <id> | archive <id>` — 下書きの確認と公開
-    - `cargo run -- topics edit <id> [--title] [--description]` / `topics statement add|edit|remove ...` / `topics tag add|remove <topic_id> <tag_id>` — 手直し
+  - 資料の取り込み（`fetch` → `extract` → `import`。`EXTRACTION_MODEL`、既定 Opus 5.5。抽出の1日の上限は `LLM_EXTRACTION_DAILY_BUDGET_USD` で別枠）
+    - **API を呼ぶのは `extract` だけ**（`--manual`・`--dry-run` を付けなければ呼ぶ。会議録1日分 0.3〜0.4 ドル、予算 40ページ約 0.8 ドル）。`import` は `extract` が書いた `<名前>.extraction.json` を検査して保存し、API を呼ばない
+    - `fetch` は原本を `PRIVATE_DIR/fetched/<slug>/<対象>/`（既定 `data/private/fetched/`）に置き、`import` が保存を終えたら消す（`--keep` で残す）。手でコピーした原本は消さない。3つは原本の隣の `<名前>.meta.json`（URL・取得の記録・会議名・作り方）でつなぐ
+    - 共同作業で取り込む（API を使わない）: `extract minutes|budget ... --manual` で指示文を書き出し、Claude Code が JSON を作って `import`。手順は `.claude/commands/import-minutes.md`・`import-budget.md`。どちらで作ったかは `documents.extraction`
+    - 会議録: `extract minutes -m <slug> --file <path> --title <会議名> --held-on <YYYY-MM-DD> [--url] [--dry-run | --manual]` → `import minutes -m <slug> --file <path> [--dry-run] [--again] [--force]`。`extract --dry-run` は AI を呼ばずに発言者・名簿に無い人・議事日程を出す。一般質問・代表質問の無い会議録は飛ばす（`--force` で取り込む）
+    - 下書きの確認と公開: `list topic --drafts` / `show topic --id` / `publish|archive topic --id`。手直し: `edit topic --id [--title] [--description]`・`add|edit|remove statement`・`add|remove tag --topic <id> --id <tag_id>`
     - 公人の名簿は `data/seeds/030_officials_<団体コード>_<slug>.sql`
-  - 収集（`docs/design/collection.md`。User-Agent に入れる連絡先 `COLLECTOR_CONTACT` が必須）
-    - `cargo run -- collect list` — 収集先・規約の確認日・最後の取得
-    - `cargo run -- collect run [--source <id>] [--year <n>] [--dry-run] [--ai]` — 有効な収集先から取得する（総務省の決算カード → `settlement_items` と `municipality_stats`）。取得はすべて `collect::fetch::Fetcher` を通す（robots.txt・間隔・条件付き取得）。規約の確認の記録（`terms_url`・`terms_checked_at`）が無い収集先は動かない。AI で資料を読む収集先（当初予算の概要）は、`--source` で選ぶか `--ai` を付けたときだけ動く（**費用がかかる**）
-  - 予算（当初予算の概要の PDF。`docs/plans/2026-10-27-phase5c-budget.md`。`EXTRACTION_MODEL` と抽出の1日の上限を使う。**poppler-utils（`pdftotext`）が要る**）
-    - `cargo run -- import budget --municipality <slug> --file <pdf> --year <n> [--url <URL>] [--dry-run] [--again]` — 手で取った PDF から下書きを作る。**実際の API を呼ぶので費用がかかる**（40ページで約 0.8 ドル）。`--dry-run` は読んで確かめた結果を出すだけ
-    - `cargo run -- budget list | show <slug> <year> | publish <slug> <year> | archive <slug> <year>` — 下書きの確認と公開。下書きは API のどこにも出ない
+  - 収集（`docs/design/collection.md`。User-Agent に入れる連絡先 `COLLECTOR_CONTACT` が `fetch` に必須）
+    - `cargo run -- list source` — 収集先・規約の確認日・最後の取得
+    - `cargo run -- fetch settlement|budget [-m <slug>] [-y <n>] [--source <id>] [--dry-run]` — 有効な収集先から原本を取得する。取得はすべて `collect::fetch::Fetcher` を通す（robots.txt・間隔・条件付き取得）。規約の確認の記録（`terms_url`・`terms_checked_at`）が無い収集先は動かない
+    - 決算カード: `fetch settlement` → `import settlement`（`settlement_items` と `municipality_stats`。AI を使わない。下書きを持たず、取り込んだら公開）
+  - 予算（当初予算の概要の PDF。`docs/plans/2026-10-27-phase5c-budget.md`。**poppler-utils（`pdftotext`）が要る**）
+    - `fetch budget -m <slug> -y <n>`（または手で取った PDF を `--file`）→ `extract budget -m <slug> -y <n> [--manual]` → `import budget -m <slug> -y <n> [--dry-run] [--again]`
+    - `list budget` / `show budget -m <slug> -y <n>` / `publish|archive budget -m <slug> -y <n>` — 下書きの確認と公開。下書きは API のどこにも出ない
     - 款別・性質別・歳入は合計で検算し、事業は名前と金額がそのページの本文にあるものだけを残す。事業の説明の文章は持たない（市の著作物のため。原本のページへリンクする）
     - 費目と分野タグの対応は `data/seeds/025_settlement_item_tags.sql`（おおまか。画面でも注記する）
   - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト（`data/seeds/` の適用テストも含む）
@@ -166,7 +171,7 @@ civic-platform/
 - 自治体の追加: `data/seeds/010_municipality_<団体コード>_<slug>.sql` を1ファイル追加し、`cargo run -- seed`
   - 書式は `010_municipality_092100_otawara.sql` に倣う。全 INSERT に `ON CONFLICT DO NOTHING` を付ける
   - 地区 ID は `<団体コード>-<ローマ字>`
-  - 決算カードの収集先（`soumu_settlement_card`）を1行足して `collect run` すると、人口（`municipality_stats`）も決算カードから入る。設定は全市町村で同じ（大田原市の行をそのまま写し、id と municipality_id だけ変える）
+  - 決算カードの収集先（`soumu_settlement_card`）を1行足して `fetch settlement -m <slug>` → `import settlement -m <slug>` すると、人口（`municipality_stats`）も決算カードから入る。設定は全市町村で同じ（大田原市の行をそのまま写し、id と municipality_id だけ変える）
 
 ## 開発フェーズ
 1. 土台: モノレポ雛形、DB マイグレーション（行政区分マスタ含む）、大田原市の seed、ヘルスチェック API、フロント雛形
