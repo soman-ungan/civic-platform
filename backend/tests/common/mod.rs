@@ -221,3 +221,17 @@ pub fn cookie_for(state: &AppState, user_id: &str) -> String {
         .encoded()
         .to_string()
 }
+
+/// パスキーを登録済みの参加者を作り、その Cookie を返す（投稿にはパスキーの登録が要る。ADR 0006）。
+/// パスキーそのものは作らず、登録済みの印だけを付ける（パスキーのやりとりは tests/auth.rs で確かめる）
+#[allow(dead_code)]
+pub async fn registered_account(pool: &SqlitePool, state: &AppState) -> String {
+    let id = backend::shared::util::new_id();
+    sqlx::query("INSERT INTO users (id, created_at, registered_at) VALUES ($1, $2, $2)")
+        .bind(&id)
+        .bind("2026-10-28T00:00:00Z")
+        .execute(pool)
+        .await
+        .unwrap();
+    cookie_for(state, &id)
+}

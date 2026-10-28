@@ -68,7 +68,8 @@ async fn serve(ctx: cli::Ctx) -> anyhow::Result<()> {
     }
 
     let state = AppState::new(pool, &config.session_secret, config.cookie_secure)?
-        .with_moderation(moderation);
+        .with_moderation(moderation)
+        .with_webauthn(&config.webauthn_rp_id, &config.webauthn_origin)?;
     let listener = TcpListener::bind(&config.bind_addr).await?;
     tracing::info!("listening on http://{}", listener.local_addr()?);
 

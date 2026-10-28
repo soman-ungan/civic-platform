@@ -312,3 +312,30 @@ async fn budget_fetch_then_import_records_the_source_and_discards_the_original()
     let (_, out) = env.run(&["list", "budget", "-m", "otawara"]).await;
     assert!(out.contains("[published]"), "{out}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operators_are_invited_by_a_one_time_link() {
+    let env = Env::new("operator").await;
+    let (code, out) = env.run(&["list", "operator"]).await;
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("運営者はいません"), "{out}");
+    let (code, out) = env.run(&["add", "operator"]).await;
+    assert_eq!(code, 0, "{out}");
+    assert!(
+        out.contains("http://localhost:3000/operator/join?token="),
+        "{out}"
+    );
+    // DB に残るのはトークンのハッシュだけ
+    let token = out
+        .split("token=")
+        .nth(1)
+        .unwrap()
+        .split_whitespace()
+        .next()
+        .unwrap();
+    let stored: String = sqlx::query_scalar("SELECT token_hash FROM operator_invites")
+        .fetch_one(&env.pool)
+        .await
+        .unwrap();
+    assert_ne!(stored, token);
+}

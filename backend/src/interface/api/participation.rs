@@ -15,6 +15,7 @@ use crate::interface::api::participant::{MaybeParticipant, Participant};
 use crate::process::analysis::store::{self, Stored};
 use crate::process::moderation::{self, Verdict};
 use crate::process::progress::{self, Progress, RESIDENCY_TYPES, has_relation};
+use crate::records::accounts;
 use crate::shared::status::StatementStatus;
 use crate::shared::util::{new_id, now_iso};
 
@@ -272,6 +273,17 @@ pub async fn post_statement(
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
     super::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
 
+    // 投稿にはパスキーの登録が要る（ADR 0006。投票は匿名のままでよい）
+    let registered = match &existing {
+        Some(id) => accounts::status(&state.pool, id).await?.registered,
+        None => false,
+    };
+    if !registered {
+        return Err(ApiError::unauthorized(
+            "registration_required",
+            "意見を投稿するには、パスキーの登録が要ります",
+        ));
+    }
     let participant = Participant::ensure(&state, existing).await?;
 
     // いったん非公開（pending）で保存してから判定する

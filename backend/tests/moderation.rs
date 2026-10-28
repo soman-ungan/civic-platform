@@ -32,12 +32,14 @@ async fn setup() -> (AppState, Arc<Fake>) {
     (state, fake)
 }
 
+/// パスキーを登録済みの参加者として投稿する（投稿にはパスキーの登録が要る。ADR 0006）
 async fn post(state: &AppState, body: &str) -> common::TestResponse {
+    let cookie = common::registered_account(&state.pool, state).await;
     request(
         state,
         "POST",
         &format!("{T1}/statements"),
-        None,
+        Some(&cookie),
         Some(json!({"body": body})),
     )
     .await

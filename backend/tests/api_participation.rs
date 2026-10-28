@@ -318,6 +318,30 @@ async fn next_statement_of_other_municipality_topic_is_404() {
 
 // ===== 意見の投稿 =====
 
+#[tokio::test]
+async fn posting_requires_a_passkey_but_voting_does_not() {
+    let (pool, state) = setup().await;
+    // 匿名の参加者は投票できる
+    let cookie = registered(&state).await;
+    assert_eq!(
+        vote(&state, Some(&cookie), "a1", 1).await.status,
+        StatusCode::OK
+    );
+    // 投稿は、パスキーを登録するまでできない（Cookie が無くても、匿名でも）
+    for c in [None, Some(cookie.as_str())] {
+        let res = post(&state, c, "公園をもっと増やしてほしい").await;
+        assert_eq!(res.status, StatusCode::UNAUTHORIZED);
+        assert_eq!(res.json["error"]["code"], "registration_required");
+    }
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM statements WHERE user_id IS NOT NULL AND id NOT IN ('s1')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count, 0);
+}
+
 async fn post(state: &AppState, cookie: Option<&str>, body: &str) -> common::TestResponse {
     request(
         state,
@@ -337,7 +361,8 @@ async fn posted_statement_is_auto_approved_and_appears_in_cards() {
         vote(&state, Some(&cookie), id, 1).await;
     }
 
-    let res = post(&state, None, "  公園をもっと増やしてほしい  ").await;
+    let account = common::registered_account(&pool, &state).await;
+    let res = post(&state, Some(&account), "  公園をもっと増やしてほしい  ").await;
     assert_eq!(res.status, StatusCode::CREATED);
     assert_eq!(res.json["status"], "approved");
     assert!(res.json.get("suggestion").is_none());
@@ -359,23 +384,24 @@ async fn posted_statement_is_auto_approved_and_appears_in_cards() {
 
 #[tokio::test]
 async fn statement_length_is_counted_in_characters() {
-    let (_pool, state) = setup().await;
+    let (pool, state) = setup().await;
+    let account = common::registered_account(&pool, &state).await;
     // 絵文字は UTF-8 で 4 バイトだが 1 文字として数える（DB の length() と一致）
     assert_eq!(
-        post(&state, None, &"😀".repeat(140)).await.status,
+        post(&state, Some(&account), &"😀".repeat(140)).await.status,
         StatusCode::CREATED
     );
     assert_eq!(
-        post(&state, None, &"あ".repeat(140)).await.status,
+        post(&state, Some(&account), &"あ".repeat(140)).await.status,
         StatusCode::CREATED
     );
 
-    let too_long = post(&state, None, &"😀".repeat(141)).await;
+    let too_long = post(&state, Some(&account), &"😀".repeat(141)).await;
     assert_eq!(too_long.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(too_long.json["error"]["code"], "invalid_body");
 
     assert_eq!(
-        post(&state, None, "   \n  ").await.status,
+        post(&state, Some(&account), "   \n  ").await.status,
         StatusCode::UNPROCESSABLE_ENTITY
     );
 }
