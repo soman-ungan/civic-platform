@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   BudgetTreemap,
@@ -35,6 +35,7 @@ export function BudgetProjects({
 }) {
   const [filter, setFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const listTop = useRef<HTMLHeadingElement>(null);
 
   const groups = fieldGroups(projects);
   const colorOf = new Map(groups.map((g) => [g.id, g.color]));
@@ -131,11 +132,17 @@ export function BudgetProjects({
         onField={choose}
       />
 
-      <h3 className="mt-5 mb-2 text-sm font-semibold">事業の一覧</h3>
+      <h3
+        ref={listTop}
+        className="mt-5 mb-2 scroll-mt-[var(--carousel-header,0px)] text-sm font-semibold"
+      >
+        事業の一覧
+      </h3>
       <nav
         aria-label="分野で絞り込む"
         data-swipe-ignore
-        className="-mx-4 mb-3 overflow-x-auto px-4 [scrollbar-width:none]"
+        // 一覧を読み進めても分野を選び直せるように、欄の見出しの下に固定する
+        className="sticky top-[var(--carousel-header,0px)] z-[5] -mx-4 mb-3 overflow-x-auto bg-[var(--background)] px-4 py-1.5 [scrollbar-width:none]"
       >
         <ul className="flex w-max gap-1.5">
           {chips.map(([id, label]) => (
@@ -143,7 +150,20 @@ export function BudgetProjects({
               <button
                 type="button"
                 aria-pressed={filter === id}
-                onClick={() => choose(id)}
+                onClick={() => {
+                  choose(id);
+                  // 固定されたチップで選び直したとき、短くなった一覧の先頭に戻る（見出しがチップのすぐ上にあれば動かさない）
+                  const el = listTop.current;
+                  const nav = el?.nextElementSibling;
+                  if (
+                    el &&
+                    nav &&
+                    el.getBoundingClientRect().top <
+                      nav.getBoundingClientRect().top - el.offsetHeight - 16
+                  ) {
+                    el.scrollIntoView({ block: "start" });
+                  }
+                }}
                 className={`inline-flex min-h-9 items-center rounded-full border px-3 text-xs whitespace-nowrap ${
                   filter === id
                     ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"

@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** スワイプとみなす横の移動（px）。縦の移動の2倍以上も必要（縦のスクロールと区別する） */
 const MIN_DX = 50;
@@ -62,6 +62,21 @@ export function FinanceCarousel({ sections }: { sections: CarouselSection[] }) {
     go(dx < 0 ? 1 : -1);
   }
 
+  // 固定の見出しの高さを `--carousel-header` に入れる（欄の中で、見出しの下に固定するもののため）
+  const header = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = header.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() =>
+      root.current?.style.setProperty(
+        "--carousel-header",
+        `${el.offsetHeight}px`,
+      ),
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const current = sections[index];
   return (
     <div
@@ -71,7 +86,10 @@ export function FinanceCarousel({ sections }: { sections: CarouselSection[] }) {
       onTouchEnd={onTouchEnd}
       className="min-h-full"
     >
-      <div className="sticky top-0 z-10 -mx-4 mb-2 bg-[var(--background)] px-4 pt-1">
+      <div
+        ref={header}
+        className="sticky top-0 z-10 -mx-4 mb-2 bg-[var(--background)] px-4 pt-1"
+      >
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
