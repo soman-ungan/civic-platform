@@ -108,10 +108,17 @@ async function FinancesView({
       lead: (
         <>
           {fiscalYearLabel(f.fiscal_year)}
-          の予算の主な事業（金額の大きい順）。事業の説明は、原本のページをご覧ください。
+          の予算の主な事業。事業の説明は、原本のページをご覧ください。
         </>
       ),
-      content: <BudgetProjects projects={b.projects} pdfUrl={b.source.url} />,
+      content: (
+        <BudgetProjects
+          projects={b.projects}
+          pdfUrl={b.source.url}
+          total={b.total}
+          population={b.population}
+        />
+      ),
     });
   }
   sections.push(

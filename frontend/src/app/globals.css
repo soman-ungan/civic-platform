@@ -155,6 +155,9 @@ body {
   --series-6: #008300;
   --series-7: #6250d6;
   --series-8: #e34948;
+  /* ツリーマップの「ほか」と「概要に載らない分」（系列ではないので灰色） */
+  --treemap-other: #a1a1aa;
+  --treemap-unlisted: #e4e4e7;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -167,5 +170,7 @@ body {
     --series-6: #008300;
     --series-7: #9085e9;
     --series-8: #e66767;
+    --treemap-other: #71717a;
+    --treemap-unlisted: #3f3f46;
   }
 }
