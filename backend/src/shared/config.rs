@@ -7,6 +7,8 @@ const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8080";
 const DEFAULT_SEEDS_DIR: &str = "../data/seeds";
 const DEFAULT_DEV_SEEDS_DIR: &str = "../data/dev-seeds";
 const DEFAULT_PRIVATE_DIR: &str = "../data/private";
+const DEFAULT_WEBAUTHN_RP_ID: &str = "localhost";
+const DEFAULT_WEBAUTHN_ORIGIN: &str = "http://localhost:3000";
 const DEFAULT_MODERATION_MODEL: &str = "claude-sonnet-5-5";
 const DEFAULT_TAGGING_MODEL: &str = "claude-sonnet-5-5";
 const DEFAULT_LLM_DAILY_BUDGET_USD: f64 = 1.0;
@@ -37,6 +39,10 @@ pub struct Config {
     pub llm_extraction_daily_budget_usd: f64,
     /// 収集の User-Agent に入れる運営者の連絡先（URL かメールアドレス）。無ければ収集しない
     pub collector_contact: Option<String>,
+    /// パスキーを結び付けるドメイン（ADR 0006）。本番ではサービスのドメイン
+    pub webauthn_rp_id: String,
+    /// パスキーの登録・ログインを行う画面のオリジン（ブラウザから見た URL）
+    pub webauthn_origin: String,
 }
 
 impl Config {
@@ -79,6 +85,10 @@ impl Config {
             collector_contact: env::var("COLLECTOR_CONTACT")
                 .ok()
                 .filter(|v| !v.trim().is_empty()),
+            webauthn_rp_id: env::var("WEBAUTHN_RP_ID")
+                .unwrap_or_else(|_| DEFAULT_WEBAUTHN_RP_ID.into()),
+            webauthn_origin: env::var("WEBAUTHN_ORIGIN")
+                .unwrap_or_else(|_| DEFAULT_WEBAUTHN_ORIGIN.into()),
         })
     }
 }

@@ -15,3 +15,13 @@ export function municipalityApi(slug: string): string {
 export function topicApi(slug: string, topicId: string): string {
   return `${municipalityApi(slug)}/topics/${enc(topicId)}`;
 }
+
+/** パスキーでの登録とログイン（ADR 0006） */
+export const AUTH_API = {
+  me: "/api/auth/me",
+  registerStart: "/api/auth/register/start",
+  registerFinish: "/api/auth/register/finish",
+  loginStart: "/api/auth/login/start",
+  loginFinish: "/api/auth/login/finish",
+  logout: "/api/auth/logout",
+} as const;

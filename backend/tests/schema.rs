@@ -85,6 +85,8 @@ async fn all_tables_exist() {
             "llm_usage",
             "municipalities",
             "municipality_stats",
+            "operator_invites",
+            "passkeys",
             "prefectures",
             "public_officials",
             "settlement_item_tags",
@@ -99,6 +101,7 @@ async fn all_tables_exist() {
             "user_municipality_relations",
             "users",
             "votes",
+            "webauthn_challenges",
         ]
     );
 }
@@ -430,5 +433,26 @@ async fn topic_tag_is_unique_per_topic_and_tag() {
         )
         .await
         .is_ok()
+    );
+}
+
+#[tokio::test]
+async fn users_have_no_personal_attribute_columns() {
+    // 本人の属性は集めない（ADR 0002）。パスキーで保存するのも公開鍵と ID と日時だけ（ADR 0006）
+    let pool = common::test_pool().await;
+    let columns: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_info('users') ORDER BY cid")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        columns,
+        [
+            "id",
+            "home_municipality_id",
+            "created_at",
+            "registered_at",
+            "is_operator"
+        ]
     );
 }

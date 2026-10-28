@@ -3,6 +3,7 @@
 //! HTTP API（すべて `/api` の下）。アプリケーションの状態（`AppState`）とルーターを組み立てる
 
 pub mod analysis;
+pub mod auth;
 pub mod error;
 pub mod finances;
 mod health;
@@ -26,6 +27,12 @@ use error::ApiError;
 pub fn router() -> Router<AppState> {
     let api = Router::new()
         .route("/health", get(health::health))
+        .route("/auth/me", get(auth::me))
+        .route("/auth/register/start", post(auth::register_start))
+        .route("/auth/register/finish", post(auth::register_finish))
+        .route("/auth/login/start", post(auth::login_start))
+        .route("/auth/login/finish", post(auth::login_finish))
+        .route("/auth/logout", post(auth::logout))
         .route("/municipalities", get(municipalities::list))
         .route("/municipalities/{slug}", get(municipalities::detail))
         .route(
@@ -75,6 +82,8 @@ pub struct AppState {
     pub cookie_secure: bool,
     /// 投稿された意見の判定方式
     pub moderation: Moderation,
+    /// パスキーの登録・ログイン（ADR 0006）
+    pub webauthn: std::sync::Arc<webauthn_rs::Webauthn>,
 }
 
 impl AppState {
@@ -93,6 +102,8 @@ impl AppState {
             cookie_key: Key::derive_from(session_secret.as_bytes()),
             cookie_secure,
             moderation: Moderation::default(),
+            // 開発用の既定（localhost）。main では設定（WEBAUTHN_RP_ID・WEBAUTHN_ORIGIN）で差し替える
+            webauthn: auth::webauthn("localhost", "http://localhost:3000")?,
         })
     }
 }
@@ -102,6 +113,12 @@ impl AppState {
     pub fn with_moderation(mut self, moderation: Moderation) -> Self {
         self.moderation = moderation;
         self
+    }
+
+    /// パスキーを結び付けるドメインと画面のオリジンを差し替える
+    pub fn with_webauthn(mut self, rp_id: &str, origin: &str) -> anyhow::Result<Self> {
+        self.webauthn = auth::webauthn(rp_id, origin)?;
+        Ok(self)
     }
 }
 

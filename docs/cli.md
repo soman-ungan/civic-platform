@@ -85,13 +85,13 @@ Claude API を呼ぶのは、段階1では **`extract` だけ**です（`fetch` 
 
 ### 2. DB を見る・直す
 
-| | `budget` | `settlement` | `minutes` | `topic` | `statement` | `tag` | `source` |
-|---|---|---|---|---|---|---|---|
-| [`list`](#list) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [`show`](#show) | ○ | ○ | ○ | ○ | ○ | 無 | ○ |
-| [`edit`](#edit--add--remove) | 無 | 無 | 無 | ○ | ○ | 無 | 無 |
-| [`add` / `remove`](#edit--add--remove) | 無 | 無 | 無 | 無 | ○ | ○ | 無 |
-| [`publish` / `archive`](#publish--archive) | ○ | 無 | 無 | ○ | 無（`moderate` で） | 無 | 無 |
+| | `budget` | `settlement` | `minutes` | `topic` | `statement` | `tag` | `source` | `operator` |
+|---|---|---|---|---|---|---|---|---|
+| [`list`](#list) | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [`show`](#show) | ○ | ○ | ○ | ○ | ○ | 無 | ○ | 無 |
+| [`edit`](#edit--add--remove) | 無 | 無 | 無 | ○ | ○ | 無 | 無 | 無 |
+| [`add` / `remove`](#edit--add--remove) | 無 | 無 | 無 | 無 | ○ | ○ | 無 | ○ |
+| [`publish` / `archive`](#publish--archive) | ○ | 無 | 無 | ○ | 無（`moderate` で） | 無 | 無 | 無 |
 
 ### 3. DB の中身を判定・計算する
 
@@ -226,6 +226,7 @@ cargo run -- list statement                    # 確認待ち（flagged）と判
 cargo run -- list statement --status approved --topic <id>
 cargo run -- list tag -m otawara               # 分野の語彙と、その自治体の地区（add tag に使う id）
 cargo run -- list source                       # 収集先・規約の確認日・最後の取得
+cargo run -- list operator                     # 運営者のアカウント（ID・登録日・パスキーの数）
 ```
 
 ### show
@@ -250,7 +251,11 @@ cargo run -- add statement --topic <topic_id> --body "意見の本文"
 cargo run -- remove statement --id <意見の id>
 cargo run -- add tag --topic <topic_id> --id field-kosodate      # 地区は 092100-kurobane など
 cargo run -- remove tag --topic <topic_id> --id field-kosodate
+cargo run -- add operator                                         # 運営者の招待のリンク（24時間・1回だけ）
+cargo run -- remove operator --id <アカウントの id>               # 運営者から外す（アカウントは残る）
 ```
+
+- 運営者は画面からは増やせません（ADR 0006）。`add operator` が出すリンク（`<WEBAUTHN_ORIGIN>/operator/join?token=…`）を本人にだけ渡し、そこでパスキーを登録したアカウントが運営者になります。DB にはトークンのハッシュだけを残します
 
 - 投票がある意見は、直せません（投票の意味が変わってしまうため）
 - 意見は140文字以内です

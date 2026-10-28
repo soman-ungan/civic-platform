@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! 匿名参加者の識別。認証（フェーズ6）までは、署名付き Cookie に users.id を入れて識別する。
+//! 参加者の識別。署名付き Cookie に users.id を入れて識別する。投票までは匿名の参加者のまま、
+//! 投稿にはパスキーの登録が要る（ADR 0006。パスキーのやりとりは `auth`）。
 
 use std::convert::Infallible;
 
@@ -67,7 +68,11 @@ impl Participant {
             .bind(now_iso())
             .execute(&state.pool)
             .await?;
+        Ok(Self::switch_to(state, user_id))
+    }
 
+    /// この端末を、指定の利用者として続ける（パスキーでログインしたとき）
+    pub fn switch_to(state: &AppState, user_id: String) -> Self {
         let cookie = Cookie::build((COOKIE_NAME, user_id.clone()))
             .http_only(true)
             .same_site(SameSite::Lax)
@@ -75,11 +80,10 @@ impl Participant {
             .secure(state.cookie_secure)
             .max_age(cookie::time::Duration::days(COOKIE_MAX_AGE_DAYS));
         let jar = SignedCookieJar::new(state.cookie_key.clone()).add(cookie);
-
-        Ok(Self {
+        Self {
             user_id,
             set_cookie: Some(jar),
-        })
+        }
     }
 
     pub fn is_new(&self) -> bool {
@@ -96,4 +100,9 @@ impl IntoResponseParts for Participant {
             None => Ok(res),
         }
     }
+}
+
+/// ログアウト: 届いた Cookie を消す（その端末では、次の投票から新しい匿名の参加者として続く）
+pub fn logout(jar: SignedCookieJar) -> SignedCookieJar {
+    jar.remove(Cookie::build(COOKIE_NAME).path("/"))
 }

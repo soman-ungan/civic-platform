@@ -7,7 +7,7 @@ use clap::{Args, ValueEnum};
 
 use crate::ingest::{budget, collect};
 use crate::process::moderation;
-use crate::records::{self, topics};
+use crate::records::{self, accounts, topics};
 use crate::shared::status::Publication;
 
 use super::{Ctx, municipality_id, required, skip};
@@ -29,6 +29,8 @@ pub enum Target {
     Tag,
     /// 収集先（collector_sources）
     Source,
+    /// 運営者（パスキーで登録したアカウントのうち、運営者にしたもの。ADR 0006）
+    Operator,
 }
 
 #[derive(Debug, Args)]
@@ -96,7 +98,7 @@ pub struct AddArgs {
 #[derive(Debug, Args)]
 pub struct RemoveArgs {
     target: Target,
-    /// 意見の id（statement）・タグの id（tag）
+    /// 意見の id（statement）・タグの id（tag）・運営者のアカウントの id（operator。list operator で見られる）
     #[arg(long)]
     id: Option<String>,
     /// 対象のトピックの id（tag）
@@ -226,6 +228,20 @@ pub async fn list(ctx: &Ctx, args: ListArgs) -> anyhow::Result<()> {
                     "地区"
                 };
                 println!("{}  [{kind}]  {}", tag.id, tag.name);
+            }
+        }
+        Target::Operator => {
+            let operators = accounts::list_operators(pool).await?;
+            if operators.is_empty() {
+                println!("運営者はいません（add operator で招待のリンクを作る）");
+            }
+            for o in operators {
+                println!(
+                    "{}  登録: {}  パスキー {} 個",
+                    o.id,
+                    o.registered_at.as_deref().unwrap_or("-"),
+                    o.passkeys
+                );
             }
         }
         Target::Source => {
@@ -392,6 +408,13 @@ pub async fn show(ctx: &Ctx, args: ShowArgs) -> anyhow::Result<()> {
                 "タグは名前だけで、中身が無い（list tag で一覧を見る）",
             );
         }
+        Target::Operator => {
+            return skip(
+                "show",
+                args.target,
+                "運営者のアカウントは ID と登録日だけで、中身が無い（list operator で一覧を見る）",
+            );
+        }
         Target::Source => {
             let id = required(&args.id, "show source --id <id>（list source で見られる）")?;
             let Some(s) = collect::sources(pool)
@@ -460,6 +483,11 @@ pub async fn edit(ctx: &Ctx, args: EditArgs) -> anyhow::Result<()> {
             args.target,
             "収集先は seed で管理する（data/seeds/010_municipality_*.sql）",
         )?,
+        Target::Operator => skip(
+            "edit",
+            args.target,
+            "運営者は足すか外すだけ（add / remove operator）",
+        )?,
     }
     Ok(())
 }
@@ -479,6 +507,21 @@ pub async fn add(ctx: &Ctx, args: AddArgs) -> anyhow::Result<()> {
             let tag = required(&args.id, usage)?;
             topics::set_tag(pool, topic, tag, true).await?;
             println!("{topic}: {tag} を付けました");
+        }
+        Target::Operator => {
+            // 運営者は画面からは増やせない。1回だけ使える招待のリンクを作り、そこからパスキーを登録してもらう
+            let token = accounts::create_operator_invite(pool).await?;
+            println!(
+                "運営者の招待のリンクを作りました（{} 時間有効・1回だけ使える）:",
+                accounts::OPERATOR_INVITE_TTL_HOURS
+            );
+            println!(
+                "  {}/operator/join?token={token}",
+                ctx.config.webauthn_origin.trim_end_matches('/')
+            );
+            println!(
+                "このリンクは本人にだけ渡してください。リンクからパスキーを登録したアカウントが運営者になります"
+            );
         }
         other => skip("add", other, not_editable(other))?,
     }
@@ -502,6 +545,16 @@ pub async fn remove(ctx: &Ctx, args: RemoveArgs) -> anyhow::Result<()> {
             topics::set_tag(pool, topic, tag, false).await?;
             println!("{topic}: {tag} を外しました");
         }
+        Target::Operator => {
+            let id = required(
+                &args.id,
+                "remove operator --id <id>（list operator で見られる）",
+            )?;
+            if !accounts::remove_operator(pool, id).await? {
+                anyhow::bail!("運営者が見つかりません: {id}");
+            }
+            println!("{id}: 運営者から外しました（アカウントとパスキーは残る）");
+        }
         other => skip("remove", other, not_editable(other))?,
     }
     Ok(())
@@ -517,7 +570,7 @@ fn not_editable(target: Target) -> &'static str {
             "トピックは会議録から作る（import minutes。市民からの提案はフェーズ6のあと）"
         }
         Target::Source => "収集先は seed で管理する（data/seeds/010_municipality_*.sql）",
-        Target::Statement | Target::Tag => "",
+        Target::Statement | Target::Tag | Target::Operator => "",
     }
 }
 
@@ -563,7 +616,9 @@ pub async fn publish(ctx: &Ctx, args: PublishArgs, publish: bool) -> anyhow::Res
             args.target,
             "意見の公開・非公開は判定として行う（moderate statement --id <id> --approve | --reject）",
         )?,
-        Target::Tag | Target::Source => skip(verb, args.target, "公開・取り下げの状態を持たない")?,
+        Target::Tag | Target::Source | Target::Operator => {
+            skip(verb, args.target, "公開・取り下げの状態を持たない")?
+        }
     }
     Ok(())
 }

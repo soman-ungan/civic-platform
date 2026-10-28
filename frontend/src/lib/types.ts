@@ -104,6 +104,13 @@ export type VoteValue = 1 | -1 | 0;
 export type StatementStatus = "pending" | "approved" | "rejected" | "flagged";
 
 /** 意見を投稿した結果 */
+/** ログインの状態（backend/src/interface/api/auth.rs。利用者の ID は返さない） */
+export type Me = {
+  /** パスキーを登録している（意見を投稿できる） */
+  registered: boolean;
+  operator: boolean;
+};
+
 export type PostedStatement = {
   id: string;
   status: StatementStatus;
