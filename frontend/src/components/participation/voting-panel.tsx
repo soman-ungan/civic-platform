@@ -5,8 +5,6 @@
 import { useEffect, useState } from "react";
 
 import { LoginSheet } from "@/components/auth/login-sheet";
-import { RelationSheet } from "./relation-sheet";
-import { StatementForm } from "./statement-form";
 import { BUTTON_SECONDARY, ERROR_TEXT } from "@/components/ui/styles";
 import { ApiError, apiFetch, errorMessage } from "@/lib/api/client";
 import { topicApi } from "@/lib/api/paths";
@@ -18,24 +16,9 @@ import {
 import { useApi } from "@/lib/api/use-api";
 import type { NextStatement, VoteValue } from "@/lib/api/types/participation";
 
-const VOTE_BUTTONS: { value: VoteValue; label: string; className: string }[] = [
-  {
-    value: 1,
-    label: "賛成👍️",
-    className: "bg-emerald-600 text-white active:bg-emerald-700",
-  },
-  {
-    value: -1,
-    label: "反対👎️",
-    className: "bg-rose-600 text-white active:bg-rose-700",
-  },
-  {
-    value: 0,
-    label: "パス",
-    className:
-      "border border-zinc-300 bg-white text-zinc-700 active:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300",
-  },
-];
+import { RelationSheet } from "./relation-sheet";
+import { StatementForm } from "./statement-form";
+import { VOTE_BUTTONS } from "./vote-buttons";
 
 /**
  * Polis 風の投票。意見を1件ずつカードで出し、賛成 / 反対 / パスで次へ進む。
@@ -170,6 +153,12 @@ export function VotingPanel({
           {progress.voted} / {progress.total}
         </span>
       </div>
+      {!progress.analysis_unlocked && (
+        <p className="-mt-1 mb-3 text-xs text-zinc-500">
+          あと{progress.analysis_remaining}
+          件で「みんなの意見」が見られ、自分の意見も投稿できます
+        </p>
+      )}
 
       {statement ? (
         <>
@@ -217,8 +206,9 @@ export function VotingPanel({
       )}
 
       <StatementForm
-        endpoint={`${base}/statements`}
-        onPosted={() => void load()}
+        topicBase={base}
+        posting={data.posting}
+        onChanged={() => void load()}
       />
 
       {loginVote !== null && (

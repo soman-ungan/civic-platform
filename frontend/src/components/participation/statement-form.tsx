@@ -7,31 +7,53 @@ import { useState } from "react";
 import { PasskeyPrompt } from "@/components/auth/passkey-prompt";
 import { BUTTON_PRIMARY } from "@/components/ui/styles";
 import { ApiError, apiFetch, errorMessage } from "@/lib/api/client";
-import { useMe } from "@/lib/auth/passkey";
+import type {
+  PostPermission,
+  PostedStatement,
+  Rejection,
+  StatementCard,
+  VoteValue,
+} from "@/lib/api/types/participation";
 import { MAX_STATEMENT_CHARS, countChars } from "@/lib/statement";
-import type { PostedStatement } from "@/lib/api/types/participation";
+
+import { VOTE_BUTTONS } from "./vote-buttons";
+
+/** 非公開になったときの案内（理由の種類ごと。ADR 0007） */
+const REJECTION_MESSAGES: Record<Rejection, string> = {
+  harm: "この内容は公開できませんでした。表現を見直してもう一度お試しください。",
+  person:
+    "人ではなく、政策や事業についての意見にしてみませんか。公人の進退などは、リコールや選挙などの手続に委ねています。",
+  official_name:
+    "首長・議員の名前を入れずに、政策や事業についての意見にしてください。",
+  not_votable:
+    "ほかの人が賛成・反対できる、このトピックについての1つの意見にしてください。迷ったときは、投票でパスを選べます。",
+};
+
+type Message =
+  | { kind: "ok" | "error"; text: string }
+  | { kind: "duplicate"; similar: StatementCard };
 
 /**
  * 「自分の意見を追加」。返信やコメントではなく、投票カードに並ぶ新しい意見として投稿する。
- * 投稿にはパスキーの登録が要る（ADR 0006）。未登録なら、先に登録の案内を出す
+ * 投稿できるかは backend の `posting` を見る（パスキーの登録・分析を見られること・1トピック1件。ADR 0005・0006）
  */
 export function StatementForm({
-  endpoint,
-  onPosted,
+  topicBase,
+  posting,
+  onChanged,
 }: {
-  endpoint: string;
-  onPosted: () => void;
+  /** トピックの API のパス（`topicApi(slug, id)`） */
+  topicBase: string;
+  posting: PostPermission;
+  /** 投稿・パスキーの登録・案内した意見への投票のあと（次の意見と `posting` を読み直す） */
+  onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
   // パスキーの登録の案内を出しているか
   const [needsPasskey, setNeedsPasskey] = useState(false);
-  const { data: me } = useMe();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [message, setMessage] = useState<{
-    kind: "ok" | "error";
-    text: string;
-  } | null>(null);
+  const [message, setMessage] = useState<Message | null>(null);
 
   const count = countChars(text.trim());
   const tooLong = count > MAX_STATEMENT_CHARS;
@@ -42,32 +64,32 @@ export function StatementForm({
     setSending(true);
     setMessage(null);
     try {
-      const posted = await apiFetch<PostedStatement>(endpoint, {
-        method: "POST",
-        body: { body: text },
-      });
-      if (posted.status === "approved") {
-        setText("");
-        setOpen(false);
-        setMessage({
-          kind: "ok",
-          text: "投稿しました。投票カードに追加されました。",
-        });
-        onPosted();
+      const posted = await apiFetch<PostedStatement>(
+        `${topicBase}/statements`,
+        { method: "POST", body: { body: text } },
+      );
+      if (posted.status === "duplicate") {
+        // 保存されていないので、文はそのまま残して書き直せるようにする
+        setMessage({ kind: "duplicate", similar: posted.similar });
       } else if (posted.status === "rejected") {
+        const base = REJECTION_MESSAGES[posted.rejection];
         setMessage({
           kind: "error",
           text: posted.suggestion
-            ? `表現を見直してみませんか？ 例:「${posted.suggestion}」`
-            : "この内容は公開できませんでした。表現を見直してもう一度お試しください。",
+            ? `${base} 例:「${posted.suggestion}」`
+            : base,
         });
       } else {
         setText("");
         setOpen(false);
         setMessage({
           kind: "ok",
-          text: "投稿しました。確認のあと公開されます。",
+          text:
+            posted.status === "approved"
+              ? "投稿しました。投票カードに追加されました。"
+              : "投稿しました。確認のあと公開されます。",
         });
+        onChanged();
       }
     } catch (e) {
       if (e instanceof ApiError && e.code === "registration_required") {
@@ -78,42 +100,100 @@ export function StatementForm({
         kind: "error",
         text: errorMessage(e, "投稿に失敗しました"),
       });
+      if (e instanceof ApiError) onChanged();
     } finally {
       setSending(false);
     }
   }
 
+  async function voteSimilar(similar: StatementCard, value: VoteValue) {
+    try {
+      await apiFetch(
+        `${topicBase}/statements/${encodeURIComponent(similar.id)}/votes`,
+        { method: "POST", body: { value } },
+      );
+      setText("");
+      setOpen(false);
+      setMessage({ kind: "ok", text: "投票しました。" });
+      onChanged();
+    } catch (e) {
+      setMessage({
+        kind: "error",
+        text: errorMessage(e, "投票に失敗しました"),
+      });
+    }
+  }
+
+  function start() {
+    setMessage(null);
+    if (posting.status === "registration_required") {
+      setNeedsPasskey(true);
+    } else {
+      setOpen(true);
+    }
+  }
+
   return (
     <section className="mt-6">
-      {message && (
-        <p
+      {message?.kind === "duplicate" ? (
+        <div
           role="status"
-          className={`mb-3 text-sm ${message.kind === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600"}`}
+          className="mb-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
         >
-          {message.text}
-        </p>
+          <p className="text-sm font-medium">同じ意見がすでにあります</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            新しく足す代わりに、この意見に投票してください。言いたいことが違うなら、違いが分かるように書き直して投稿できます。
+          </p>
+          <blockquote className="mt-3 rounded-xl bg-zinc-50 p-3 text-sm leading-6 dark:bg-zinc-900">
+            {message.similar.body}
+          </blockquote>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {VOTE_BUTTONS.map((b) => (
+              <button
+                key={b.value}
+                type="button"
+                onClick={() => void voteSimilar(message.similar, b.value)}
+                className={`h-11 rounded-xl text-sm font-semibold ${b.className}`}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        message && (
+          <p
+            role="status"
+            className={`mb-3 text-sm ${message.kind === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600"}`}
+          >
+            {message.text}
+          </p>
+        )
       )}
 
       {needsPasskey ? (
         <PasskeyPrompt
           onRegistered={() => {
             setNeedsPasskey(false);
-            setOpen(true);
+            // 登録しても、分析を見られるまでは投稿できないことがある。`posting` を読み直してから開く
+            onChanged();
           }}
           onCancel={() => setNeedsPasskey(false)}
         />
+      ) : posting.status === "votes_required" ? (
+        <PostingNote>
+          ほかの人の意見にあと{posting.remaining}
+          件投票すると、自分の意見を投稿できます。先に出ている意見を読んでから書くと、同じ意見が重なりにくくなります。
+        </PostingNote>
+      ) : posting.status === "limit_reached" ? (
+        <PostingNote>
+          このトピックには、もう意見を投稿しています（1トピック1件まで）。ほかの意見への投票は続けられます。
+        </PostingNote>
       ) : !open ? (
         <>
           <button
             type="button"
-            onClick={() => {
-              setMessage(null);
-              if (me?.registered) {
-                setOpen(true);
-              } else {
-                setNeedsPasskey(true);
-              }
-            }}
+            onClick={start}
             className="h-12 w-full rounded-full border border-dashed border-zinc-400 text-sm text-zinc-700 dark:border-zinc-600 dark:text-zinc-300"
           >
             ＋ 自分の意見を追加
@@ -133,11 +213,11 @@ export function StatementForm({
             あなたの意見（{MAX_STATEMENT_CHARS}文字まで）
           </label>
           <p className="mt-1 text-xs text-zinc-500">
-            他の人の意見への返信ではなく、みんなが賛成・反対できる1つの意見として書いてください。
+            他の人の意見への返信ではなく、みんなが賛成・反対できる1つの意見として書いてください。人ではなく、政策や事業についての意見にしてください。投稿できるのは1トピック1件です。
           </p>
           <p className="mt-1 text-xs text-zinc-500">
             投稿は公開前に AI（Anthropic の
-            Claude）で確認します。送るのは本文だけで、あなたを識別する情報は送りません。
+            Claude）で確認します。送るのは本文とトピックの公開済みの内容（タイトル・説明・ほかの意見）だけで、あなたを識別する情報は送りません。
           </p>
           <textarea
             id="statement-body"
@@ -172,5 +252,13 @@ export function StatementForm({
         </form>
       )}
     </section>
+  );
+}
+
+function PostingNote({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded-2xl border border-dashed border-zinc-300 p-4 text-center text-xs leading-5 text-zinc-500 dark:border-zinc-700">
+      {children}
+    </p>
   );
 }
