@@ -4,11 +4,17 @@
 
 import { useEffect, useState } from "react";
 
+import { LoginSheet } from "@/components/login-sheet";
 import { RelationSheet } from "@/components/relation-sheet";
 import { StatementForm } from "@/components/statement-form";
 import { BUTTON_SECONDARY, ERROR_TEXT } from "@/components/ui/styles";
 import { ApiError, apiFetch, errorMessage } from "@/lib/api-client";
 import { topicApi } from "@/lib/api-paths";
+import {
+  shouldOfferLoginBeforeVote,
+  skipLoginBeforeVote,
+  useMe,
+} from "@/lib/passkey";
 import { useApi } from "@/lib/use-api";
 import type { NextStatement, VoteValue } from "@/lib/types";
 
@@ -59,6 +65,9 @@ export function VotingPanel({
   const [busy, setBusy] = useState(false);
   // 居住地属性の登録待ちの投票（登録が済んだら送る）
   const [pendingVote, setPendingVote] = useState<VoteValue | null>(null);
+  // パスキーでのログインの案内を出している投票（断ったら送る）
+  const [loginVote, setLoginVote] = useState<VoteValue | null>(null);
+  const { data: me } = useMe();
 
   // 次の意見を読み込むたびに、進捗を知らせる（投票後の再読み込みはイベントハンドラーから load() を呼ぶ）
   const latest = data?.progress;
@@ -91,6 +100,15 @@ export function VotingPanel({
 
   function vote(value: VoteValue) {
     if (!data?.statement || busy) return;
+    if (shouldOfferLoginBeforeVote(me)) {
+      setLoginVote(value);
+      return;
+    }
+    proceedVote(value);
+  }
+
+  function proceedVote(value: VoteValue) {
+    if (!data?.statement) return;
     if (data.needs_relation) {
       setPendingVote(value);
       return;
@@ -202,6 +220,18 @@ export function VotingPanel({
         endpoint={`${base}/statements`}
         onPosted={() => void load()}
       />
+
+      {loginVote !== null && (
+        <LoginSheet
+          onClose={() => setLoginVote(null)}
+          onSkip={() => {
+            skipLoginBeforeVote();
+            const value = loginVote;
+            setLoginVote(null);
+            proceedVote(value);
+          }}
+        />
+      )}
 
       {pendingVote !== null && (
         <RelationSheet

@@ -87,6 +87,31 @@ export function hasPasskeyOnDevice(): boolean {
   }
 }
 
+// 投票の前の「ログインして投票しますか」を断ったか。断ったら、このタブを閉じるまで聞かない
+const SKIP_LOGIN_KEY = "civic-platform:vote-without-login";
+
+/**
+ * 投票の前に、パスキーでのログインを案内するか。この端末にパスキーがあるのにログインしていないとき。
+ * ログインせずに投票すると、同じ人が分析の中で2人に数えられるため（ログインし直せば1人にまとまる）
+ */
+export function shouldOfferLoginBeforeVote(me: Me | null): boolean {
+  if (!me || me.registered || !hasPasskeyOnDevice()) return false;
+  try {
+    return window.sessionStorage.getItem(SKIP_LOGIN_KEY) !== "1";
+  } catch {
+    return true;
+  }
+}
+
+/** 「ログインせずに投票する」を選んだ */
+export function skipLoginBeforeVote() {
+  try {
+    window.sessionStorage.setItem(SKIP_LOGIN_KEY, "1");
+  } catch {
+    // 保存できなければ、次の投票でもう一度聞く
+  }
+}
+
 // 登録・ログイン・ログアウトを、同じページのほかの部品（フッターなど）に知らせる
 const AUTH_CHANGED = "civic-platform:auth-changed";
 
