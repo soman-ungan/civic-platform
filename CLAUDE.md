@@ -24,9 +24,16 @@
 ## リポジトリ構成（モノレポ）
 ```
 civic-platform/
-├── backend/              Rust / axum / sqlx（API サーバー＋収集バッチ）
-│   └── src/collectors/   自治体・議事録システム別の収集アダプタ
+├── backend/              Rust / axum / sqlx（API サーバー＋運営のコマンド）
+│   ├── src/routes/       API（自治体・トピック・投票・分析・まちのお金）
+│   ├── src/progress.rs   参加のルール（進み具合・分析を見られるか・参加できるトピックか）。ルールはここだけで変える
+│   ├── src/status.rs     意見と公開の状態の型（DB の CHECK と同じ値）
+│   ├── src/cli/          運営のコマンド（clap。docs/cli.md）
+│   ├── src/collect/      行政資料の収集アダプタ
+│   └── src/{analysis,moderation,tagging,minutes,budget,llm}/  分析・AI・取り込み
 ├── frontend/             Next.js (App Router) / TypeScript / Tailwind CSS
+│   ├── src/components/ui/  よく使う見た目（チップ・横スクロールの行・切り替え・空の欄・ボタンのクラス）
+│   └── src/lib/          API（api-paths・api-server・api-client・use-api）、型（types.ts）、表示の決まり
 ├── data/                 SQLite ファイル（*.db は git 管理しない）
 │   └── seeds/            自治体・地区マスタの初期データ（git 管理する）
 └── docs/                 設計書・ADR
