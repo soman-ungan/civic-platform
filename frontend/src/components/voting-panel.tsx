@@ -65,7 +65,7 @@ export function VotingPanel({
   const [busy, setBusy] = useState(false);
   // 居住地属性の登録待ちの投票（登録が済んだら送る）
   const [pendingVote, setPendingVote] = useState<VoteValue | null>(null);
-  // パスキーでのログインの案内を出している投票（断ったら送る）
+  // ログインの案内を出している投票（パスキーを作るか、ログインせずに投票を選んだら送る）
   const [loginVote, setLoginVote] = useState<VoteValue | null>(null);
   const { data: me } = useMe();
 
@@ -224,6 +224,11 @@ export function VotingPanel({
       {loginVote !== null && (
         <LoginSheet
           onClose={() => setLoginVote(null)}
+          onRegistered={() => {
+            const value = loginVote;
+            setLoginVote(null);
+            proceedVote(value);
+          }}
           onSkip={() => {
             skipLoginBeforeVote();
             const value = loginVote;

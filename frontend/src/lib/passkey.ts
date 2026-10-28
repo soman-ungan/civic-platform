@@ -87,15 +87,16 @@ export function hasPasskeyOnDevice(): boolean {
   }
 }
 
-// 投票の前の「ログインして投票しますか」を断ったか。断ったら、このタブを閉じるまで聞かない
+// 投票の前の「ログインして投票しますか」で「ログインせずに投票」を選んだか。断ったら、このタブを閉じるまで聞かない
 const SKIP_LOGIN_KEY = "civic-platform:vote-without-login";
 
 /**
- * 投票の前に、パスキーでのログインを案内するか。この端末にパスキーがあるのにログインしていないとき。
- * ログインせずに投票すると、同じ人が分析の中で2人に数えられるため（ログインし直せば1人にまとまる）
+ * 投票の前に、ログイン（またはパスキーを作ること）を案内するか。ログインしていなければ、パスキーの有無に因らず案内する。
+ * 端末の印（`hasPasskeyOnDevice`）は Cookie などと一緒に消えることがあり、消えた人が自分からログインすることは少ないため。
+ * ログインせずに投票すると、同じ人が分析の中で2人に数えられることがある
  */
 export function shouldOfferLoginBeforeVote(me: Me | null): boolean {
-  if (!me || me.registered || !hasPasskeyOnDevice()) return false;
+  if (!me || me.registered) return false;
   try {
     return window.sessionStorage.getItem(SKIP_LOGIN_KEY) !== "1";
   } catch {
