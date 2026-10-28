@@ -1,6 +1,6 @@
 # 自動タグ付けの判断基準
 
-- 状態: 案（ユーザーの確認を待っている）
+- 状態: 確定（2026-10-28 ユーザーが確認。会議録のトピック36件のタグ付けで使った）
 - 日付: 2026-10-27
 - 関連: `docs/adr/0003-llm-operations.md`、`backend/src/process/tagging.rs`、`data/seeds/020_field_tags.sql`
 
