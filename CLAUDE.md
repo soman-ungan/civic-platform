@@ -33,8 +33,9 @@ civic-platform/
 │   └── src/maintenance/  準備と保守（seed・eval）
 │       層の依存は interface → ingest / records / process / maintenance → shared。内部ロジックは interface を使わない（docs/plans/2026-10-28-backend-layers.md）
 ├── frontend/             Next.js (App Router) / TypeScript / Tailwind CSS
-│   ├── src/components/ui/  よく使う見た目（チップ・横スクロールの行・切り替え・空の欄・ボタンのクラス）
-│   └── src/lib/          API（api-paths・api-server・api-client・use-api）、型（types.ts）、表示の決まり
+│   ├── src/components/   画面の部品。まとまりは backend の interface/api/ にそろえる（topics・participation・analysis・finances・auth）。ほかに ui/（よく使う見た目: チップ・横スクロールの行・切り替え・空の欄・説明の吹き出し・ボタンのクラス）と layout/（画面の枠）
+│   └── src/lib/          api/（backend とのやりとり: paths・server・client・use-api。型は api/types/ に backend のモジュールごと）、finances/（お金の表示の決まり）、auth/（パスキー）、画面をまたぐ小さな決まり（labels など）
+│       ファイル名はディレクトリ名と重なる部分を外す（components/finances/bars.tsx など）。型をまとめて export し直すファイルは作らない（docs/plans/2026-10-28-frontend-layout.md）
 ├── data/                 SQLite ファイル（*.db は git 管理しない）
 │   └── seeds/            自治体・地区マスタの初期データ（git 管理する）
 └── docs/                 設計書・ADR
@@ -173,7 +174,7 @@ civic-platform/
   - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別。**読む・投票はログインなし、投稿はパスキーの登録が要る**（ADR 0006。未登録なら 401 `registration_required`）。CI は `.github/workflows/ci.yml`
   - `GET /auth/me`（`registered`・`operator`。利用者の ID は返さない）/ `POST /auth/register/start`→`finish`（今の参加者にパスキーを付ける。投票はそのまま）/ `POST /auth/login/start`→`finish`（名前を入力しないパスキー。その端末の匿名の投票をアカウントに移す）/ `POST /auth/logout`
   - パスキーは webauthn-rs（`backend/src/interface/api/auth.rs`）、アカウントの処理は `backend/src/records/accounts.rs`。保存するのは公開鍵・ID・日時だけ。設定は `WEBAUTHN_RP_ID`・`WEBAUTHN_ORIGIN`（既定は localhost）。テストはソフトウェアのパスキー（`tests/auth.rs`）
-    - 画面の流れ（投票の前の「ログインして投票しますか」・端末の印・アカウントが2つになる限界）は `docs/plans/2026-10-28-phase6a-passkeys.md` の「ログインの流れ」。選択肢の部品は `frontend/src/components/passkey-choices.tsx`
+    - 画面の流れ（投票の前の「ログインして投票しますか」・端末の印・アカウントが2つになる限界）は `docs/plans/2026-10-28-phase6a-passkeys.md` の「ログインの流れ」。選択肢の部品は `frontend/src/components/auth/passkey-choices.tsx`
 - 自治体の追加: `data/seeds/010_municipality_<団体コード>_<slug>.sql` を1ファイル追加し、`cargo run -- seed`
   - 書式は `010_municipality_092100_otawara.sql` に倣う。全 INSERT に `ON CONFLICT DO NOTHING` を付ける
   - 地区 ID は `<団体コード>-<ローマ字>`
