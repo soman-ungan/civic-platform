@@ -190,7 +190,7 @@ async fn prompt_includes_definitions_and_municipality() {
 #[tokio::test]
 async fn criteria_doc_matches_seed() {
     let pool = test_pool().await;
-    backend::seed::run(&pool, std::path::Path::new("../data/seeds"))
+    backend::maintenance::seed::run(&pool, std::path::Path::new("../data/seeds"))
         .await
         .unwrap();
     let mut seeded: Vec<(String, String)> =

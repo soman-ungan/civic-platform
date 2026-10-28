@@ -4,7 +4,7 @@ mod common;
 
 use std::path::Path;
 
-use backend::seed;
+use backend::maintenance::seed;
 use sqlx::SqlitePool;
 
 fn seeds_dir() -> &'static Path {

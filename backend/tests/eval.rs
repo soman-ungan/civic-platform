@@ -7,7 +7,7 @@ mod common;
 use std::collections::HashSet;
 use std::path::Path;
 
-use backend::eval::{self, ModerationCase, TaggingCase};
+use backend::maintenance::eval::{self, ModerationCase, TaggingCase};
 use backend::process::moderation::Moderation;
 use backend::process::tagging::Tagger;
 use backend::shared::llm::Llm;
@@ -16,7 +16,7 @@ use sqlx::SqlitePool;
 
 async fn seeded_pool() -> SqlitePool {
     let pool = common::test_pool().await;
-    backend::seed::run(&pool, Path::new("../data/seeds"))
+    backend::maintenance::seed::run(&pool, Path::new("../data/seeds"))
         .await
         .unwrap();
     pool

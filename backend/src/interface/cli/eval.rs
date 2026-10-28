@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use crate::eval;
+use crate::maintenance::eval;
 use crate::process::moderation::Moderation;
 use crate::process::tagging::Tagger;
 use clap::{Args, Subcommand};
