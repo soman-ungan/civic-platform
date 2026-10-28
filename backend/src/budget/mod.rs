@@ -586,7 +586,7 @@ pub async fn set_status(
     Ok(n > 0)
 }
 
-/// 確かめた結果を、運営者が読める形にする（`budget show` と `--dry-run`）
+/// 確かめた結果を、運営者が読める形にする（`show budget` と `extract`・`import` の結果）
 pub fn render(checked: &Checked, pdf_url: Option<&str>) -> String {
     let mut s = format!("一般会計の歳出の合計: {} 千円\n", checked.total);
     for category in ["revenue", "expenditure_purpose", "expenditure_nature"] {
@@ -638,7 +638,7 @@ struct ProjectRow {
     page: i64,
 }
 
-/// 保存済みの予算を `Checked` の形で読む（`budget show`）
+/// 保存済みの予算を `Checked` の形で読む（`show budget`）
 pub async fn load(
     pool: &SqlitePool,
     municipality_id: &str,
