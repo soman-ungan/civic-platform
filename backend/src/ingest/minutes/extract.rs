@@ -16,8 +16,10 @@ use serde_json::{Value, json};
 
 use super::parse::Utterance;
 
-/// 1つの会議録から作るトピックの最大数
-pub const MAX_TOPICS: usize = 5;
+/// 1つの会議録から作るトピックの最大数。公の会議で論じられたものは取りこぼさないよう、
+/// 多めにして、すべて下書きにして運営者の承認を待つ（2026-10-28 ユーザーと決定。前は5件）。
+/// 超えた分は捨てずに知らせる（AI の出力が壊れたときの歯止め）
+pub const MAX_TOPICS: usize = 15;
 /// 1つのトピックの最初の意見の最大数（市民が足す余地を残すため少なめにする）
 pub const MAX_STATEMENTS: usize = 5;
 /// これより意見が少ないトピックは、運営者に知らせる（捨てずに残し、運営者の承認を待つ）
@@ -34,7 +36,7 @@ pub const SYSTEM_PROMPT: &str = "\
 市議会の会議録を読み、市民が賛成・反対を考えられる論点を「トピック」として紹介する案を作ります。
 
 # トピックの選び方
-- 市の政策や事業について、市民の間で意見が分かれうる論点を選ぶ（最大5件）
+- 市の政策や事業について、市民の間で意見が分かれうる論点を、取りこぼさずに選ぶ（最大15件。公の会議で論じられたものはできるだけ残す。採るかどうかは運営者が決める）
 - 開会・休憩などの手続きの発言、単なる報告、質問と答弁が事実の確認だけで終わっているものは選ばない
 - 論点が見つからなければ、topics を空にする
 
@@ -231,6 +233,12 @@ pub fn check(
 ) -> (Vec<CheckedTopic>, Vec<String>) {
     let mut kept = Vec::new();
     let mut notes = Vec::new();
+    if raw.topics.len() > MAX_TOPICS {
+        notes.push(format!(
+            "トピック案が{}件あり、上限の{MAX_TOPICS}件を超えた分を使わなかった",
+            raw.topics.len()
+        ));
+    }
     for topic in raw.topics.into_iter().take(MAX_TOPICS) {
         let title = topic.title.trim().to_owned();
         let description = topic.description.trim().to_owned();
