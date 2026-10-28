@@ -8,6 +8,7 @@ use backend::moderation::{self, Moderation};
 use backend::tagging::{self, Tagger};
 use backend::{
     AppState, analysis, app, budget, collect, config::Config, db, drafts, eval, minutes, seed,
+    status::Publication,
 };
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
@@ -568,14 +569,14 @@ async fn budget_command(pool: &sqlx::SqlitePool, args: &[String]) -> anyhow::Res
         (Some(cmd @ ("publish" | "archive")), Some(slug), Some(year)) => {
             let id = municipality_id(pool, slug).await?;
             let status = if cmd == "publish" {
-                "published"
+                Publication::Published
             } else {
-                "archived"
+                Publication::Archived
             };
             if !budget::set_status(pool, &id, year.parse()?, status).await? {
                 anyhow::bail!("{slug} の {year}年度の予算はありません");
             }
-            println!("{slug} {year}年度: {status}");
+            println!("{slug} {year}年度: {}", status.as_str());
         }
         _ => anyhow::bail!(usage),
     }
@@ -602,12 +603,12 @@ async fn topics_command(pool: &sqlx::SqlitePool, args: &[String]) -> anyhow::Res
         },
         (Some(cmd @ ("publish" | "archive")), Some(id)) => {
             let status = if cmd == "publish" {
-                "published"
+                Publication::Published
             } else {
-                "archived"
+                Publication::Archived
             };
             if drafts::set_status(pool, id, status).await? {
-                println!("{id}: {status}");
+                println!("{id}: {}", status.as_str());
             } else {
                 anyhow::bail!("トピックが見つかりません: {id}");
             }

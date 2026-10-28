@@ -15,6 +15,7 @@ pub mod participant;
 pub mod progress;
 pub mod routes;
 pub mod seed;
+pub mod status;
 pub mod tagging;
 pub mod util;
 

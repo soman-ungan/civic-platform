@@ -15,6 +15,7 @@ use crate::moderation::{self, Verdict};
 use crate::participant::{MaybeParticipant, Participant};
 use crate::progress::{self, Progress, RESIDENCY_TYPES, has_relation};
 use crate::routes::municipalities;
+use crate::status::StatementStatus;
 use crate::util::{new_id, now_iso};
 
 /// 意見の最大文字数（DB の CHECK と同じ。文字数は Unicode のコードポイント単位）
@@ -235,7 +236,7 @@ pub struct StatementInput {
 #[derive(Debug, Serialize)]
 pub struct PostedStatement {
     pub id: String,
-    pub status: &'static str,
+    pub status: StatementStatus,
     /// 却下されたときの書き直しの提案（フェーズ4の AI モデレーションで使う）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suggestion: Option<String>,

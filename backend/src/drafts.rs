@@ -6,6 +6,8 @@
 
 use sqlx::SqlitePool;
 
+use crate::status::Publication;
+
 #[derive(Debug, sqlx::FromRow)]
 pub struct DraftSummary {
     pub id: String,
@@ -156,11 +158,10 @@ impl DraftDetail {
 pub async fn set_status(
     pool: &SqlitePool,
     topic_id: &str,
-    status: &str,
+    status: Publication,
 ) -> Result<bool, sqlx::Error> {
-    debug_assert!(["published", "archived"].contains(&status));
     let result = sqlx::query("UPDATE topics SET status = $1 WHERE id = $2")
-        .bind(status)
+        .bind(status.as_str())
         .bind(topic_id)
         .execute(pool)
         .await?;

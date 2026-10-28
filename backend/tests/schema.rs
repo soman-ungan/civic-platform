@@ -274,6 +274,47 @@ async fn statement_status_is_restricted() {
     assert!(insert_statement(&pool, "bad", "意見", "foo").await.is_err());
 }
 
+/// Rust の状態の型（backend::status）の値が、DB の CHECK と同じであること
+#[tokio::test]
+async fn status_enums_match_check_constraints() {
+    use backend::status::{Publication, StatementStatus};
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    for (i, status) in StatementStatus::ALL.into_iter().enumerate() {
+        insert_statement(&pool, &format!("st{i}"), "意見", status.as_str())
+            .await
+            .unwrap_or_else(|e| panic!("{status:?}: {e}"));
+    }
+    for status in Publication::ALL {
+        sqlx::query("UPDATE topics SET status = ? WHERE id = 't1'")
+            .bind(status.as_str())
+            .execute(&pool)
+            .await
+            .unwrap_or_else(|e| panic!("topics {status:?}: {e}"));
+    }
+    exec(
+        &pool,
+        "INSERT INTO documents (id, municipality_id, kind, title, sha256, char_count, imported_at)
+         VALUES ('d', '092100', 'budget', '概要', 'h', 1, '2026-10-26T00:00:00Z')",
+    )
+    .await
+    .unwrap();
+    exec(
+        &pool,
+        "INSERT INTO budgets (id, municipality_id, fiscal_year, status, document_id, total, created_at)
+         VALUES ('b', '092100', 2026, 'draft', 'd', 1, '2026-10-26T00:00:00Z')",
+    )
+    .await
+    .unwrap();
+    for status in Publication::ALL {
+        sqlx::query("UPDATE budgets SET status = ? WHERE id = 'b'")
+            .bind(status.as_str())
+            .execute(&pool)
+            .await
+            .unwrap_or_else(|e| panic!("budgets {status:?}: {e}"));
+    }
+}
+
 #[tokio::test]
 async fn statement_requires_existing_topic() {
     let pool = common::test_pool().await;

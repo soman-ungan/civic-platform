@@ -17,6 +17,7 @@ use sqlx::SqlitePool;
 
 use crate::llm::{Effort, Llm, Purpose, Request};
 use crate::moderation::{Moderation, Verdict};
+use crate::status::StatementStatus;
 use crate::util::{new_id, now_iso};
 use parse::{Patterns, Utterance, normalize_name};
 
@@ -245,7 +246,7 @@ pub async fn import(
     // 通常の投稿と同じく、あとで判定し直す）を残し、非公開・要確認になったものは捨てる
     let mut topics: Vec<(
         extract::CheckedTopic,
-        Vec<(&extract::CheckedStatement, &'static str)>,
+        Vec<(&extract::CheckedStatement, StatementStatus)>,
     )> = Vec::new();
     for topic in &checked {
         let mut kept = Vec::new();
@@ -258,7 +259,7 @@ pub async fn import(
                 _ => notes.push(format!(
                     "{}: モデレーションで {} になった意見を捨てた:「{}」",
                     topic.title,
-                    review.verdict.status(),
+                    review.verdict.status().as_str(),
                     statement.body
                 )),
             }
@@ -271,7 +272,10 @@ pub async fn import(
             ));
             continue;
         }
-        if kept.iter().any(|(_, status)| *status == "pending") {
+        if kept
+            .iter()
+            .any(|(_, status)| *status == StatementStatus::Pending)
+        {
             notes.push(format!(
                 "{}: 判定できなかった意見を確認待ち（pending）で残した。あとで判定し直す",
                 topic.title
@@ -329,7 +333,7 @@ pub async fn import(
             .bind(&statement_id)
             .bind(&topic_id)
             .bind(&statement.body)
-            .bind(status)
+            .bind(status.as_str())
             .bind(&now)
             .execute(&mut *tx)
             .await?;
