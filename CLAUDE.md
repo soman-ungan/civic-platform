@@ -111,7 +111,7 @@ civic-platform/
   - 自治体の取り違えを防ぐため、テスト用 seed には最低2自治体を入れる。
 
 ## よく使うコマンド（整備され次第更新する）
-- 運営のコマンドの全体（利用する人向け）は `docs/cli.md`。コマンドを足したり変えたりしたら、そちらも直す
+- 運営のコマンドの全体（利用する人向け）は `docs/cli.md`、資料・コマンド・DB のデータの流れは `docs/data-flow.md`。コマンドやテーブルを足したり変えたりしたら、そちらも直す
 - 初回: `cp .env.example .env`（`.env` はルートに1つ。backend / sqlx-cli は親ディレクトリを遡って読み、frontend は `next.config.ts` でルートの `.env` を読む）
   - `.env.example` に変数が増えたら手元の `.env` にも追記する（`NEXT_PUBLIC_SOURCE_URL` が無いと本番ビルドが失敗する）
   - `SESSION_SECRET`（参加者 Cookie の署名鍵）は必須。`openssl rand -hex 32` で作る。未設定・32 バイト未満なら backend は起動しない
@@ -131,6 +131,7 @@ civic-platform/
     - 分野タグの共通語彙は `data/seeds/020_field_tags.sql`（定義は `tags.description`、判断基準は `docs/design/tagging-criteria.md`）
   - 会議録（`EXTRACTION_MODEL`、既定 Opus 5.5。抽出の1日の上限は `LLM_EXTRACTION_DAILY_BUDGET_USD` で別枠）
     - `cargo run -- import minutes --municipality <slug> --file <path> --title <会議名> --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again] [--force]` — 会議録からトピックの下書きを作る。`--dry-run` は AI を呼ばずに発言者・名簿に無い人・議事日程を出す。一般質問・代表質問の無い会議録は飛ばす（`--force` で取り込む）。**実際の API を呼ぶので費用がかかる**（1日分でおよそ 0.3〜0.4 ドル）
+    - 共同作業で取り込む（API を使わない）: `cargo run -- extraction prompt minutes|budget ...` で指示文・出力の形・入力を書き出し、Claude Code が JSON を作って `import minutes|budget ... --extraction <json>`（API の時と同じ検査を通る）。手順は `.claude/commands/import-minutes.md`・`import-budget.md`。どちらで作ったかは `documents.extraction`
     - `cargo run -- topics drafts | show <id> | publish <id> | archive <id>` — 下書きの確認と公開
     - `cargo run -- topics edit <id> [--title] [--description]` / `topics statement add|edit|remove ...` / `topics tag add|remove <topic_id> <tag_id>` — 手直し
     - 公人の名簿は `data/seeds/030_officials_<団体コード>_<slug>.sql`

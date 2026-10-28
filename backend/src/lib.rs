@@ -8,6 +8,7 @@ pub mod db;
 pub mod drafts;
 pub mod error;
 pub mod eval;
+pub mod extraction;
 pub mod llm;
 pub mod minutes;
 pub mod moderation;

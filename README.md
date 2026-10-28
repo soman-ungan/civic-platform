@@ -5,6 +5,7 @@
 
 - 設計: [docs/grand-design.md](docs/grand-design.md)
 - 運営のコマンド（データの投入・会議録と予算の取り込み・意見の確認など）: [docs/cli.md](docs/cli.md)
+- データの流れ（資料・コマンド・DB。サーバー管理者向け）: [docs/data-flow.md](docs/data-flow.md)
 - 開発の指針: [CLAUDE.md](CLAUDE.md)
 
 ## ライセンス

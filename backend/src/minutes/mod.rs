@@ -15,7 +15,8 @@ use regex::Regex;
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
-use crate::llm::{Effort, Llm, Purpose, Request};
+use crate::extraction::{Extraction, Prompt};
+use crate::llm::{Effort, Purpose, Request};
 use crate::moderation::{Moderation, Verdict};
 use crate::status::StatementStatus;
 use crate::util::{new_id, now_iso};
@@ -177,13 +178,86 @@ pub struct Report {
     pub notes: Vec<String>,
 }
 
+/// AI に送る発言（議長の短い進行の発言は除く。発言の番号は変えない）
+fn speeches(prepared: &Prepared) -> Vec<Utterance> {
+    prepared
+        .utterances
+        .iter()
+        .filter(|u| !parse::is_procedural(u))
+        .cloned()
+        .collect()
+}
+
+/// AI に渡すもの（API に送るものと同じ）。共同作業では、これを書き出して読んでもらう
+pub async fn prompt(pool: &SqlitePool, input: &Input) -> anyhow::Result<Prompt> {
+    let prepared = prepare(pool, input).await?;
+    Ok(Prompt {
+        system: extract::SYSTEM_PROMPT.into(),
+        user: extract::build_input(&input.title, &input.held_on, &speeches(&prepared)),
+        schema: extract::schema(),
+        attachment: None,
+    })
+}
+
+/// AI の出力を得る（API を呼ぶか、共同作業の出力をそのまま使う）
+async fn raw_output(
+    pool: &SqlitePool,
+    extraction: &Extraction<'_>,
+    input: &Input,
+    speeches: &[Utterance],
+) -> anyhow::Result<extract::RawOutput> {
+    Ok(match extraction {
+        Extraction::Api { llm, model } => {
+            let request = Request {
+                purpose: Purpose::Extraction,
+                model: (*model).to_owned(),
+                system: extract::SYSTEM_PROMPT.into(),
+                user: extract::build_input(&input.title, &input.held_on, speeches),
+                schema: extract::schema(),
+                effort: Effort::Medium,
+                max_tokens: 32_000,
+                pdf: None,
+            };
+            // まれに、中身の無いトピックだけが返ることがある（タイトルが空）。そのときは1回だけやり直す
+            let mut attempt = 0;
+            loop {
+                let value = llm.structured(pool, &request).await?;
+                // 指示文を直すときの確認用（RUST_LOG=backend=debug で出る）
+                tracing::debug!(output = %value, "extraction output");
+                let raw: extract::RawOutput = serde_json::from_value(value)?;
+                let degenerate =
+                    !raw.topics.is_empty() && raw.topics.iter().all(|t| t.title.trim().is_empty());
+                if !degenerate || attempt == 1 {
+                    break raw;
+                }
+                tracing::warn!("extraction returned only empty topics; retrying once");
+                attempt += 1;
+            }
+        }
+        Extraction::Manual(value) => serde_json::from_value(value.clone()).map_err(|e| {
+            anyhow::anyhow!("出力の形が合いません（extraction prompt の「出力の形」）: {e}")
+        })?,
+    })
+}
+
+/// 共同作業の出力などを、保存せずに確かめる（`import` と同じ検査。最初の意見のモデレーションはしない）
+pub async fn preview(
+    pool: &SqlitePool,
+    extraction: &Extraction<'_>,
+    input: &Input,
+) -> anyhow::Result<(Vec<extract::CheckedTopic>, Vec<String>)> {
+    let prepared = prepare(pool, input).await?;
+    let speeches = speeches(&prepared);
+    let raw = raw_output(pool, extraction, input, &speeches).await?;
+    Ok(extract::check(raw, &speeches, &prepared.names))
+}
+
 /// 会議録を取り込み、トピック案を下書きとして保存する。
 /// `again` なら、取り込み済みの文書からもう一度トピック案を作る（指示文を直して試すとき）。
 /// `force` なら、形式的な議事だけの会議録でも取り込む
 pub async fn import(
     pool: &SqlitePool,
-    llm: &Llm,
-    model: &str,
+    extraction: &Extraction<'_>,
     moderation: &Moderation,
     input: &Input,
     again: bool,
@@ -205,40 +279,9 @@ pub async fn import(
     if !prepared.topical && !force {
         return Ok(Outcome::NotTopical(prepared.agenda));
     }
-    // 議長の短い進行の発言は AI に送らない（発言の番号は変えない）
-    let speeches: Vec<Utterance> = prepared
-        .utterances
-        .iter()
-        .filter(|u| !parse::is_procedural(u))
-        .cloned()
-        .collect();
+    let speeches = speeches(&prepared);
 
-    let request = Request {
-        purpose: Purpose::Extraction,
-        model: model.to_owned(),
-        system: extract::SYSTEM_PROMPT.into(),
-        user: extract::build_input(&input.title, &input.held_on, &speeches),
-        schema: extract::schema(),
-        effort: Effort::Medium,
-        max_tokens: 32_000,
-        pdf: None,
-    };
-    // まれに、中身の無いトピックだけが返ることがある（タイトルが空）。そのときは1回だけやり直す
-    let mut raw: extract::RawOutput;
-    let mut attempt = 0;
-    loop {
-        let value = llm.structured(pool, &request).await?;
-        // 指示文を直すときの確認用（RUST_LOG=backend=debug で出る）
-        tracing::debug!(output = %value, "extraction output");
-        raw = serde_json::from_value(value)?;
-        let degenerate =
-            !raw.topics.is_empty() && raw.topics.iter().all(|t| t.title.trim().is_empty());
-        if !degenerate || attempt == 1 {
-            break;
-        }
-        tracing::warn!("extraction returned only empty topics; retrying once");
-        attempt += 1;
-    }
+    let raw = raw_output(pool, extraction, input, &speeches).await?;
     // 引用と意見の根拠は、AI に送った発言の中から選ばれていること
     let (checked, mut notes) = extract::check(raw, &speeches, &prepared.names);
 
@@ -307,6 +350,11 @@ pub async fn import(
             id
         }
     };
+    sqlx::query("UPDATE documents SET extraction = $1 WHERE id = $2")
+        .bind(extraction.method())
+        .bind(&document_id)
+        .execute(&mut *tx)
+        .await?;
     let by_no: HashMap<usize, &Utterance> = prepared.utterances.iter().map(|u| (u.no, u)).collect();
     let mut saved = Vec::new();
     for (topic, statements) in &topics {

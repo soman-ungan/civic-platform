@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! `import`: 手で取った会議録・予算の概要から下書きを作る。AI で読むので費用がかかる
+//! `import`: 手で取った会議録・予算の概要から下書きを作る。
+//! AI の出力は API で得る（費用がかかる）か、共同作業で作った JSON を `--extraction` で渡す（費用なし）
 
 use std::path::PathBuf;
 
+use backend::extraction::Extraction;
 use backend::{budget, minutes};
 use clap::Subcommand;
 
@@ -28,9 +30,13 @@ pub enum Command {
         /// 会議録のページ（画面の出典のリンク）
         #[arg(long)]
         url: Option<String>,
-        /// AI を呼ばずに、発言者・名簿に無い首長と議員・議事日程だけを出す（費用なし）
+        /// 保存しない。--extraction が無ければ、AI を呼ばずに発言者・名簿に無い首長と議員・議事日程だけを出す（費用なし）。
+        /// あれば、その出力を取り込みと同じ検査に通した結果を出す
         #[arg(long)]
         dry_run: bool,
+        /// 共同作業で作った AI の出力（JSON。extraction prompt の形）。API を呼ばない
+        #[arg(long)]
+        extraction: Option<PathBuf>,
         /// 取り込み済みの会議録を作り直す
         #[arg(long)]
         again: bool,
@@ -52,9 +58,12 @@ pub enum Command {
         /// 原本の PDF の URL（画面の「説明は原本 p.N」のリンク）
         #[arg(long)]
         url: Option<String>,
-        /// 読んで確かめた結果を出すだけで、保存しない（AI は呼ぶ）
+        /// 読んで確かめた結果を出すだけで、保存しない（--extraction が無ければ AI は呼ぶ）
         #[arg(long)]
         dry_run: bool,
+        /// 共同作業で作った AI の出力（JSON。extraction prompt の形）。API を呼ばない
+        #[arg(long)]
+        extraction: Option<PathBuf>,
         /// 公開済みの年度を作り直す（下書きに戻る）
         #[arg(long)]
         again: bool,
@@ -70,6 +79,7 @@ pub async fn run(ctx: &Ctx, command: Command) -> anyhow::Result<()> {
             held_on,
             url,
             dry_run,
+            extraction,
             again,
             force,
         } => {
@@ -80,10 +90,24 @@ pub async fn run(ctx: &Ctx, command: Command) -> anyhow::Result<()> {
                 url,
                 text: std::fs::read_to_string(&file)?,
             };
-            if dry_run {
-                return minutes_dry_run(ctx, &input).await;
+            let extraction = match &extraction {
+                Some(path) => Some(Extraction::manual_from_file(path)?),
+                None => None,
+            };
+            match (dry_run, extraction) {
+                (true, None) => minutes_dry_run(ctx, &input).await,
+                (true, Some(extraction)) => minutes_preview(ctx, &extraction, &input).await,
+                (false, Some(extraction)) => {
+                    import_minutes(ctx, &extraction, &input, again, force).await
+                }
+                (false, None) => {
+                    let extraction = Extraction::Api {
+                        llm: ctx.llm("取り込めません（--dry-run・--extraction は使えます）")?,
+                        model: &ctx.config.extraction_model,
+                    };
+                    import_minutes(ctx, &extraction, &input, again, force).await
+                }
             }
-            import_minutes(ctx, &input, again, force).await
         }
         Command::Budget {
             municipality,
@@ -91,9 +115,16 @@ pub async fn run(ctx: &Ctx, command: Command) -> anyhow::Result<()> {
             year,
             url,
             dry_run,
+            extraction,
             again,
         } => {
-            let llm = ctx.llm("予算の概要を読めません")?;
+            let extraction = match &extraction {
+                Some(path) => Extraction::manual_from_file(path)?,
+                None => Extraction::Api {
+                    llm: ctx.llm("予算の概要を読めません（--extraction は使えます）")?,
+                    model: &ctx.config.extraction_model,
+                },
+            };
             let input = budget::Input {
                 municipality_id: municipality_id(&ctx.pool, &municipality).await?,
                 fiscal_year: year,
@@ -101,14 +132,13 @@ pub async fn run(ctx: &Ctx, command: Command) -> anyhow::Result<()> {
                 collector_source_id: None,
                 pdf: std::fs::read(&file)?,
             };
-            let checked =
-                budget::extract(&ctx.pool, llm, &ctx.config.extraction_model, &input).await?;
+            let checked = budget::extract(&ctx.pool, &extraction, &input).await?;
             print!("{}", budget::render(&checked, input.url.as_deref()));
             if dry_run {
                 println!("（--dry-run のため保存していません）");
                 return Ok(());
             }
-            budget::save_draft(&ctx.pool, &input, &checked, again).await?;
+            budget::save_draft(&ctx.pool, &input, &checked, again, extraction.method()).await?;
             println!(
                 "下書きを作りました。確認: budget show {municipality} {year} → budget publish {municipality} {year}"
             );
@@ -160,24 +190,43 @@ async fn minutes_dry_run(ctx: &Ctx, input: &minutes::Input) -> anyhow::Result<()
     Ok(())
 }
 
+/// 共同作業の出力を、保存せずに検査に通して見せる
+async fn minutes_preview(
+    ctx: &Ctx,
+    extraction: &Extraction<'_>,
+    input: &minutes::Input,
+) -> anyhow::Result<()> {
+    let (topics, notes) = minutes::preview(&ctx.pool, extraction, input).await?;
+    println!("検査を通ったトピック案 {} 件", topics.len());
+    for t in &topics {
+        println!("\n## {}\n{}", t.title, t.description);
+        for s in &t.sources {
+            println!("  出典（発言 {}）:「{}」", s.utterance_no, s.quote);
+        }
+        for s in &t.statements {
+            println!("  - {}（根拠: 発言 {:?}）", s.body, s.basis);
+        }
+    }
+    if !notes.is_empty() {
+        println!("\n捨てたもの:");
+        for note in &notes {
+            println!("  {note}");
+        }
+    }
+    println!(
+        "\n（--dry-run のため保存していません。最初の意見のモデレーションは、取り込むときに通します）"
+    );
+    Ok(())
+}
+
 async fn import_minutes(
     ctx: &Ctx,
+    extraction: &Extraction<'_>,
     input: &minutes::Input,
     again: bool,
     force: bool,
 ) -> anyhow::Result<()> {
-    let llm = ctx.llm("取り込めません（--dry-run は使えます）")?;
-    match minutes::import(
-        &ctx.pool,
-        llm,
-        &ctx.config.extraction_model,
-        &ctx.moderation,
-        input,
-        again,
-        force,
-    )
-    .await?
-    {
+    match minutes::import(&ctx.pool, extraction, &ctx.moderation, input, again, force).await? {
         minutes::Outcome::NotTopical(agenda) => {
             println!(
                 "一般質問などトピックを作る議事が無いので、取り込みませんでした（取り込むときは --force）:"
