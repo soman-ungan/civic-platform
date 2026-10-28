@@ -20,7 +20,7 @@ import {
   roughYen,
   thousandYen,
 } from "@/lib/finances/money";
-import type { BudgetProject } from "@/lib/types";
+import type { BudgetProject } from "@/lib/api/types/finances";
 
 /** 最初に出す事業の数。残りは「さらに表示」で出す */
 const INITIAL = 20;

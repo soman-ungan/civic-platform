@@ -11,7 +11,7 @@ import { ResidencyDotPlot } from "./residency-dot-plot";
 import { BUTTON_SECONDARY, ERROR_TEXT } from "@/components/ui/styles";
 import { topicApi } from "@/lib/api/paths";
 import { useApi } from "@/lib/api/use-api";
-import type { AnalysisView } from "@/lib/types";
+import type { AnalysisView } from "@/lib/api/types/analysis";
 
 /**
  * 「みんなの意見」: 意見マップ、合意点、グループと代表意見、居住地属性ごとの違い。

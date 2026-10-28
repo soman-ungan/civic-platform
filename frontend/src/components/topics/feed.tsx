@@ -9,7 +9,8 @@ import { ChipButton } from "@/components/ui/chip";
 import { ScrollRow } from "@/components/ui/scroll-row";
 import { BADGE_AMBER } from "@/components/ui/styles";
 import { SOURCE_LABELS } from "@/lib/labels";
-import type { Participation, Tag, Topic } from "@/lib/types";
+import type { Participation } from "@/lib/api/types/participation";
+import type { Tag, Topic } from "@/lib/api/types/topics";
 
 /**
  * トピック一覧。タグのタップで、取得済みの一覧をその場で絞り込む（URL の ?tag= も更新）。

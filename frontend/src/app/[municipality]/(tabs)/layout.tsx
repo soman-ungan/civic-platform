@@ -7,7 +7,7 @@ import { SwipeNav } from "@/components/layout/swipe-nav";
 import { TabNav, TabNavFallback } from "@/components/layout/tab-nav";
 import { municipalityApi } from "@/lib/api/paths";
 import { apiGet } from "@/lib/api/server";
-import type { MunicipalityDetail } from "@/lib/types";
+import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
 
 /**
  * 自治体のトップ（トピック・まちのお金）の共通の枠。自治体名とタブを固定のヘッダーとして常に表示し、

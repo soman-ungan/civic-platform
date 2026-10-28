@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ApiErrorBody } from "@/lib/types";
+/** エラー（backend/src/interface/api/error.rs） */
+type ApiErrorBody = {
+  error: { code: string; message: string };
+};
 
 /** backend のエラー（`{"error": {"code", "message"}}`） */
 export class ApiError extends Error {

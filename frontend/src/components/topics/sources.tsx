@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { TopicSource } from "@/lib/types";
+import type { TopicSource } from "@/lib/api/types/topics";
 
 /** 2025-09-05 → 2025年9月5日 */
 function formatDate(isoDate: string): string {

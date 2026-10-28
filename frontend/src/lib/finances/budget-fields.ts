@@ -2,7 +2,7 @@
 
 // 予算の主な事業の表示に使うもの
 
-import type { BudgetProject } from "@/lib/types";
+import type { BudgetProject } from "@/lib/api/types/finances";
 
 /** 色を付ける分野の数。残りは「ほかの分野」にまとめる（dataviz: 色は8つまで、順番は固定） */
 export const COLORED_FIELDS = 7;

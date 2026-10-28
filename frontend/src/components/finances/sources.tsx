@@ -2,7 +2,7 @@
 
 import { type FinanceView } from "@/lib/finances/view";
 import { SOURCE_NOTE } from "@/lib/finances/money";
-import type { Finances } from "@/lib/types";
+import type { Finances } from "@/lib/api/types/finances";
 
 /** まちのお金の出典（決算カードの「加工して作成」の表示と、予算の概要の原本） */
 export function FinanceSources({

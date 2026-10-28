@@ -15,7 +15,7 @@ import {
   roughYen,
   thousandYen,
 } from "@/lib/finances/money";
-import type { FinanceKind, Finances } from "@/lib/types";
+import type { FinanceKind, Finances } from "@/lib/api/types/finances";
 
 /** 予算の印（決算がまだ無い年度や、予算を選んでいるとき） */
 const BUDGET_MARK = `rounded px-1 ${BADGE_AMBER}`;

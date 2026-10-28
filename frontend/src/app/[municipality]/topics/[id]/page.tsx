@@ -10,12 +10,10 @@ import { TopicSources } from "@/components/topics/sources";
 import { municipalityApi, topicApi } from "@/lib/api/paths";
 import { apiGet, requestCookie } from "@/lib/api/server";
 import { SOURCE_LABELS } from "@/lib/labels";
-import type {
-  AnalysisView,
-  MunicipalityDetail,
-  NextStatement,
-  TopicDetail,
-} from "@/lib/types";
+import type { AnalysisView } from "@/lib/api/types/analysis";
+import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
+import type { NextStatement } from "@/lib/api/types/participation";
+import type { TopicDetail } from "@/lib/api/types/topics";
 
 export default function TopicPage({
   params,

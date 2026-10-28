@@ -2,7 +2,11 @@
 
 import { BADGE_AMBER } from "@/components/ui/styles";
 import { GROUP_COLORS, percent } from "@/lib/labels";
-import type { GroupView, RepfulFor, StatementByGroup } from "@/lib/types";
+import type {
+  GroupView,
+  RepfulFor,
+  StatementByGroup,
+} from "@/lib/api/types/analysis";
 
 /** 自分のグループの列を囲む枠線の色（凡例の色見本用） */
 const MY_BORDER = "border-sky-500 dark:border-sky-400";

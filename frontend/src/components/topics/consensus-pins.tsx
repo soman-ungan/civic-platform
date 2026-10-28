@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import type { MunicipalityConsensus } from "@/lib/types";
+import type { MunicipalityConsensus } from "@/lib/api/types/analysis";
 
 /**
  * タイムラインの上の「合意点」。全グループの8割以上が賛成している意見。

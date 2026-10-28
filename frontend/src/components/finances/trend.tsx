@@ -14,7 +14,7 @@ import {
   thousandYen,
 } from "@/lib/finances/money";
 import { financesQuery } from "@/lib/finances/view";
-import type { FinanceKind, TrendYear } from "@/lib/types";
+import type { FinanceKind, TrendYear } from "@/lib/api/types/finances";
 
 const WIDTH = 320;
 const HEIGHT = 190;

@@ -8,11 +8,9 @@ import { PageSlide } from "@/components/layout/page-slide";
 import { TopicFeed } from "@/components/topics/feed";
 import { municipalityApi } from "@/lib/api/paths";
 import { apiGet, requestCookie } from "@/lib/api/server";
-import type {
-  MunicipalityConsensus,
-  MunicipalityDetail,
-  TopicList,
-} from "@/lib/types";
+import type { MunicipalityConsensus } from "@/lib/api/types/analysis";
+import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
+import type { TopicList } from "@/lib/api/types/topics";
 
 export default function MunicipalityPage({
   params,

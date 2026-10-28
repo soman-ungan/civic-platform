@@ -8,7 +8,7 @@ import { ChipLink } from "@/components/ui/chip";
 import { ScrollRow } from "@/components/ui/scroll-row";
 import { financesHref } from "@/lib/finances/view";
 import type { Unit } from "@/lib/finances/money";
-import type { FinanceKind, FinanceYear } from "@/lib/types";
+import type { FinanceKind, FinanceYear } from "@/lib/api/types/finances";
 
 /**
  * 年度のボタン（1行。横にスクロールして選ぶ）。選んでいる年度が見えるように、表示したときに寄せる。

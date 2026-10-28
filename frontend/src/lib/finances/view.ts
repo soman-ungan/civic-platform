@@ -3,7 +3,11 @@
 // まちのお金で、選んだ年度と「決算／予算」の切り替えから、画面に出す数字を選ぶ
 
 import type { Unit } from "./money";
-import type { FinanceAmount, FinanceKind, Finances } from "@/lib/types";
+import type {
+  FinanceAmount,
+  FinanceKind,
+  Finances,
+} from "@/lib/api/types/finances";
 
 export const KIND_LABEL: Record<FinanceKind, string> = {
   settlement: "決算",

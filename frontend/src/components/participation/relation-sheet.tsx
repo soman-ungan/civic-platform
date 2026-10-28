@@ -12,7 +12,7 @@ import {
 import { apiFetch, errorMessage } from "@/lib/api/client";
 import { municipalityApi } from "@/lib/api/paths";
 import { RESIDENCY_LABELS } from "@/lib/labels";
-import type { ResidencyType } from "@/lib/types";
+import type { ResidencyType } from "@/lib/api/types/participation";
 
 const RESIDENCY_TYPES = Object.keys(RESIDENCY_LABELS) as ResidencyType[];
 

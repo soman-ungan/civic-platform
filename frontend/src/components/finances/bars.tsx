@@ -10,7 +10,7 @@ import {
   thousandYen,
   yen,
 } from "@/lib/finances/money";
-import type { FinanceAmount } from "@/lib/types";
+import type { FinanceAmount } from "@/lib/api/types/finances";
 
 /** 円グラフの区切りの数の上限（dataviz: 6つまで） */
 const DONUT_SLICES = 6;

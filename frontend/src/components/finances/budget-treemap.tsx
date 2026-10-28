@@ -13,7 +13,7 @@ import {
 } from "@/lib/finances/budget-fields";
 import { roughYen, shareText, thousandYen } from "@/lib/finances/money";
 import { type Rect, squarify } from "@/lib/finances/treemap";
-import type { BudgetProject } from "@/lib/types";
+import type { BudgetProject } from "@/lib/api/types/finances";
 import { useDismiss } from "@/lib/use-dismiss";
 
 /** 分野を開いたとき、事業の四角の数の上限と、四角にする最小の割合（それより小さい事業は「ほか」） */

@@ -6,7 +6,8 @@ import {
   RESIDENCY_SHORT_LABELS,
   percent,
 } from "@/lib/labels";
-import type { ResidencyRow, ResidencyType } from "@/lib/types";
+import type { ResidencyRow } from "@/lib/api/types/analysis";
+import type { ResidencyType } from "@/lib/api/types/participation";
 
 /** 表示する意見の数（差の大きい順） */
 const MAX_ROWS = 5;

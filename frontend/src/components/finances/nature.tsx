@@ -4,7 +4,7 @@ import { FinanceDonut } from "./donut";
 import { InfoTip } from "@/components/ui/info-tip";
 import { NATURE_GROUPS, natureGroupOf, termNote } from "@/lib/finances/terms";
 import { type Unit, amountText, shareText } from "@/lib/finances/money";
-import type { FinanceAmount } from "@/lib/types";
+import type { FinanceAmount } from "@/lib/api/types/finances";
 
 /**
  * お金の使い方で見る（性質別の歳出を5区分にまとめたもの）。

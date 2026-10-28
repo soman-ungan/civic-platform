@@ -5,7 +5,7 @@ import { Suspense } from "react";
 
 import { MUNICIPALITIES_API } from "@/lib/api/paths";
 import { apiGet } from "@/lib/api/server";
-import type { Municipality } from "@/lib/types";
+import type { Municipality } from "@/lib/api/types/municipalities";
 
 // 公開中の自治体が1つだけのときは src/proxy.ts がそのページへリダイレクトする。
 // ここに来るのは 0 件または複数件のとき（自治体選択の UI はフェーズ8「展開」で作り込む）。

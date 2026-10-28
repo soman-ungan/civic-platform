@@ -9,7 +9,7 @@ import { BUTTON_PRIMARY } from "@/components/ui/styles";
 import { ApiError, apiFetch, errorMessage } from "@/lib/api/client";
 import { useMe } from "@/lib/auth/passkey";
 import { MAX_STATEMENT_CHARS, countChars } from "@/lib/statement";
-import type { PostedStatement } from "@/lib/types";
+import type { PostedStatement } from "@/lib/api/types/participation";
 
 /**
  * 「自分の意見を追加」。返信やコメントではなく、投票カードに並ぶ新しい意見として投稿する。

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { GROUP_COLORS } from "@/lib/labels";
-import type { GroupView, MapView } from "@/lib/types";
+import type { GroupView, MapView } from "@/lib/api/types/analysis";
 
 const SIZE = 300;
 const PADDING = 24;

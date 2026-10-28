@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { type Unit, amountText } from "@/lib/finances/money";
-import type { FinanceAmount } from "@/lib/types";
+import type { FinanceAmount } from "@/lib/api/types/finances";
 
 /**
  * 同じ年度の予算（当初予算）と決算を、目的別の費目ごとに並べる。

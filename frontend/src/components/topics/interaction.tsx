@@ -6,7 +6,8 @@ import { useCallback, useRef, useState } from "react";
 
 import { AnalysisPanel } from "@/components/analysis/panel";
 import { VotingPanel } from "@/components/participation/voting-panel";
-import type { AnalysisView, NextStatement } from "@/lib/types";
+import type { AnalysisView } from "@/lib/api/types/analysis";
+import type { NextStatement } from "@/lib/api/types/participation";
 
 /**
  * 投票と「みんなの意見」をつなぐ。分析を見られるようになったら（`progress.analysis_unlocked`。

@@ -11,7 +11,8 @@ import { PageSlide } from "@/components/layout/page-slide";
 import { municipalityApi } from "@/lib/api/paths";
 import { apiGet } from "@/lib/api/server";
 import { KIND_LABEL, financeView, parseUnit } from "@/lib/finances/view";
-import type { Finances, MunicipalityDetail } from "@/lib/types";
+import type { Finances } from "@/lib/api/types/finances";
+import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
 
 export default function FinancesPage({
   params,

@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { termNote } from "@/lib/finances/terms";
 import { type FinanceView, KIND_LABEL } from "@/lib/finances/view";
 import { type Unit, fiscalYearLabel, thousandYen } from "@/lib/finances/money";
-import type { FinanceIndicator, Finances } from "@/lib/types";
+import type { FinanceIndicator, Finances } from "@/lib/api/types/finances";
 
 /** 決算がまだ無い年度の説明 */
 const NO_SETTLEMENT =

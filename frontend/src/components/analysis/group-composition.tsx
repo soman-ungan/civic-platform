@@ -7,7 +7,7 @@ import {
   RESIDENCY_SHORT_LABELS,
   percent,
 } from "@/lib/labels";
-import type { GroupComposition, GroupView } from "@/lib/types";
+import type { GroupComposition, GroupView } from "@/lib/api/types/analysis";
 
 /**
  * 意見グループごとの、このまちとの関わり方の内訳（100% 積み上げの帯）。

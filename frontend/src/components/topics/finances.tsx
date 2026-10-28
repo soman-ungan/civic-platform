@@ -11,7 +11,7 @@ import {
   shareText,
   thousandYen,
 } from "@/lib/finances/money";
-import type { TopicFinanceData } from "@/lib/types";
+import type { TopicFinanceData } from "@/lib/api/types/finances";
 
 /**
  * この分野のお金。トピックの分野タグに対応する目的別歳出（決算の最新の年度）と、

@@ -17,7 +17,7 @@ import { useEffect } from "react";
 
 import { apiFetch } from "@/lib/api/client";
 import { AUTH_API } from "@/lib/api/paths";
-import type { Me } from "@/lib/types";
+import type { Me } from "@/lib/api/types/auth";
 import { useApi } from "@/lib/api/use-api";
 
 type Started<T> = { challenge_id: string; options: { publicKey: T } };

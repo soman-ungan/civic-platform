@@ -16,7 +16,7 @@ import {
   useMe,
 } from "@/lib/auth/passkey";
 import { useApi } from "@/lib/api/use-api";
-import type { NextStatement, VoteValue } from "@/lib/types";
+import type { NextStatement, VoteValue } from "@/lib/api/types/participation";
 
 const VOTE_BUTTONS: { value: VoteValue; label: string; className: string }[] = [
   {
