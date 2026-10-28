@@ -11,7 +11,7 @@ import {
   shareText,
   thousandYen,
 } from "@/lib/money";
-import type { TopicFinances as TopicFinancesData } from "@/lib/types";
+import type { TopicFinanceData } from "@/lib/types";
 
 /**
  * この分野のお金。トピックの分野タグに対応する目的別歳出（決算の最新の年度）と、
@@ -23,7 +23,7 @@ export function TopicFinances({
   finances,
 }: {
   slug: string;
-  finances: TopicFinancesData | null;
+  finances: TopicFinanceData | null;
 }) {
   if (!finances) return null;
   const budget = finances.budget;

@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { BUTTON_PRIMARY } from "@/components/ui/styles";
 import { apiFetch, errorMessage } from "@/lib/api-client";
-import { MAX_STATEMENT_CHARS, countChars } from "@/lib/labels";
+import { MAX_STATEMENT_CHARS, countChars } from "@/lib/statement";
 import type { PostedStatement } from "@/lib/types";
 
 /** 「自分の意見を追加」。返信やコメントではなく、投票カードに並ぶ新しい意見として投稿する */

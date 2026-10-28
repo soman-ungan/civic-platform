@@ -4,15 +4,16 @@
 
 import { useRef, useState } from "react";
 
-import {
-  BudgetTreemap,
-  OTHER_FIELDS,
-  fieldGroups,
-} from "@/components/budget-treemap";
+import { BudgetTreemap } from "@/components/budget-treemap";
 import { ChipButton } from "@/components/ui/chip";
 import { ScrollRow } from "@/components/ui/scroll-row";
 import { BADGE_AMBER, BUTTON_SECONDARY } from "@/components/ui/styles";
-import { FLAG_LABEL } from "@/lib/budget-fields";
+import {
+  FLAG_LABEL,
+  OTHER_FIELDS,
+  fieldGroups,
+  otherFieldIds,
+} from "@/lib/budget-fields";
 import { type Unit, amountText, roughYen, thousandYen } from "@/lib/money";
 import type { BudgetProject } from "@/lib/types";
 
@@ -46,7 +47,7 @@ export function BudgetProjects({
 
   const groups = fieldGroups(projects);
   const colorOf = new Map(groups.map((g) => [g.id, g.color]));
-  const otherIds = new Set(groups.slice(7).map((g) => g.id));
+  const otherIds = otherFieldIds(groups);
   const flaggedProjects = projects.filter((p) => p.flag !== null);
   const flagged = flaggedProjects.length;
   const visible = projects.filter((p) =>

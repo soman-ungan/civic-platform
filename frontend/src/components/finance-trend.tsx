@@ -9,7 +9,7 @@ import { ScrollRow } from "@/components/ui/scroll-row";
 import { termNote } from "@/lib/finance-terms";
 import { type Unit, fiscalYearLabel, roughYen, thousandYen } from "@/lib/money";
 import { financesQuery } from "@/lib/finance-view";
-import type { FinanceKind, Finances } from "@/lib/types";
+import type { FinanceKind, TrendYear } from "@/lib/types";
 
 const WIDTH = 320;
 const HEIGHT = 190;
@@ -50,7 +50,7 @@ export function FinanceTrend({
   view,
   unit: mode,
 }: {
-  trend: Finances["trend"];
+  trend: TrendYear[];
   /** 最新の年度の目的別歳出の費目（大きい順） */
   latestOrder: string[];
   /** ヘッダーで選んでいる年度 */
@@ -91,7 +91,7 @@ export function FinanceTrend({
   if (years.length < 2) return null;
 
   /** 年度・系列ごとの値（mode の単位） */
-  const valueOf = (t: Finances["trend"][number], key: string): number => {
+  const valueOf = (t: TrendYear, key: string): number => {
     const raw =
       key === OTHER
         ? Object.entries(t.expenditure_purpose)

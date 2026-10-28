@@ -5,7 +5,7 @@
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
 
-import { tabsFor, transitionTo } from "@/components/tab-nav";
+import { tabsFor, transitionTo } from "@/lib/tabs";
 
 /** スワイプとみなす横の移動（px）。縦の移動の2倍以上も必要（縦のスクロールと区別する） */
 const MIN_DX = 60;
