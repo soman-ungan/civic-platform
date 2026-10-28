@@ -3,17 +3,9 @@
 // Client Component から同一オリジンの /api/* を呼ぶためのヘルパー。
 // 参加者 Cookie（HttpOnly）はブラウザが自動で送る。
 
-import type { ApiErrorBody } from "./types";
+import { toApiError } from "./api-error";
 
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export { ApiError, errorMessage } from "./api-error";
 
 export async function apiFetch<T>(
   path: string,
@@ -29,12 +21,7 @@ export async function apiFetch<T>(
     cache: "no-store",
   });
   if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as ApiErrorBody | null;
-    throw new ApiError(
-      res.status,
-      data?.error.code ?? "unknown",
-      data?.error.message ?? "通信に失敗しました",
-    );
+    throw await toApiError(res);
   }
   return (await res.json()) as T;
 }

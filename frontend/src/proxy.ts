@@ -2,10 +2,9 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 
+import { apiInternalUrl } from "@/lib/api-base";
+import { MUNICIPALITIES_API } from "@/lib/api-paths";
 import type { Municipality } from "@/lib/types";
-
-const API_INTERNAL_URL =
-  process.env.API_INTERNAL_URL ?? "http://127.0.0.1:8080";
 
 /**
  * トップ（/）へのアクセス時、公開中の自治体が1つだけならそのページへ直接リダイレクトする。
@@ -13,7 +12,7 @@ const API_INTERNAL_URL =
  */
 export async function proxy(request: NextRequest) {
   try {
-    const res = await fetch(`${API_INTERNAL_URL}/api/municipalities`);
+    const res = await fetch(`${apiInternalUrl()}${MUNICIPALITIES_API}`);
     if (res.ok) {
       const municipalities = (await res.json()) as Municipality[];
       if (municipalities.length === 1) {

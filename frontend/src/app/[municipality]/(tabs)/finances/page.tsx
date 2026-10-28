@@ -8,6 +8,7 @@ import { FinanceHeader } from "@/components/finance-header";
 import { financeSections } from "@/components/finance-sections";
 import { FinanceSources } from "@/components/finance-sources";
 import { PageSlide } from "@/components/page-slide";
+import { municipalityApi } from "@/lib/api-paths";
 import { apiGet } from "@/lib/api-server";
 import { KIND_LABEL, financeView, parseUnit } from "@/lib/finance-view";
 import type { Finances, MunicipalityDetail } from "@/lib/types";
@@ -35,7 +36,7 @@ async function FinancesView({
 }: Pick<PageProps<"/[municipality]/finances">, "params" | "searchParams">) {
   const { municipality: slug } = await params;
   const { year, view: requested, unit: unitParam } = await searchParams;
-  const path = `/api/municipalities/${encodeURIComponent(slug)}`;
+  const path = municipalityApi(slug);
   const query =
     typeof year === "string" ? `?year=${encodeURIComponent(year)}` : "";
   const [municipality, f] = await Promise.all([

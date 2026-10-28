@@ -4,7 +4,8 @@
 
 import { useState } from "react";
 
-import { ApiError, apiFetch } from "@/lib/api-client";
+import { apiFetch, errorMessage } from "@/lib/api-client";
+import { municipalityApi } from "@/lib/api-paths";
 import { RESIDENCY_LABELS } from "@/lib/labels";
 import type { ResidencyType } from "@/lib/types";
 
@@ -33,16 +34,13 @@ export function RelationSheet({
     setSaving(true);
     setError(null);
     try {
-      await apiFetch(
-        `/api/municipalities/${encodeURIComponent(slug)}/relation`,
-        {
-          method: "PUT",
-          body: { residency_type: residency },
-        },
-      );
+      await apiFetch(`${municipalityApi(slug)}/relation`, {
+        method: "PUT",
+        body: { residency_type: residency },
+      });
       onSaved();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "保存に失敗しました");
+      setError(errorMessage(e, "保存に失敗しました"));
       setSaving(false);
     }
   }

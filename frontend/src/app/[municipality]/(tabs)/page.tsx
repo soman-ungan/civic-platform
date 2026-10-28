@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { ConsensusPins } from "@/components/consensus-pins";
 import { PageSlide } from "@/components/page-slide";
 import { TopicFeed } from "@/components/topic-feed";
-import { apiGet } from "@/lib/api-server";
+import { municipalityApi } from "@/lib/api-paths";
+import { apiGet, requestCookie } from "@/lib/api-server";
 import type {
   MunicipalityConsensus,
   MunicipalityDetail,
@@ -37,9 +37,9 @@ async function Timeline({
 }: Pick<PageProps<"/[municipality]">, "params" | "searchParams">) {
   const { municipality: slug } = await params;
   const { tag } = await searchParams;
-  const path = `/api/municipalities/${encodeURIComponent(slug)}`;
+  const path = municipalityApi(slug);
   // 参加状態と、合意点（投票を終えたトピックの分だけ見える）は参加者ごとに違うので、Cookie を backend に渡す
-  const cookie = (await headers()).get("cookie");
+  const cookie = await requestCookie();
   const [municipality, list, consensus] = await Promise.all([
     apiGet<MunicipalityDetail>(path),
     apiGet<TopicList>(`${path}/topics`, { cookie }),

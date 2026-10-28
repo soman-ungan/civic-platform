@@ -2,13 +2,14 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { GroupCompositionChart } from "@/components/group-composition";
 import { GroupTable } from "@/components/group-table";
 import { OpinionMap } from "@/components/opinion-map";
 import { ResidencyDotPlot } from "@/components/residency-dot-plot";
-import { apiFetch } from "@/lib/api-client";
+import { topicApi } from "@/lib/api-paths";
+import { useApi } from "@/lib/use-api";
 import type { AnalysisView } from "@/lib/types";
 
 /**
@@ -25,35 +26,17 @@ export function AnalysisPanel({
   /** 値が変わると読み込み直す（すべての意見に投票し終えたときなど） */
   refreshKey: number;
 }) {
-  const endpoint = `/api/municipalities/${encodeURIComponent(slug)}/topics/${encodeURIComponent(topicId)}/analysis`;
-  const [view, setView] = useState<AnalysisView | null>(null);
-  const [error, setError] = useState(false);
+  const {
+    data: view,
+    error,
+    reload: load,
+  } = useApi<AnalysisView>(`${topicApi(slug, topicId)}/analysis`, refreshKey);
   const [reloading, setReloading] = useState(false);
-
-  useEffect(() => {
-    let ignore = false;
-    apiFetch<AnalysisView>(endpoint)
-      .then((v) => {
-        if (!ignore) setView(v);
-      })
-      .catch(() => {
-        if (!ignore) setError(true);
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [endpoint, refreshKey]);
 
   async function reload() {
     setReloading(true);
-    try {
-      setView(await apiFetch<AnalysisView>(endpoint));
-      setError(false);
-    } catch {
-      setError(true);
-    } finally {
-      setReloading(false);
-    }
+    await load();
+    setReloading(false);
   }
 
   return (

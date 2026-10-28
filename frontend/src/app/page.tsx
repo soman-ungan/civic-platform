@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { MUNICIPALITIES_API } from "@/lib/api-paths";
 import { apiGet } from "@/lib/api-server";
 import type { Municipality } from "@/lib/types";
 
@@ -32,7 +33,7 @@ export default function Home() {
 
 async function MunicipalityList() {
   const municipalities =
-    (await apiGet<Municipality[]>("/api/municipalities")) ?? [];
+    (await apiGet<Municipality[]>(MUNICIPALITIES_API)) ?? [];
   if (municipalities.length === 0) {
     return (
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
