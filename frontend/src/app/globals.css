@@ -44,7 +44,7 @@ body {
   }
 }
 
-/* まちのお金の欄の切り替え（components/finance-carousel.tsx。めくる向きに少しずらす。視差効果を減らす設定では動かさない） */
+/* まちのお金の欄の切り替え（components/finances/carousel.tsx。めくる向きに少しずらす。視差効果を減らす設定では動かさない） */
 @media (prefers-reduced-motion: no-preference) {
   .carousel-next {
     animation: carousel-next 220ms ease-out;
@@ -99,7 +99,7 @@ body {
   }
 }
 
-/* タブの切り替えのスライド（components/page-slide.tsx。Next.js の view transitions のガイドのとおり） */
+/* タブの切り替えのスライド（components/layout/page-slide.tsx。Next.js の view transitions のガイドのとおり） */
 @media (prefers-reduced-motion: no-preference) {
   ::view-transition-old(.nav-forward) {
     --slide-offset: -60px;

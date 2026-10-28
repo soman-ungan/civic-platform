@@ -2,9 +2,9 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 
-import { apiInternalUrl } from "@/lib/api-base";
-import { MUNICIPALITIES_API } from "@/lib/api-paths";
-import type { Municipality } from "@/lib/types";
+import { apiInternalUrl } from "@/lib/api/base";
+import { MUNICIPALITIES_API } from "@/lib/api/paths";
+import type { Municipality } from "@/lib/api/types/municipalities";
 
 /**
  * トップ（/）へのアクセス時、公開中の自治体が1つだけならそのページへ直接リダイレクトする。

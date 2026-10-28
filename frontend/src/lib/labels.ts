@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ResidencyType, Topic } from "./types";
+import type { ResidencyType } from "@/lib/api/types/participation";
+import type { Topic } from "@/lib/api/types/topics";
 
 export const RESIDENCY_LABELS: Record<ResidencyType, string> = {
   resident: "住民",

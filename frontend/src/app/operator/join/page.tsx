@@ -3,7 +3,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { OperatorJoin } from "@/components/operator-join";
+import { OperatorJoin } from "@/components/auth/operator-join";
 
 export const metadata: Metadata = {
   title: "運営者の登録",

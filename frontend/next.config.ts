@@ -5,7 +5,7 @@ import path from "node:path";
 
 import type { NextConfig } from "next";
 
-import { apiInternalUrl as apiInternalUrlOf } from "./src/lib/api-base";
+import { apiInternalUrl as apiInternalUrlOf } from "./src/lib/api/base";
 
 // .env はモノレポのルートに 1 つだけ置く方針のため、ルートの .env も読み込む。
 // 既に設定済みの環境変数（デプロイ先での設定など）は上書きされない。
