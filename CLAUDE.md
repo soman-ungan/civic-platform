@@ -169,8 +169,8 @@ civic-platform/
     - 分析を見られるか・投稿できるかのルールは `backend/src/process/progress.rs`（`Progress::analysis_unlocked`・`post_permission`）の1か所だけ。画面は `progress`・`posting` を見る（ルールを写さない）
   - `GET /municipalities/{slug}/finances?year=` — まちのお金。年度ごとに `settlement`（決算カード）と `budget`（公開済みの当初予算。主な事業つき）。金額は千円、`per_capita` は円。年度を省くと最新（予算だけの年度を含む）。`trend` は決算の年度と、決算がまだ無く予算だけがある年度（`kind`: settlement / budget）。トピックの詳細の `finances` は、分野タグに対応する目的別歳出と、今年度の主な事業（5件まで）
   - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。投票を終えたトピックの分だけを返す（Cookie が無ければ空）
-  - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`
-  - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）。判定の結果 `status`（approved / rejected / flagged / pending / duplicate）。rejected は理由の種類 `rejection`（harm / person / official_name / not_votable）と言い換えの提案 `suggestion`、duplicate は保存せず案内する意見 `similar`。未登録は 401 `registration_required`、分析の前は 403 `votes_required`、2件目は 409 `statement_limit`
+  - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`。票はあとから変えられない（投票済みは 409 `already_voted`。分析を見てから票を合わせ直すことを防ぐ）
+  - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）。判定の結果 `status`（approved / rejected / flagged / pending / duplicate）。rejected は理由の種類 `rejection`（harm / person / official_name / not_votable）と言い換えの提案 `suggestion`、duplicate は保存せず案内する意見 `similar`（投票済みならその票 `your_vote`）。未登録は 401 `registration_required`、分析の前は 403 `votes_required`、2件目は 409 `statement_limit`
   - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別。**読む・投票はログインなし、投稿はパスキーの登録が要る**（ADR 0006。未登録なら 401 `registration_required`）。CI は `.github/workflows/ci.yml`
   - `GET /auth/me`（`registered`・`operator`。利用者の ID は返さない）/ `POST /auth/register/start`→`finish`（今の参加者にパスキーを付ける。投票はそのまま）/ `POST /auth/login/start`→`finish`（名前を入力しないパスキー。その端末の匿名の投票をアカウントに移す）/ `POST /auth/logout`
   - パスキーは webauthn-rs（`backend/src/interface/api/auth.rs`）、アカウントの処理は `backend/src/records/accounts.rs`。保存するのは公開鍵・ID・日時だけ。設定は `WEBAUTHN_RP_ID`・`WEBAUTHN_ORIGIN`（既定は localhost）。テストはソフトウェアのパスキー（`tests/auth.rs`）

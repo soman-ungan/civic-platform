@@ -11,7 +11,7 @@ import type {
   PostPermission,
   PostedStatement,
   Rejection,
-  StatementCard,
+  SimilarStatement,
   VoteValue,
 } from "@/lib/api/types/participation";
 import { MAX_STATEMENT_CHARS, countChars } from "@/lib/statement";
@@ -31,7 +31,7 @@ const REJECTION_MESSAGES: Record<Rejection, string> = {
 
 type Message =
   | { kind: "ok" | "error"; text: string }
-  | { kind: "duplicate"; similar: StatementCard };
+  | { kind: "duplicate"; similar: SimilarStatement };
 
 /**
  * 「自分の意見を追加」。返信やコメントではなく、投票カードに並ぶ新しい意見として投稿する。
@@ -106,7 +106,7 @@ export function StatementForm({
     }
   }
 
-  async function voteSimilar(similar: StatementCard, value: VoteValue) {
+  async function voteSimilar(similar: SimilarStatement, value: VoteValue) {
     try {
       await apiFetch(
         `${topicBase}/statements/${encodeURIComponent(similar.id)}/votes`,
@@ -141,24 +141,33 @@ export function StatementForm({
           className="mb-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
         >
           <p className="text-sm font-medium">同じ意見がすでにあります</p>
-          <p className="mt-1 text-xs text-zinc-500">
-            新しく足す代わりに、この意見に投票してください。言いたいことが違うなら、違いが分かるように書き直して投稿できます。
-          </p>
           <blockquote className="mt-3 rounded-xl bg-zinc-50 p-3 text-sm leading-6 dark:bg-zinc-900">
             {message.similar.body}
           </blockquote>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {VOTE_BUTTONS.map((b) => (
-              <button
-                key={b.value}
-                type="button"
-                onClick={() => void voteSimilar(message.similar, b.value)}
-                className={`h-11 rounded-xl text-sm font-semibold ${b.className}`}
-              >
-                {b.label}
-              </button>
-            ))}
-          </div>
+          {message.similar.your_vote !== undefined ? (
+            <p className="mt-3 text-xs leading-5 text-zinc-500">
+              この意見には「{voteLabel(message.similar.your_vote)}
+              」で投票済みです。言いたいことが違うなら、違いが分かるように書き直して投稿できます。
+            </p>
+          ) : (
+            <>
+              <p className="mt-3 text-xs leading-5 text-zinc-500">
+                新しく足す代わりに、この意見に投票してください。言いたいことが違うなら、違いが分かるように書き直して投稿できます。
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {VOTE_BUTTONS.map((b) => (
+                  <button
+                    key={b.value}
+                    type="button"
+                    onClick={() => void voteSimilar(message.similar, b.value)}
+                    className={`h-11 rounded-xl text-sm font-semibold ${b.className}`}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       ) : (
         message && (
@@ -253,6 +262,11 @@ export function StatementForm({
       )}
     </section>
   );
+}
+
+/** 票の名前（ボタンの文から絵文字を除いたもの） */
+function voteLabel(value: VoteValue): string {
+  return { 1: "賛成", [-1]: "反対", 0: "パス" }[value];
 }
 
 function PostingNote({ children }: { children: React.ReactNode }) {

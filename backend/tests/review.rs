@@ -145,9 +145,10 @@ async fn duplicates_are_not_saved_and_point_to_the_existing_statement() {
     let res = post(&state, &cookie, "通学の時間帯のバスを増やして").await;
     assert_eq!(res.status, StatusCode::OK);
     assert_eq!(res.json["status"], "duplicate");
+    // 投稿できるのは投票を終えてからなので、案内する意見にはふつう投票済み。その票を返す
     assert_eq!(
         res.json["similar"],
-        json!({"id": "e1", "body": "朝の通学の便を増やしてほしい"})
+        json!({"id": "e1", "body": "朝の通学の便を増やしてほしい", "your_vote": 0})
     );
     // 保存しないので、新しい意見の ID は無い
     assert!(res.json.get("id").is_none());
@@ -227,4 +228,34 @@ async fn retry_marks_duplicates_as_rejected() {
     let sent = fake.requests()[0].to_string();
     assert!(sent.contains("朝の通学の便を増やしてほしい"));
     assert_eq!(sent.matches("朝のバスを増やして").count(), 1);
+}
+
+#[tokio::test]
+async fn duplicates_of_unvoted_statements_have_no_vote() {
+    let (state, fake) = setup().await;
+    // 意見が15件より多いトピックでは、投票していない意見が残っていても投稿できる
+    for i in 0..16 {
+        sqlx::query(
+            "INSERT INTO statements (id, topic_id, body, status, created_at)
+             VALUES ($1, 't1', $2, 'approved', '2026-10-26T00:00:03Z')",
+        )
+        .bind(format!("m{i}"))
+        .bind(format!("ほかの意見 {i}"))
+        .execute(&state.pool)
+        .await
+        .unwrap();
+    }
+    let cookie = account_ready_to_post(&state.pool, &state, "t1").await;
+    // 投票を終えたあとに承認された意見（いちばん新しいので 1 番）
+    sqlx::query(
+        "INSERT INTO statements (id, topic_id, body, status, created_at)
+         VALUES ('n1', 't1', 'バス停に屋根を付けてほしい', 'approved', '2026-10-27T00:00:00Z')",
+    )
+    .execute(&state.pool)
+    .await
+    .unwrap();
+    fake.push_json(reply("ok", "ok", "ok", 1, ""));
+    let res = post(&state, &cookie, "バス停に雨よけを").await;
+    assert_eq!(res.json["similar"]["id"], "n1");
+    assert!(res.json["similar"].get("your_vote").is_none());
 }

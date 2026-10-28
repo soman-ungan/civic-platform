@@ -60,5 +60,8 @@ export type PostedStatement =
   | {
       /** 同じ意見がすでにある（保存しない）。その意見への投票を案内する */
       status: "duplicate";
-      similar: StatementCard;
+      similar: SimilarStatement;
     };
+
+/** 似た意見の案内。投票済みなら、その票（票はあとから変えられない） */
+export type SimilarStatement = StatementCard & { your_vote?: VoteValue };

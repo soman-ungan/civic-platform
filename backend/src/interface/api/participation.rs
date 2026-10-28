@@ -220,11 +220,11 @@ pub async fn vote(
         return Err(relation_required());
     }
 
-    sqlx::query(
+    // 票はあとから変えられない（1人1票。分析を見てから票を合わせ直すことを防ぐ。Polis の画面も戻れない）
+    let inserted = sqlx::query(
         "INSERT INTO votes (id, user_id, statement_id, vote_value, created_at)
          VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (user_id, statement_id) DO UPDATE
-            SET vote_value = excluded.vote_value, created_at = excluded.created_at",
+         ON CONFLICT (user_id, statement_id) DO NOTHING",
     )
     .bind(new_id())
     .bind(&user_id)
@@ -232,7 +232,14 @@ pub async fn vote(
     .bind(input.value)
     .bind(now_iso())
     .execute(&state.pool)
-    .await?;
+    .await?
+    .rows_affected();
+    if inserted == 0 {
+        return Err(ApiError::conflict(
+            "already_voted",
+            "この意見には、もう投票しています",
+        ));
+    }
 
     Ok(Json(Vote {
         statement_id,
@@ -269,6 +276,9 @@ pub struct PostedStatement {
 pub struct SimilarStatement {
     pub id: String,
     pub body: String,
+    /// この参加者の票（1 / -1 / 0）。まだ投票していなければ無い（画面は投票のボタンを出す）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub your_vote: Option<i64>,
 }
 
 /// 前後の空白を除き、1〜140 文字であることを確かめる
@@ -355,6 +365,13 @@ pub async fn post_statement(
             .find(|(sid, _)| sid == statement_id)
             .map(|(_, b)| b.clone())
             .unwrap_or_default();
+        let your_vote: Option<i64> = sqlx::query_scalar(
+            "SELECT vote_value FROM votes WHERE user_id = $1 AND statement_id = $2",
+        )
+        .bind(&participant.user_id)
+        .bind(statement_id)
+        .fetch_optional(&state.pool)
+        .await?;
         return Ok((
             StatusCode::OK,
             participant,
@@ -366,6 +383,7 @@ pub async fn post_statement(
                 similar: Some(SimilarStatement {
                     id: statement_id.clone(),
                     body,
+                    your_vote,
                 }),
             }),
         ));

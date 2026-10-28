@@ -175,7 +175,7 @@ async fn user_count(pool: &SqlitePool) -> i64 {
 }
 
 #[tokio::test]
-async fn vote_is_recorded_and_overwritten() {
+async fn vote_is_recorded_and_cannot_be_changed() {
     let (pool, state) = setup().await;
     let cookie = registered(&state).await;
 
@@ -184,14 +184,15 @@ async fn vote_is_recorded_and_overwritten() {
     assert_eq!(res.json, json!({ "statement_id": "a1", "value": 1 }));
 
     let res = vote(&state, Some(&cookie), "a1", -1).await;
-    assert_eq!(res.status, StatusCode::OK);
+    assert_eq!(res.status, StatusCode::CONFLICT);
+    assert_eq!(res.json["error"]["code"], "already_voted");
 
     let values: Vec<i64> =
         sqlx::query_scalar("SELECT vote_value FROM votes WHERE statement_id = 'a1'")
             .fetch_all(&pool)
             .await
             .unwrap();
-    assert_eq!(values, [-1], "1人1票のまま、最後の判断で上書きされる");
+    assert_eq!(values, [1], "1人1票のまま、最初の票が残る");
 }
 
 #[tokio::test]

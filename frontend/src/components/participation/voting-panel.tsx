@@ -73,6 +73,10 @@ export function VotingPanel({
     } catch (e) {
       if (e instanceof ApiError && e.code === "relation_required") {
         setPendingVote(value);
+      } else if (e instanceof ApiError && e.code === "already_voted") {
+        // 二重に押したときなど。票は変えられないので、次の意見へ進む
+        setVoteError("この意見には投票済みです。");
+        await load();
       } else {
         setVoteError(errorMessage(e, "投票に失敗しました"));
       }
