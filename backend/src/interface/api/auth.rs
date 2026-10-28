@@ -28,8 +28,15 @@ use super::error::{ApiError, ApiJson};
 use super::participant::{self, MaybeParticipant, Participant};
 use crate::records::accounts;
 
-/// パスキーに付ける表示名（端末のパスキーの一覧に出る）。個人の情報も自治体名も入れない
-const PASSKEY_NAME: &str = "civic-platform の参加者";
+/// パスキーに付ける表示名（端末のパスキーの一覧に出る）。個人の情報も自治体名も入れず、作った日（日本時間）だけを入れる。
+/// 同じ端末で2つめのアカウントを作ってしまったとき、ログインの一覧で見分けられるように（古いほうが元のアカウント）
+fn passkey_name(now: chrono::DateTime<chrono::Utc>) -> String {
+    let jst = chrono::FixedOffset::east_opt(9 * 3600).expect("+09:00 は正しい時差");
+    format!(
+        "civic-platform（{} 作成）",
+        now.with_timezone(&jst).format("%Y-%m-%d")
+    )
+}
 
 /// WebAuthn の設定を作る。`rp_id` はドメイン（開発では localhost）、`origin` は画面のオリジン
 pub fn webauthn(rp_id: &str, origin: &str) -> anyhow::Result<Arc<Webauthn>> {
@@ -146,12 +153,13 @@ pub async fn register_start(
         .filter_map(|j| serde_json::from_str::<Passkey>(j).ok())
         .map(|p| p.cred_id().clone())
         .collect();
+    let name = passkey_name(chrono::Utc::now());
     let (options, registration) = state
         .webauthn
         .start_passkey_registration(
             user_uuid,
-            PASSKEY_NAME,
-            PASSKEY_NAME,
+            &name,
+            &name,
             (!exclude.is_empty()).then_some(exclude),
         )
         .map_err(|e| anyhow::anyhow!("パスキーの登録を始められません: {e}"))?;
@@ -279,4 +287,22 @@ pub async fn login_finish(
 /// POST /api/auth/logout
 pub async fn logout(jar: SignedCookieJar) -> (StatusCode, SignedCookieJar) {
     (StatusCode::NO_CONTENT, participant::logout(jar))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn passkey_name_has_only_the_date_in_japan_time() {
+        let at = |t: &str| t.parse::<chrono::DateTime<chrono::Utc>>().unwrap();
+        assert_eq!(
+            passkey_name(at("2026-10-28T14:59:59Z")),
+            "civic-platform（2026-10-28 作成）"
+        );
+        assert_eq!(
+            passkey_name(at("2026-10-28T15:00:00Z")),
+            "civic-platform（2026-10-29 作成）"
+        );
+    }
 }

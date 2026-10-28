@@ -96,7 +96,7 @@ export function StatementForm({
 
       {needsPasskey ? (
         <PasskeyPrompt
-          onDone={() => {
+          onRegistered={() => {
             setNeedsPasskey(false);
             setOpen(true);
           }}

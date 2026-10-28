@@ -97,10 +97,11 @@ async fn register(
         options["publicKey"]["authenticatorSelection"]["residentKey"],
         "required"
     );
-    // パスキーの表示名に個人の情報を入れない
-    assert_eq!(
-        options["publicKey"]["user"]["name"],
-        "civic-platform の参加者"
+    // パスキーの表示名に個人の情報を入れない（作った日だけ）
+    let name = options["publicKey"]["user"]["name"].as_str().unwrap();
+    assert!(
+        name.starts_with("civic-platform（") && name.ends_with(" 作成）"),
+        "{name}"
     );
     options["publicKey"]["authenticatorSelection"]["requireResidentKey"] = false.into();
     options["publicKey"]["authenticatorSelection"]
