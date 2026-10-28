@@ -7,9 +7,9 @@ mod common;
 use std::sync::Arc;
 
 use backend::extraction::Extraction;
-use backend::llm::{Fake, Llm};
 use backend::minutes::{Input, Outcome, import, prepare};
 use backend::moderation::Moderation;
+use backend::shared::llm::{Fake, Llm};
 use common::{seed_fixture, test_pool};
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
@@ -353,9 +353,13 @@ async fn published_topic_shows_sources() {
         panic!("取り込めていない")
     };
     let topic_id = &report.topics[0].0;
-    backend::drafts::set_status(&pool, topic_id, backend::status::Publication::Published)
-        .await
-        .unwrap();
+    backend::drafts::set_status(
+        &pool,
+        topic_id,
+        backend::shared::status::Publication::Published,
+    )
+    .await
+    .unwrap();
 
     let state = common::test_state(pool);
     let res = common::request(

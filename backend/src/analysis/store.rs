@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use super::conversation::{ConvResult, ConvState, Outcome, Vote, update};
-use crate::util::now_iso;
+use crate::shared::util::now_iso;
 
 /// データ不足のときに保存する内容
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

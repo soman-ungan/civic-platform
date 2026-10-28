@@ -15,8 +15,8 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
 
-use crate::llm::{Effort, Llm, LlmError, Purpose, Request};
-use crate::util::now_iso;
+use crate::shared::llm::{Effort, Llm, LlmError, Purpose, Request};
+use crate::shared::util::now_iso;
 
 /// 付ける分野タグの最大数
 pub const MAX_FIELDS: usize = 3;

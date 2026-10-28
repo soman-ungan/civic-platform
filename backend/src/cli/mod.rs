@@ -18,11 +18,12 @@ mod records;
 use std::path::Path;
 
 use backend::collect::store::Store;
-use backend::llm::Llm;
-use backend::llm::client::AnthropicClient;
 use backend::moderation::Moderation;
+use backend::seed;
+use backend::shared::config::Config;
+use backend::shared::llm::Llm;
+use backend::shared::llm::client::AnthropicClient;
 use backend::tagging::Tagger;
-use backend::{config::Config, seed};
 use clap::{Parser, Subcommand};
 use sqlx::SqlitePool;
 

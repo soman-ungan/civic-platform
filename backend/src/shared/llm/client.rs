@@ -157,7 +157,7 @@ pub fn parse_reply(value: Value) -> Result<Reply, LlmError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::{Effort, Purpose};
+    use crate::shared::llm::{Effort, Purpose};
 
     #[test]
     fn body_has_structured_output_and_cache() {

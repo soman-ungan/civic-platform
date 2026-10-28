@@ -156,8 +156,10 @@ mod tests {
     use super::*;
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("civic-store-{name}-{}", crate::util::new_id()));
+        let dir = std::env::temp_dir().join(format!(
+            "civic-store-{name}-{}",
+            crate::shared::util::new_id()
+        ));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }

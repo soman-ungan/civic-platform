@@ -311,7 +311,7 @@ pub async fn remember(pool: &SqlitePool, entry: &CacheEntry) -> Result<(), sqlx:
     .bind(&entry.etag)
     .bind(&entry.last_modified)
     .bind(&entry.sha256)
-    .bind(crate::util::now_iso())
+    .bind(crate::shared::util::now_iso())
     .execute(pool)
     .await?;
     Ok(())

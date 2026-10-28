@@ -8,8 +8,8 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use backend::eval::{self, ModerationCase, TaggingCase};
-use backend::llm::Llm;
 use backend::moderation::Moderation;
+use backend::shared::llm::Llm;
 use backend::tagging::Tagger;
 use serde_json::json;
 use sqlx::SqlitePool;

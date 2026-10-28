@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use backend::AppState;
-use backend::db::MIGRATOR;
+use backend::shared::db::MIGRATOR;
 use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 

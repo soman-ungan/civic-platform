@@ -11,7 +11,7 @@ use axum_extra::extract::cookie::{Cookie, SameSite, SignedCookieJar};
 
 use crate::AppState;
 use crate::error::ApiError;
-use crate::util::{new_id, now_iso};
+use crate::shared::util::{new_id, now_iso};
 
 pub const COOKIE_NAME: &str = "cp_uid";
 const COOKIE_MAX_AGE_DAYS: i64 = 365;

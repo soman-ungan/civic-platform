@@ -19,9 +19,9 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::extraction::{Extraction, Prompt};
-use crate::llm::{Effort, Llm, Purpose, Request};
-use crate::status::Publication;
-use crate::util::{new_id, now_iso};
+use crate::shared::llm::{Effort, Llm, Purpose, Request};
+use crate::shared::status::Publication;
+use crate::shared::util::{new_id, now_iso};
 
 /// 目的別歳出の費目（決算カードと同じ表記。比べるため）
 pub const PURPOSE_KEYS: &[&str] = &[

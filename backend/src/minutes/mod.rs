@@ -17,10 +17,10 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::extraction::{Extraction, Prompt};
-use crate::llm::{Effort, Llm, Purpose, Request};
 use crate::moderation::{Moderation, Verdict};
-use crate::status::StatementStatus;
-use crate::util::{new_id, now_iso};
+use crate::shared::llm::{Effort, Llm, Purpose, Request};
+use crate::shared::status::StatementStatus;
+use crate::shared::util::{new_id, now_iso};
 use parse::{Patterns, Utterance, normalize_name};
 
 /// 一度に取り込める文字数の上限（これを超えたら分けて取り込む）

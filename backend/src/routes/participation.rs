@@ -15,8 +15,8 @@ use crate::moderation::{self, Verdict};
 use crate::participant::{MaybeParticipant, Participant};
 use crate::progress::{self, Progress, RESIDENCY_TYPES, has_relation};
 use crate::routes::municipalities;
-use crate::status::StatementStatus;
-use crate::util::{new_id, now_iso};
+use crate::shared::status::StatementStatus;
+use crate::shared::util::{new_id, now_iso};
 
 /// 意見の最大文字数（DB の CHECK と同じ。文字数は Unicode のコードポイント単位）
 pub const MAX_STATEMENT_CHARS: usize = 140;

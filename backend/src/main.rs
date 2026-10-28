@@ -3,7 +3,8 @@
 mod cli;
 
 use backend::moderation::{self, Moderation};
-use backend::{AppState, analysis, app, config::Config, db, tagging};
+use backend::shared::{config::Config, db};
+use backend::{AppState, analysis, app, tagging};
 use clap::Parser;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;

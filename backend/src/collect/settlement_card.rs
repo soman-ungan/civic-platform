@@ -706,14 +706,14 @@ async fn save(
          VALUES ($1, $2, 'settlement_card', $3, $4, $5, $6, $7, $8)
          ON CONFLICT (municipality_id, sha256) DO NOTHING",
     )
-    .bind(crate::util::new_id())
+    .bind(crate::shared::util::new_id())
     .bind(municipality_id)
     .bind(&title)
     .bind(&meta.url)
     .bind(&sha256)
     .bind(size as i64)
     .bind(&meta.source_id)
-    .bind(crate::util::now_iso())
+    .bind(crate::shared::util::now_iso())
     .execute(&mut *tx)
     .await?;
     let document_id: String =

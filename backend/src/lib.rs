@@ -3,22 +3,18 @@
 pub mod analysis;
 pub mod budget;
 pub mod collect;
-pub mod config;
-pub mod db;
 pub mod drafts;
 pub mod error;
 pub mod eval;
 pub mod extraction;
-pub mod llm;
 pub mod minutes;
 pub mod moderation;
 pub mod participant;
 pub mod progress;
 pub mod routes;
 pub mod seed;
-pub mod status;
+pub mod shared;
 pub mod tagging;
-pub mod util;
 
 use axum::Router;
 use axum::extract::FromRef;

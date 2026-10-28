@@ -6,7 +6,7 @@ mod common;
 
 use std::sync::Arc;
 
-use backend::llm::{Fake, Llm};
+use backend::shared::llm::{Fake, Llm};
 use backend::tagging::{Outcome, Tagger, run_untagged, tag_topic};
 use common::{seed_fixture, test_pool};
 use serde_json::json;

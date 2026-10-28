@@ -232,7 +232,7 @@ async fn draft_is_saved_replaced_and_published() {
             &pool,
             "092100",
             2026,
-            backend::status::Publication::Published
+            backend::shared::status::Publication::Published
         )
         .await
         .unwrap()

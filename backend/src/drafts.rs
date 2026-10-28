@@ -6,7 +6,7 @@
 
 use sqlx::SqlitePool;
 
-use crate::status::Publication;
+use crate::shared::status::Publication;
 
 #[derive(Debug, sqlx::FromRow)]
 pub struct DraftSummary {
@@ -232,7 +232,7 @@ pub async fn add_statement(
     if exists.is_none() {
         return Err(EditError::NotFound(topic_id.to_owned()));
     }
-    let id = crate::util::new_id();
+    let id = crate::shared::util::new_id();
     sqlx::query(
         "INSERT INTO statements (id, topic_id, user_id, body, status, created_at)
          VALUES ($1, $2, NULL, $3, 'approved', $4)",
@@ -240,7 +240,7 @@ pub async fn add_statement(
     .bind(&id)
     .bind(topic_id)
     .bind(&body)
-    .bind(crate::util::now_iso())
+    .bind(crate::shared::util::now_iso())
     .execute(pool)
     .await?;
     Ok(id)
@@ -334,7 +334,7 @@ pub async fn set_tag(
         }
         // 外したタグを AI が付け直さないよう、タグ付けを済みにしておく
         sqlx::query("UPDATE topics SET tagged_at = COALESCE(tagged_at, $1) WHERE id = $2")
-            .bind(crate::util::now_iso())
+            .bind(crate::shared::util::now_iso())
             .bind(topic_id)
             .execute(pool)
             .await?;

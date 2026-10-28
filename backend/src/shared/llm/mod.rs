@@ -20,7 +20,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use sqlx::SqlitePool;
 
-use crate::util::{new_id, now_iso};
+use crate::shared::util::{new_id, now_iso};
 use client::AnthropicClient;
 
 /// 呼び出しの用途（`llm_usage.purpose`）

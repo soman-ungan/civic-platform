@@ -15,9 +15,9 @@ use serde::Deserialize;
 use serde_json::json;
 use sqlx::SqlitePool;
 
-use crate::llm::{Effort, Llm, LlmError, Purpose, Request};
-use crate::status::StatementStatus;
-use crate::util::now_iso;
+use crate::shared::llm::{Effort, Llm, LlmError, Purpose, Request};
+use crate::shared::status::StatementStatus;
+use crate::shared::util::now_iso;
 
 /// 言い換えの提案の最大文字数（意見の本文と同じ）
 const MAX_SUGGESTION_CHARS: usize = 140;

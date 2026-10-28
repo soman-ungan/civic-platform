@@ -10,7 +10,10 @@ use std::process::Command;
 
 /// ページごとの本文（`[0]` が1ページ目）
 pub fn page_texts(pdf: &[u8]) -> anyhow::Result<Vec<String>> {
-    let path = std::env::temp_dir().join(format!("civic-budget-{}.pdf", crate::util::new_id()));
+    let path = std::env::temp_dir().join(format!(
+        "civic-budget-{}.pdf",
+        crate::shared::util::new_id()
+    ));
     let result = (|| {
         std::fs::File::create(&path)?.write_all(pdf)?;
         let out = Command::new("pdftotext")

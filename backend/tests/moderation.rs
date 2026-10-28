@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use axum::http::StatusCode;
 use backend::AppState;
-use backend::llm::{Fake, Llm};
 use backend::moderation::{self, Moderation};
+use backend::shared::llm::{Fake, Llm};
 use common::{request, seed_fixture, test_pool, test_state};
 use serde_json::json;
 use sqlx::SqlitePool;

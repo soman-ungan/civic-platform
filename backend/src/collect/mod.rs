@@ -157,7 +157,7 @@ pub async fn fetch_source(
     report.warnings.extend(warning);
     if !options.dry_run {
         sqlx::query("UPDATE collector_sources SET last_crawled_at = $1 WHERE id = $2")
-            .bind(crate::util::now_iso())
+            .bind(crate::shared::util::now_iso())
             .bind(&source.id)
             .execute(pool)
             .await?;

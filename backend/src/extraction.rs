@@ -10,7 +10,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::llm::Llm;
+use crate::shared::llm::Llm;
 
 /// AI の出力をどこから得るか
 pub enum Extraction<'a> {
