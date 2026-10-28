@@ -274,10 +274,10 @@ async fn statement_status_is_restricted() {
     assert!(insert_statement(&pool, "bad", "意見", "foo").await.is_err());
 }
 
-/// Rust の状態の型（backend::status）の値が、DB の CHECK と同じであること
+/// Rust の状態の型（backend::shared::status）の値が、DB の CHECK と同じであること
 #[tokio::test]
 async fn status_enums_match_check_constraints() {
-    use backend::status::{Publication, StatementStatus};
+    use backend::shared::status::{Publication, StatementStatus};
     let pool = common::test_pool().await;
     common::seed_fixture(&pool).await;
     for (i, status) in StatementStatus::ALL.into_iter().enumerate() {

@@ -4,7 +4,7 @@ mod common;
 
 use std::path::Path;
 
-use backend::seed;
+use backend::maintenance::seed;
 use sqlx::SqlitePool;
 
 fn seeds_dir() -> &'static Path {
@@ -109,7 +109,7 @@ async fn dev_seeds_apply_after_master_seeds() {
 #[tokio::test]
 async fn dev_seeds_are_enough_for_analysis() {
     use axum::http::StatusCode;
-    use backend::analysis::store::run_all;
+    use backend::process::analysis::store::run_all;
 
     let pool = common::test_pool().await;
     seed::run(&pool, seeds_dir()).await.unwrap();

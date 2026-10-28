@@ -11,12 +11,12 @@
 
 | このリポジトリ | Polis |
 |---|---|
-| `backend/src/analysis/stats.rs` | `stats.clj`（prop-test、two-prop-test、z 値の閾値） |
-| `backend/src/analysis/matrix.rs` | `named_matrix.clj`（行名・列名つきの行列、zero-out-columns） |
-| `backend/src/analysis/pca.rs` | `pca.clj`（べき乗法、スパース性を考慮した射影、意見の射影） |
-| `backend/src/analysis/clusters.rs` | `clusters.clj`（重み付き k-means、clean-start、シルエット係数） |
-| `backend/src/analysis/repness.rs` | `repness.clj`（代表意見、合意点の選び方） |
-| `backend/src/analysis/conversation.rs` | `conversation.clj` の `small-conv-update-graph`（全体の流れ、in-conv、smoother、group-aware consensus、優先度） |
+| `backend/src/process/analysis/stats.rs` | `stats.clj`（prop-test、two-prop-test、z 値の閾値） |
+| `backend/src/process/analysis/matrix.rs` | `named_matrix.clj`（行名・列名つきの行列、zero-out-columns） |
+| `backend/src/process/analysis/pca.rs` | `pca.clj`（べき乗法、スパース性を考慮した射影、意見の射影） |
+| `backend/src/process/analysis/clusters.rs` | `clusters.clj`（重み付き k-means、clean-start、シルエット係数） |
+| `backend/src/process/analysis/repness.rs` | `repness.clj`（代表意見、合意点の選び方） |
+| `backend/src/process/analysis/conversation.rs` | `conversation.clj` の `small-conv-update-graph`（全体の流れ、in-conv、smoother、group-aware consensus、優先度） |
 
 ## 処理の流れ
 

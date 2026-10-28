@@ -2,7 +2,7 @@
 
 //! 決算カードの読み取り。実物の Excel は data/private/（git の管理外）にあるときだけ確かめる
 
-use backend::collect::settlement_card::{
+use backend::ingest::collect::settlement_card::{
     Category, Cell, Grid, Unit, excel_links, find_card, fiscal_year_of, parse_card, year_pages,
 };
 
@@ -11,7 +11,7 @@ fn private(name: &str) -> Option<Vec<u8>> {
 }
 
 fn value(
-    card: &backend::collect::settlement_card::Card,
+    card: &backend::ingest::collect::settlement_card::Card,
     category: Category,
     key: &str,
 ) -> Option<i64> {
@@ -104,7 +104,7 @@ fn real_pages() {
     };
     let base = reqwest::Url::parse("https://www.soumu.go.jp/iken/zaisei/card.html").unwrap();
     let pages = year_pages(
-        &backend::collect::settlement_card::decode_html(&index),
+        &backend::ingest::collect::settlement_card::decode_html(&index),
         &base,
     );
     assert!(pages.contains(&(
@@ -115,7 +115,7 @@ fn real_pages() {
         2019,
         "https://www.soumu.go.jp/iken/zaisei/card-20.html".into()
     )));
-    let html = backend::collect::settlement_card::decode_html(&year);
+    let html = backend::ingest::collect::settlement_card::decode_html(&year);
     assert_eq!(
         excel_links(&html, "栃木県", &base),
         ["https://www.soumu.go.jp/main_content/000998938.xlsx"]

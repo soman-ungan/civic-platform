@@ -12,7 +12,7 @@ use std::str::FromStr;
 
 use axum::Router;
 use axum::routing::get;
-use backend::db::MIGRATOR;
+use backend::shared::db::MIGRATOR;
 use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
@@ -23,8 +23,10 @@ struct Env {
 
 impl Env {
     async fn new(name: &str) -> Self {
-        let dir =
-            std::env::temp_dir().join(format!("civic-cli-{name}-{}", backend::util::new_id()));
+        let dir = std::env::temp_dir().join(format!(
+            "civic-cli-{name}-{}",
+            backend::shared::util::new_id()
+        ));
         std::fs::create_dir_all(dir.join("private")).unwrap();
         let options = SqliteConnectOptions::from_str(&database_url(&dir))
             .unwrap()

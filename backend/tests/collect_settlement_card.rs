@@ -8,8 +8,8 @@ mod common;
 use axum::Router;
 use axum::http::header;
 use axum::routing::get;
-use backend::collect::store::Store;
-use backend::collect::{self, Options, settlement_card};
+use backend::ingest::collect::store::Store;
+use backend::ingest::collect::{self, Options, settlement_card};
 
 fn private(name: &str) -> Option<Vec<u8>> {
     std::fs::read(format!("../data/private/soumu/{name}")).ok()
@@ -53,8 +53,10 @@ async fn add_source(pool: &sqlx::SqlitePool, id: &str, municipality_id: &str, ba
 
 /// テストごとの置き場
 fn temp_store(name: &str) -> (std::path::PathBuf, Store) {
-    let dir =
-        std::env::temp_dir().join(format!("civic-collect-{name}-{}", backend::util::new_id()));
+    let dir = std::env::temp_dir().join(format!(
+        "civic-collect-{name}-{}",
+        backend::shared::util::new_id()
+    ));
     std::fs::create_dir_all(&dir).unwrap();
     let store = Store::new(&dir);
     (dir, store)

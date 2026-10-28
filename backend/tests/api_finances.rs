@@ -5,7 +5,7 @@
 mod common;
 
 use axum::http::StatusCode;
-use backend::AppState;
+use backend::interface::api::AppState;
 use common::request;
 
 async fn setup() -> (sqlx::SqlitePool, AppState) {

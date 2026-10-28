@@ -6,8 +6,8 @@ mod common;
 
 use std::sync::Arc;
 
-use backend::llm::{Fake, Llm};
-use backend::tagging::{Outcome, Tagger, run_untagged, tag_topic};
+use backend::process::tagging::{Outcome, Tagger, run_untagged, tag_topic};
+use backend::shared::llm::{Fake, Llm};
 use common::{seed_fixture, test_pool};
 use serde_json::json;
 use sqlx::SqlitePool;
@@ -190,7 +190,7 @@ async fn prompt_includes_definitions_and_municipality() {
 #[tokio::test]
 async fn criteria_doc_matches_seed() {
     let pool = test_pool().await;
-    backend::seed::run(&pool, std::path::Path::new("../data/seeds"))
+    backend::maintenance::seed::run(&pool, std::path::Path::new("../data/seeds"))
         .await
         .unwrap();
     let mut seeded: Vec<(String, String)> =

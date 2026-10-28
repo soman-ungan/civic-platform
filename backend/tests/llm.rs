@@ -11,8 +11,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use axum::Json;
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::post;
-use backend::llm::client::{API_VERSION, AnthropicClient};
-use backend::llm::{Effort, Llm, LlmError, Purpose, Request, spent_today};
+use backend::shared::llm::client::{API_VERSION, AnthropicClient};
+use backend::shared::llm::{Effort, Llm, LlmError, Purpose, Request, spent_today};
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
 

@@ -6,7 +6,8 @@ mod common;
 
 use std::collections::HashMap;
 
-use backend::budget::{self, Input, Raw, RawItem, RawProject};
+use backend::ingest::budget::{self, Input, Raw, RawItem, RawProject};
+use backend::records::budget as budget_records;
 
 fn item(key: &str, value: i64) -> RawItem {
     RawItem {
@@ -216,7 +217,10 @@ async fn draft_is_saved_replaced_and_published() {
         .await
         .unwrap();
 
-    let (status, loaded, url) = budget::load(&pool, "092100", 2026).await.unwrap().unwrap();
+    let (status, loaded, url) = budget_records::load(&pool, "092100", 2026)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(status, "draft");
     assert_eq!(loaded.total, 1000);
     assert_eq!(loaded.projects.len(), 3);
@@ -228,11 +232,11 @@ async fn draft_is_saved_replaced_and_published() {
         .await
         .unwrap();
     assert!(
-        budget::set_status(
+        budget_records::set_status(
             &pool,
             "092100",
             2026,
-            backend::status::Publication::Published
+            backend::shared::status::Publication::Published
         )
         .await
         .unwrap()
@@ -245,10 +249,18 @@ async fn draft_is_saved_replaced_and_published() {
     budget::save_draft(&pool, &input, &checked, true, "manual")
         .await
         .unwrap();
-    let (status, _, _) = budget::load(&pool, "092100", 2026).await.unwrap().unwrap();
+    let (status, _, _) = budget_records::load(&pool, "092100", 2026)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(status, "draft");
     // 別の自治体には入っていない
-    assert!(budget::load(&pool, "092134", 2026).await.unwrap().is_none());
+    assert!(
+        budget_records::load(&pool, "092134", 2026)
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 /// 大田原市の令和8年度の概要の実物と、そのときの AI の応答（data/private/ に保存したもの）で確かめる
@@ -307,7 +319,7 @@ async fn real_manual_extraction_matches_check() {
     };
     let checked = budget::extract(
         &pool,
-        &backend::extraction::Extraction::Manual(value.clone()),
+        &backend::ingest::extraction::Extraction::Manual(value.clone()),
         &input,
     )
     .await

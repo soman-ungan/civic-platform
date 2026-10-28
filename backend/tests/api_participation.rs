@@ -3,7 +3,7 @@
 mod common;
 
 use axum::http::StatusCode;
-use backend::AppState;
+use backend::interface::api::AppState;
 use common::{assert_no_key, request};
 use serde_json::{Value, json};
 use sqlx::SqlitePool;

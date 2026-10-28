@@ -7,9 +7,9 @@ mod common;
 use std::sync::Arc;
 
 use axum::http::StatusCode;
-use backend::AppState;
-use backend::llm::{Fake, Llm};
-use backend::moderation::{self, Moderation};
+use backend::interface::api::AppState;
+use backend::process::moderation::{self, Moderation};
+use backend::shared::llm::{Fake, Llm};
 use common::{request, seed_fixture, test_pool, test_state};
 use serde_json::json;
 use sqlx::SqlitePool;
@@ -107,7 +107,9 @@ async fn flagged_and_refusal_wait_for_operator() {
     assert_eq!(a.json["status"], "flagged");
     assert_eq!(b.json["status"], "flagged");
 
-    let queue = moderation::queue(&state.pool).await.unwrap();
+    let queue = backend::records::statements::queue(&state.pool)
+        .await
+        .unwrap();
     assert_eq!(queue.len(), 2);
     assert!(
         queue[1]

@@ -7,16 +7,16 @@ mod common;
 use std::collections::HashSet;
 use std::path::Path;
 
-use backend::eval::{self, ModerationCase, TaggingCase};
-use backend::llm::Llm;
-use backend::moderation::Moderation;
-use backend::tagging::Tagger;
+use backend::maintenance::eval::{self, ModerationCase, TaggingCase};
+use backend::process::moderation::Moderation;
+use backend::process::tagging::Tagger;
+use backend::shared::llm::Llm;
 use serde_json::json;
 use sqlx::SqlitePool;
 
 async fn seeded_pool() -> SqlitePool {
     let pool = common::test_pool().await;
-    backend::seed::run(&pool, Path::new("../data/seeds"))
+    backend::maintenance::seed::run(&pool, Path::new("../data/seeds"))
         .await
         .unwrap();
     pool
@@ -57,12 +57,12 @@ async fn tagging_cases_use_vocabulary_and_own_districts() {
         .collect();
     for c in &cases {
         assert!(
-            (1..=backend::tagging::MAX_FIELDS).contains(&c.fields.len()),
+            (1..=backend::process::tagging::MAX_FIELDS).contains(&c.fields.len()),
             "{}",
             c.id
         );
         assert!(
-            c.districts.len() <= backend::tagging::MAX_DISTRICTS,
+            c.districts.len() <= backend::process::tagging::MAX_DISTRICTS,
             "{}",
             c.id
         );

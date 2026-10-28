@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use backend::analysis::conversation::{ConvState, Outcome, Vote, update};
+use backend::process::analysis::conversation::{ConvState, Outcome, Vote, update};
 use serde_json::Value;
 
 const DIR: &str = concat!(

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-mod cli;
-
-use backend::moderation::{self, Moderation};
-use backend::{AppState, analysis, app, config::Config, db, tagging};
+use backend::interface::api::{AppState, app};
+use backend::interface::cli;
+use backend::process::moderation::{self, Moderation};
+use backend::process::{analysis, tagging};
+use backend::shared::{config::Config, db};
 use clap::Parser;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;

@@ -9,7 +9,7 @@
 - 主対象は 10〜30 代。スマホファースト。
 - 個人開発・ワンオペ運用。自動化と保守のしやすさを最優先する。
 - Polis を丸ごとフォークはせず、データ構造・画面設計・数理ロジック（PCA + クラスタリング）を Rust × Next.js に移植する。
-  - 数理・統計処理は Polis の正式なアルゴリズム（Clojure 実装）を移植したもの（`backend/src/analysis/`）。方針・Polis との違い・一致テストの結果は `docs/polis-math.md`。変更するときは `cargo test --test polis_parity` で Polis との一致を確かめる。
+  - 数理・統計処理は Polis の正式なアルゴリズム（Clojure 実装）を移植したもの（`backend/src/process/analysis/`）。方針・Polis との違い・一致テストの結果は `docs/polis-math.md`。変更するときは `cargo test --test polis_parity` で Polis との一致を確かめる。
 
 ## ライセンス（AGPL-3.0-only）
 - 本プロジェクトは「行政の透明性」を掲げるため、サービス自体も透明であることを最優先し、**GNU AGPL v3（AGPL-3.0-only）** とする。本家 Polis（AGPL-3.0-only）と揃え、Polis の数理処理を移植できるようにするため（「or later」は付けない）。
@@ -25,12 +25,13 @@
 ```
 civic-platform/
 ├── backend/              Rust / axum / sqlx（API サーバー＋運営のコマンド）
-│   ├── src/routes/       API（自治体・トピック・投票・分析・まちのお金）
-│   ├── src/progress.rs   参加のルール（進み具合・分析を見られるか・参加できるトピックか）。ルールはここだけで変える
-│   ├── src/status.rs     意見と公開の状態の型（DB の CHECK と同じ値）
-│   ├── src/cli/          運営のコマンド（clap。<動詞> <対象>。段階ごとに ingest / records / process。docs/cli.md）
-│   ├── src/collect/      行政資料の収集アダプタ
-│   └── src/{analysis,moderation,tagging,minutes,budget,llm}/  分析・AI・取り込み
+│   ├── src/shared/       システム内で共通に使うもの（config・db・status（意見と公開の状態の型。DB の CHECK と同じ値）・util・llm）
+│   ├── src/interface/    外とのやりとり。api/（HTTP API: 自治体・トピック・投票・分析・まちのお金）と cli/（運営のコマンド。clap。<動詞> <対象>。docs/cli.md）
+│   ├── src/ingest/       段階1 資料を DB に入れる（collect: 取得と置き場・決算カード、budget、minutes、extraction）
+│   ├── src/records/      段階2 DB を見る・直す（topics・budget・settlement・minutes・statements・tags）
+│   ├── src/process/      段階3 判定・計算（moderation・tagging・analysis（Polis の数理）・progress（参加のルール。ルールはここだけで変える））
+│   └── src/maintenance/  準備と保守（seed・eval）
+│       層の依存は interface → ingest / records / process / maintenance → shared。内部ロジックは interface を使わない（docs/plans/2026-10-28-backend-layers.md）
 ├── frontend/             Next.js (App Router) / TypeScript / Tailwind CSS
 │   ├── src/components/ui/  よく使う見た目（チップ・横スクロールの行・切り替え・空の欄・ボタンのクラス）
 │   └── src/lib/          API（api-paths・api-server・api-client・use-api）、型（types.ts）、表示の決まり
@@ -51,11 +52,11 @@ civic-platform/
 - **市民を本人の属性（年齢・性別など）や市内の地区で分けて集計・可視化しない。** 分けて見せてよいのは、その自治体との関わり方（`residency_type`: 住民・周辺・通勤通学・関係人口）だけ。
 - 年齢・性別は集めない（必須は棄却、任意も当面しない）。参加者の地区も集めない。トピックの地区タグ（話題の対象地域）は人を分けないので可。
 - 関わり方も、意見グループを作るのには使わず、グループの説明と意見ごとの比較にだけ使う（Polis の原則）。
-- 公表は5人未満の区分を隠し、隠した合計が1〜4人なら次に少ない区分も隠す（二次秘匿。`backend/src/routes/analysis.rs` の `suppress`）。
+- 公表は5人未満の区分を隠し、隠した合計が1〜4人なら次に少ない区分も隠す（二次秘匿。`backend/src/interface/api/analysis.rs` の `suppress`）。
 - 属性や区分で集計する機能を検討するときは、プライバシーに加えて「分断を生まないか」を必ず検討する。
 
 ## AI（LLM）の原則（`docs/adr/0003-llm-operations.md`）
-- Claude API は `backend/src/llm/` から reqwest で直接呼ぶ（Rust に公式 SDK が無いため）。応答は構造化出力で受け取る。
+- Claude API は `backend/src/shared/llm/` から reqwest で直接呼ぶ（Rust に公式 SDK が無いため）。応答は構造化出力で受け取る。
 - **API キーが無くても動くこと**（モデレーションは全件承認、タグ付けはしない）。テストは偽の LLM（`Llm::fake`）で行い、実際の API は呼ばない。実際の API を呼ぶ評価（`eval`）は費用がかかるので、実行の前にユーザーの了承を得る。
 - モデレーションは主張や政治的な立場では判断しない。公人の公務への批判は公開、人格攻撃・私生活は非公開。
 - **判定できないとき（通信の失敗・費用の上限）は pending のまま残し、自動承認しない。** refusal は flagged（人が確認）。
@@ -125,7 +126,7 @@ civic-platform/
     - サンプルで分析が出ることは `cargo test --test seeds` で確かめている
   - **運営のコマンドは `cargo run -- <動詞> <対象> [オプション]`**（`docs/plans/2026-10-28-cli-verbs.md`）。動詞は段階ごと: 資料を DB に入れる `fetch`/`extract`/`import`（対象 settlement・budget・minutes）、DB を見る・直す `list`/`show`/`edit`/`add`/`remove`/`publish`/`archive`（budget・settlement・minutes・topic・statement・tag・source）、判定・計算 `moderate`/`classify`/`analyze`（topic・statement）。どれを指すかはすべてオプション（`-m <slug>`・`-y <年度>`・`--id`・`--file`・`--topic`）
     - その対象には要らない処理（`extract settlement`・`fetch minutes` など）は「何もしません」と出して終了コード 0。段階に無い対象は clap が弾く
-    - コマンドを足すときは、段階を決めてから `src/cli/{ingest,records,process}.rs` のどれかに置く
+    - コマンドを足すときは、段階を決めてから `src/interface/cli/{ingest,records,process}.rs` のどれかに置き、中身（SQL・処理）は同じ段階の `src/{ingest,records,process}/` に置く
   - `cargo run -- analyze topic [--id <id>] [--force]` — 分析を今すぐ再計算する（通常は `ANALYSIS_INTERVAL_SECS`（既定 10 秒）ごとにバックグラウンドで、投票が変わったトピックだけ再計算される）
   - AI（`ANTHROPIC_API_KEY` があるときだけ。モデルは `MODERATION_MODEL` / `TAGGING_MODEL`、1日の費用の上限は `LLM_DAILY_BUDGET_USD`。使用量と推定費用は `llm_usage`）
     - `cargo run -- list statement` / `moderate statement [--id <id> --approve|--reject]` — 確認待ち（flagged / pending）の意見の一覧と判定（`--id` が無ければ判定待ちを AI でやり直す。認証のフェーズ6までは CLI）
@@ -162,7 +163,7 @@ civic-platform/
   - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗 `progress`（`voted`・`total`・`analysis_unlocked`。Polis の優先度で重み付けした抽選）
   - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・`statements_by_group`・`group_composition`（グループごとの関わり方の構成）・関わり方ごとの集計（分析対象が5人未満なら insufficient。関わり方の集計は二次秘匿済み）
     - **そのトピックのすべての承認済み意見に投票するまでは `locked`（残り件数）を返す**。全体の傾向に投票が左右されないようにするため。意見が増えれば再びロックされる
-    - 分析を見られるかのルールは `backend/src/progress.rs` の `Progress::analysis_unlocked` の1か所だけ。画面は `progress.analysis_unlocked` を見る（ルールを写さない）
+    - 分析を見られるかのルールは `backend/src/process/progress.rs` の `Progress::analysis_unlocked` の1か所だけ。画面は `progress.analysis_unlocked` を見る（ルールを写さない）
   - `GET /municipalities/{slug}/finances?year=` — まちのお金。年度ごとに `settlement`（決算カード）と `budget`（公開済みの当初予算。主な事業つき）。金額は千円、`per_capita` は円。年度を省くと最新（予算だけの年度を含む）。`trend` は決算の年度と、決算がまだ無く予算だけがある年度（`kind`: settlement / budget）。トピックの詳細の `finances` は、分野タグに対応する目的別歳出と、今年度の主な事業（5件まで）
   - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。投票を終えたトピックの分だけを返す（Cookie が無ければ空）
   - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`
