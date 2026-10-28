@@ -12,6 +12,7 @@ pub mod llm;
 pub mod minutes;
 pub mod moderation;
 pub mod participant;
+pub mod progress;
 pub mod routes;
 pub mod seed;
 pub mod tagging;
