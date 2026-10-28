@@ -12,10 +12,10 @@ use std::time::{Duration, Instant};
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
-use crate::moderation::Moderation;
+use crate::process::moderation::Moderation;
+use crate::process::tagging::{Tagger, classify};
 use crate::shared::llm::Purpose;
 use crate::shared::util::now_iso;
-use crate::tagging::{Tagger, classify};
 
 /// モデレーションの評価データの1件
 #[derive(Debug, Clone, Deserialize)]

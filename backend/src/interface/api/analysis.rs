@@ -9,14 +9,14 @@ use axum::extract::{Path, State};
 use serde::Serialize;
 use sqlx::SqlitePool;
 
-use crate::analysis::conversation::{self, ConvResult, ConvState};
-use crate::analysis::repness::RepfulFor;
-use crate::analysis::store::{self, Stored};
 use crate::interface::api::AppState;
 use crate::interface::api::error::ApiError;
 use crate::interface::api::municipalities;
 use crate::interface::api::participant::MaybeParticipant;
-use crate::progress::{self, RESIDENCY_TYPES};
+use crate::process::analysis::conversation::{self, ConvResult, ConvState};
+use crate::process::analysis::repness::RepfulFor;
+use crate::process::analysis::store::{self, Stored};
+use crate::process::progress::{self, RESIDENCY_TYPES};
 
 /// グループを表示する最小の参加者数（分析に含まれる人数）。
 /// 少人数ではグループの集計が個人の投票そのものになるため（Polis にはない、このプロジェクトの判断）
@@ -452,7 +452,7 @@ pub async fn topic_analysis(
     MaybeParticipant(user_id): MaybeParticipant,
 ) -> Result<Json<AnalysisView>, ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
-    progress::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
+    super::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
 
     // 決まった数に投票するまでは見せない（ルールは progress::Progress::analysis_unlocked）
     let p = progress::progress(&state.pool, &topic_id, user_id.as_deref()).await?;

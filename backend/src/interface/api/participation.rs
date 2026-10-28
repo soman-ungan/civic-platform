@@ -8,13 +8,13 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::store::{self, Stored};
 use crate::interface::api::AppState;
 use crate::interface::api::error::{ApiError, ApiJson};
 use crate::interface::api::municipalities;
 use crate::interface::api::participant::{MaybeParticipant, Participant};
-use crate::moderation::{self, Verdict};
-use crate::progress::{self, Progress, RESIDENCY_TYPES, has_relation};
+use crate::process::analysis::store::{self, Stored};
+use crate::process::moderation::{self, Verdict};
+use crate::process::progress::{self, Progress, RESIDENCY_TYPES, has_relation};
 use crate::shared::status::StatementStatus;
 use crate::shared::util::{new_id, now_iso};
 
@@ -98,7 +98,7 @@ pub async fn next_statement(
     MaybeParticipant(user_id): MaybeParticipant,
 ) -> Result<Json<NextStatement>, ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
-    progress::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
+    super::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
     let progress = progress::progress(&state.pool, &topic_id, user_id.as_deref()).await?;
 
     // Cookie の無い人は「まだ何も投票していない人」として扱う（空文字の user_id は存在しない）
@@ -182,7 +182,7 @@ pub async fn vote(
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
 
     // その自治体のそのトピックの、承認済みの意見であること
-    progress::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
+    super::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
     let found: Option<String> = sqlx::query_scalar(
         "SELECT id FROM statements WHERE id = $1 AND topic_id = $2 AND status = 'approved'",
     )
@@ -270,7 +270,7 @@ pub async fn post_statement(
 ) -> Result<(StatusCode, Participant, Json<PostedStatement>), ApiError> {
     let body = validate_statement_body(&input.body)?;
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
-    progress::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
+    super::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
 
     let participant = Participant::ensure(&state, existing).await?;
 

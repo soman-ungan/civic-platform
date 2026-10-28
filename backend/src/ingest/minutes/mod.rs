@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::ingest::extraction::{Extraction, Prompt};
-use crate::moderation::{Moderation, Verdict};
+use crate::process::moderation::{Moderation, Verdict};
 use crate::shared::llm::{Effort, Llm, Purpose, Request};
 use crate::shared::status::StatementStatus;
 use crate::shared::util::{new_id, now_iso};

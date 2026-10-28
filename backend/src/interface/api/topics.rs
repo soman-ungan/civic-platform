@@ -11,7 +11,7 @@ use crate::interface::api::AppState;
 use crate::interface::api::error::ApiError;
 use crate::interface::api::participant::MaybeParticipant;
 use crate::interface::api::{finances, municipalities};
-use crate::progress::{self, Participation, Progress};
+use crate::process::progress::{self, Participation, Progress};
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Tag {

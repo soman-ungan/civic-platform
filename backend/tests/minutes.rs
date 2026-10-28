@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use backend::ingest::extraction::Extraction;
 use backend::ingest::minutes::{Input, Outcome, import, prepare};
-use backend::moderation::Moderation;
+use backend::process::moderation::Moderation;
 use backend::shared::llm::{Fake, Llm};
 use common::{seed_fixture, test_pool};
 use serde_json::{Value, json};

@@ -10,8 +10,6 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use sqlx::SqlitePool;
 
-use crate::interface::api::error::ApiError;
-
 /// このまちとの関わり方（ADR 0002。市民を分けてよいのは、これだけ）
 pub const RESIDENCY_TYPES: [&str; 4] = ["resident", "neighbor", "commuter", "related"];
 
@@ -69,7 +67,7 @@ pub async fn progress(
     pool: &SqlitePool,
     topic_id: &str,
     user_id: Option<&str>,
-) -> Result<Progress, ApiError> {
+) -> Result<Progress, sqlx::Error> {
     let total: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM statements WHERE topic_id = $1 AND status = 'approved'",
     )
@@ -98,7 +96,7 @@ pub async fn voted_counts(
     pool: &SqlitePool,
     municipality_id: &str,
     user_id: Option<&str>,
-) -> Result<HashMap<String, i64>, ApiError> {
+) -> Result<HashMap<String, i64>, sqlx::Error> {
     let Some(user_id) = user_id else {
         return Ok(HashMap::new());
     };
@@ -121,7 +119,7 @@ pub async fn progress_by_topic(
     pool: &SqlitePool,
     municipality_id: &str,
     user_id: Option<&str>,
-) -> Result<HashMap<String, Progress>, ApiError> {
+) -> Result<HashMap<String, Progress>, sqlx::Error> {
     let totals: Vec<(String, i64)> = sqlx::query_as(
         "SELECT t.id,
             (SELECT count(*) FROM statements s WHERE s.topic_id = t.id AND s.status = 'approved')
@@ -140,13 +138,13 @@ pub async fn progress_by_topic(
         .collect())
 }
 
-/// トピックが指定の自治体に属し、公開済みか確かめる。別の自治体のトピックや下書きなら 404。
-/// 投票・投稿・次の意見・分析は、すべてここを通る
-pub async fn ensure_topic(
+/// トピックに参加できるか: 指定の自治体に属し、公開済みであること（別の自治体のトピックや下書きは不可）。
+/// 投票・投稿・次の意見・分析は、すべてここを通る（API では、できなければ 404）
+pub async fn topic_open(
     pool: &SqlitePool,
     municipality_id: &str,
     topic_id: &str,
-) -> Result<(), ApiError> {
+) -> Result<bool, sqlx::Error> {
     let found: Option<String> = sqlx::query_scalar(
         "SELECT id FROM topics WHERE id = $1 AND municipality_id = $2 AND status = 'published'",
     )
@@ -154,7 +152,7 @@ pub async fn ensure_topic(
     .bind(municipality_id)
     .fetch_optional(pool)
     .await?;
-    found.map(|_| ()).ok_or(ApiError::NotFound)
+    Ok(found.is_some())
 }
 
 /// この自治体との関わり方を登録しているか（投票の前に要る）
@@ -162,7 +160,7 @@ pub async fn has_relation(
     pool: &SqlitePool,
     user_id: &str,
     municipality_id: &str,
-) -> Result<bool, ApiError> {
+) -> Result<bool, sqlx::Error> {
     let found: Option<String> = sqlx::query_scalar(
         "SELECT user_id FROM user_municipality_relations WHERE user_id = $1 AND municipality_id = $2",
     )

@@ -5,8 +5,8 @@
 use std::path::PathBuf;
 
 use crate::eval;
-use crate::moderation::Moderation;
-use crate::tagging::Tagger;
+use crate::process::moderation::Moderation;
+use crate::process::tagging::Tagger;
 use clap::{Args, Subcommand};
 
 use super::Ctx;

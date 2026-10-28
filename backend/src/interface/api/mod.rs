@@ -18,7 +18,8 @@ use axum_extra::extract::cookie::Key;
 use sqlx::SqlitePool;
 use tower_http::trace::TraceLayer;
 
-use crate::moderation::Moderation;
+use crate::process::moderation::Moderation;
+use crate::process::progress;
 use error::ApiError;
 
 /// すべての API は `/api` の下に置く（本番ではリバースプロキシが `/api` を backend に振り分ける）。
@@ -107,6 +108,19 @@ impl AppState {
 impl FromRef<AppState> for Key {
     fn from_ref(state: &AppState) -> Self {
         state.cookie_key.clone()
+    }
+}
+
+/// トピックに参加できなければ 404（ルールは `progress::topic_open`）
+pub(crate) async fn ensure_topic(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    topic_id: &str,
+) -> Result<(), ApiError> {
+    if progress::topic_open(pool, municipality_id, topic_id).await? {
+        Ok(())
+    } else {
+        Err(ApiError::NotFound)
     }
 }
 

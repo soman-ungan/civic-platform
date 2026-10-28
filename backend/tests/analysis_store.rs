@@ -2,7 +2,7 @@
 
 mod common;
 
-use backend::analysis::store::{RunOutcome, Stored, load, run_all, run_topic};
+use backend::process::analysis::store::{RunOutcome, Stored, load, run_all, run_topic};
 
 use common::{insert_vote, seed_polarized as polarized};
 

@@ -5,8 +5,8 @@
 mod common;
 
 use axum::http::StatusCode;
-use backend::analysis::store::run_all;
 use backend::drafts;
+use backend::process::analysis::store::run_all;
 use backend::shared::status::Publication;
 use common::{request, seed_polarized, test_pool, test_state};
 use serde_json::json;

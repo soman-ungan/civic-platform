@@ -2,9 +2,9 @@
 
 use backend::interface::api::{AppState, app};
 use backend::interface::cli;
-use backend::moderation::{self, Moderation};
+use backend::process::moderation::{self, Moderation};
+use backend::process::{analysis, tagging};
 use backend::shared::{config::Config, db};
-use backend::{analysis, tagging};
 use clap::Parser;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;

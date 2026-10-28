@@ -18,12 +18,12 @@ mod records;
 use std::path::Path;
 
 use crate::ingest::collect::store::Store;
-use crate::moderation::Moderation;
+use crate::process::moderation::Moderation;
+use crate::process::tagging::Tagger;
 use crate::seed;
 use crate::shared::config::Config;
 use crate::shared::llm::Llm;
 use crate::shared::llm::client::AnthropicClient;
-use crate::tagging::Tagger;
 use clap::{Parser, Subcommand};
 use sqlx::SqlitePool;
 
