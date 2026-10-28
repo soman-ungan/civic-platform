@@ -35,8 +35,8 @@ Claude API を呼ぶコマンドは費用がかかります（料金は Anthropi
 
 | コマンド | 目安 |
 |---|---|
-| `import minutes`（会議録1日分） | 0.3〜0.4 ドル |
-| `import budget`（当初予算の概要、40ページ） | 約 0.8 ドル |
+| `import minutes`（会議録1日分） | 0.3〜0.4 ドル（`--extraction` なら費用なし） |
+| `import budget`（当初予算の概要、40ページ） | 約 0.8 ドル（`--extraction` なら費用なし） |
 | `eval moderation` / `eval tagging` | 件数による |
 | サーバーのモデレーション・タグ付け | 投稿・トピックの数による（`llm_usage` で確かめられる） |
 
@@ -63,6 +63,7 @@ Claude API を呼ぶコマンドは費用がかかります（料金は Anthropi
 | [`collect`](#collect) | 行政資料（決算カード・予算の概要）を取得する |
 | [`import budget`](#import-budget) | 手元の当初予算の概要の PDF から、予算の下書きを作る |
 | [`budget`](#budget) | 予算の下書きを確かめ、公開する |
+| [`extraction`](#extraction) | 共同作業（Claude Code など）で AI の作業をするための、指示文・出力の形・入力を書き出す |
 | [`eval`](#eval) | AI のモデレーション・タグ付けの精度を評価する |
 
 `<slug>` は自治体の URL の名前（例: `otawara`）、`<id>` はトピックや意見の ID です。
@@ -126,7 +127,8 @@ cargo run -- import minutes --municipality otawara \
 | `--file <path>` | 会議録の本文（UTF-8 のテキスト。git の管理外の `data/private/` に置く） |
 | `--title` / `--held-on` | 会議名と開催日（`YYYY-MM-DD`） |
 | `--url` | 会議録のページ（画面の出典のリンクに使う。任意） |
-| `--dry-run` | AI を呼ばずに、発言者・名簿に無い首長と議員・議事日程だけを出す（**費用なし**） |
+| `--dry-run` | 保存しない。`--extraction` が無ければ、AI を呼ばずに発言者・名簿に無い首長と議員・議事日程だけを出す（**費用なし**）。あれば、その出力を取り込みと同じ検査に通した結果を出す |
+| `--extraction <json>` | 共同作業で作った AI の出力。API を呼ばない（**費用なし**。[共同作業で取り込む](#共同作業で取り込むapi-を使わない)） |
 | `--again` | 取り込み済みの会議録を作り直す |
 | `--force` | 一般質問・代表質問の無い会議録（採決だけの日など）も取り込む |
 
@@ -190,7 +192,8 @@ cargo run -- import budget --municipality otawara \
 | `--file <pdf>` | 当初予算の概要の PDF |
 | `--year <n>` | 年度（西暦） |
 | `--url` | 原本の PDF の URL（画面の「説明は原本 p.N」のリンクに使う） |
-| `--dry-run` | 読んで確かめた結果を出すだけで、保存しない（AI は呼ぶ） |
+| `--dry-run` | 読んで確かめた結果を出すだけで、保存しない（`--extraction` が無ければ AI は呼ぶ） |
+| `--extraction <json>` | 共同作業で作った AI の出力。API を呼ばない（**費用なし**） |
 | `--again` | 公開済みの年度を作り直す（下書きに戻る） |
 
 - **費用がかかります**（40ページでおよそ 0.8 ドル）
@@ -206,6 +209,17 @@ cargo run -- budget show otawara 2026        # 款別・性質別・歳入・主
 cargo run -- budget publish otawara 2026     # 公開する
 cargo run -- budget archive otawara 2026     # 取り下げる
 ```
+
+### extraction
+
+```sh
+cargo run -- extraction prompt minutes --municipality otawara \
+  --file ../data/private/minutes/2026R08_0226.txt --title "令和8年第1回定例会（第2号）" --held-on 2026-02-26
+cargo run -- extraction prompt budget --file ../data/private/budget/R8yosangaiyou.pdf --year 2026
+```
+
+- API に送るものと同じ指示文・出力の形（JSON Schema）・入力を、1つの文書（原本の隣の `<名前>.prompt.md`。`--out` で変えられる）に書き出します
+- これを Claude Code などに読ませて JSON を作り、`import ... --extraction <json>` で取り込みます（[共同作業で取り込む](#共同作業で取り込むapi-を使わない)）
 
 ### eval
 
@@ -231,6 +245,19 @@ cargo run -- eval tagging    [--model <id>] [--limit <n>] [--file <path>]
 2. `import minutes ... --dry-run` で、発言者と名簿を確かめる
 3. `import minutes ...` で下書きを作る（費用がかかる）
 4. `topics drafts` → `topics show <id>` → 必要なら `topics edit` など → `topics publish <id>`
+
+### 共同作業で取り込む（API を使わない）
+
+会議録・予算の概要の取り込みは、年に数回です。API の費用をかけずに、Claude Code との共同作業でも取り込めます。出力は API の時と同じ検査を通ります。手順は `.claude/commands/import-minutes.md`・`import-budget.md` にあり、Claude Code では `/import-minutes`・`/import-budget` で始められます。
+
+1. `extraction prompt ...` で指示文・出力の形・入力を書き出す
+2. Claude Code が原本と指示文を読み、JSON（`<名前>.extraction.json`）を作る。運営者はその場で原本と見比べる
+3. `import ... --extraction <json> --dry-run` で検査に通す（捨てたものを見て直す）
+4. `import ... --extraction <json>` で下書きを保存し、`topics show` / `budget show` で確かめて公開する
+
+- 本番のサーバーで取り込むときは、手元で作った JSON と原本をサーバーに送り、サーバーで 3・4 を行います。サーバーに API キーが無くても取り込めます（キーは投稿のモデレーションのため）
+- API キーが無いと、トピックの自動のタグ付けは動きません。`topics tag add` で付けます
+- どちらの方法で作ったかは、`documents.extraction`（`api` / `manual`）に残ります
 
 ### 今年度の予算を入れる
 

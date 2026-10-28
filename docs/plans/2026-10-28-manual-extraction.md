@@ -53,3 +53,8 @@
 - `cargo test`・clippy・fmt
 - 実物で: 大田原市の R8 予算の保存済みの応答を `--extraction` で `--dry-run` し、API の時と同じ 165 件・検算が通ること
 - 会議録 1日分を、Claude Code との共同作業で JSON にし、`--extraction` で下書きを作って、API の時の下書きと見比べる（ユーザーと一緒に）
+
+## 実装時の変更点
+- **会議録の `--dry-run` と `--extraction` を合わせると、保存せずに検査の結果を出す**（`minutes::preview`）。最初の意見のモデレーションは、取り込むときに通す
+- **指示文の書き出し先は原本の隣**（`<名前>.prompt.md`。原本は `data/private/` にあるので、git の管理外のまま）。JSON の置き場所の例（`<名前>.extraction.json`）も出す
+- **実物での確認**: 大田原市の R8 予算の保存済みの応答を `--extraction` で取り込むと、API の時と同じ検査の結果になる（テスト `real_manual_extraction_matches_check`）。会議録の共同作業での取り込みは、ユーザーと一緒に試す
