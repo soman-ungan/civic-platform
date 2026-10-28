@@ -70,7 +70,13 @@ export function PasskeyPrompt({
         <button
           type="button"
           disabled={busy}
-          onClick={() => run(loginWithPasskey, "ログインできませんでした")}
+          onClick={() =>
+            // 投票がアカウントにまとまり、進み具合が変わるので読み込み直す
+            run(async () => {
+              await loginWithPasskey();
+              window.location.reload();
+            }, "ログインできませんでした")
+          }
           className="h-11 rounded-full text-sm text-zinc-700 underline underline-offset-2 dark:text-zinc-300"
         >
           ほかの端末で作ったパスキーでログイン

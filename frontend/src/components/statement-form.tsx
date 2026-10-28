@@ -7,10 +7,9 @@ import { useState } from "react";
 import { PasskeyPrompt } from "@/components/passkey-prompt";
 import { BUTTON_PRIMARY } from "@/components/ui/styles";
 import { ApiError, apiFetch, errorMessage } from "@/lib/api-client";
-import { AUTH_API } from "@/lib/api-paths";
+import { useMe } from "@/lib/passkey";
 import { MAX_STATEMENT_CHARS, countChars } from "@/lib/statement";
-import type { Me, PostedStatement } from "@/lib/types";
-import { useApi } from "@/lib/use-api";
+import type { PostedStatement } from "@/lib/types";
 
 /**
  * 「自分の意見を追加」。返信やコメントではなく、投票カードに並ぶ新しい意見として投稿する。
@@ -26,7 +25,7 @@ export function StatementForm({
   const [open, setOpen] = useState(false);
   // パスキーの登録の案内を出しているか
   const [needsPasskey, setNeedsPasskey] = useState(false);
-  const { data: me, reload: reloadMe } = useApi<Me>(AUTH_API.me);
+  const { data: me } = useMe();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState<{
@@ -97,8 +96,7 @@ export function StatementForm({
 
       {needsPasskey ? (
         <PasskeyPrompt
-          onDone={async () => {
-            await reloadMe();
+          onDone={() => {
             setNeedsPasskey(false);
             setOpen(true);
           }}

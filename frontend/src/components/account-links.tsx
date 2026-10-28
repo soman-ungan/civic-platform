@@ -5,17 +5,15 @@
 import { useState } from "react";
 
 import { errorMessage } from "@/lib/api-client";
-import { AUTH_API } from "@/lib/api-paths";
-import { isCancelled, loginWithPasskey, logout } from "@/lib/passkey";
-import type { Me } from "@/lib/types";
-import { useApi } from "@/lib/use-api";
+import { isCancelled, loginWithPasskey, logout, useMe } from "@/lib/passkey";
 
 /**
  * フッターの「パスキーでログイン」「ログアウト」（ADR 0006）。読むことと投票はログインなしでできるので、目立たせない。
- * ログイン・ログアウトのあとは、参加の状態が変わるのでページを読み込み直す
+ * ログイン・ログアウトのあとは、参加の状態が変わるのでページを読み込み直す。
+ * 投稿フォームでパスキーを作ったときは、`useMe` が読み直して「ログイン中」になる
  */
 export function AccountLinks() {
-  const { data: me } = useApi<Me>(AUTH_API.me);
+  const { data: me } = useMe();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +35,7 @@ export function AccountLinks() {
   return (
     <span className="flex items-center gap-2">
       {error && <span className="text-rose-600">{error}</span>}
+      {me.registered && <span>ログイン中</span>}
       <button
         type="button"
         disabled={busy}

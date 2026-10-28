@@ -13,9 +13,12 @@ import {
   type PublicKeyCredentialRequestOptionsJSON,
 } from "@simplewebauthn/browser";
 
+import { useEffect } from "react";
+
 import { apiFetch } from "./api-client";
 import { AUTH_API } from "./api-paths";
 import type { Me } from "./types";
+import { useApi } from "./use-api";
 
 type Started<T> = { challenge_id: string; options: { publicKey: T } };
 
@@ -27,7 +30,7 @@ export async function registerPasskey(operatorToken?: string): Promise<Me> {
   const credential = await startRegistration({
     optionsJSON: started.options.publicKey,
   });
-  return apiFetch<Me>(AUTH_API.registerFinish, {
+  const me = await apiFetch<Me>(AUTH_API.registerFinish, {
     method: "POST",
     body: {
       challenge_id: started.challenge_id,
@@ -35,6 +38,8 @@ export async function registerPasskey(operatorToken?: string): Promise<Me> {
       operator_token: operatorToken,
     },
   });
+  notifyAuthChanged();
+  return me;
 }
 
 /** ほかの端末で作ったパスキーでログインする（この端末で匿名で投票していた分は、アカウントにまとまる） */
@@ -45,14 +50,38 @@ export async function loginWithPasskey(): Promise<Me> {
   const credential = await startAuthentication({
     optionsJSON: started.options.publicKey,
   });
-  return apiFetch<Me>(AUTH_API.loginFinish, {
+  const me = await apiFetch<Me>(AUTH_API.loginFinish, {
     method: "POST",
     body: { challenge_id: started.challenge_id, credential },
   });
+  notifyAuthChanged();
+  return me;
 }
 
 export async function logout(): Promise<void> {
   await apiFetch<void>(AUTH_API.logout, { method: "POST" });
+  notifyAuthChanged();
+}
+
+// 登録・ログイン・ログアウトを、同じページのほかの部品（フッターなど）に知らせる
+const AUTH_CHANGED = "civic-platform:auth-changed";
+
+function notifyAuthChanged() {
+  window.dispatchEvent(new Event(AUTH_CHANGED));
+}
+
+/**
+ * ログインの状態（`GET /auth/me`）。登録・ログイン・ログアウトのあとは読み直す。
+ * パスキーを作った時点で、その端末はそのアカウントでログインした状態になる
+ */
+export function useMe() {
+  const result = useApi<Me>(AUTH_API.me);
+  const { reload } = result;
+  useEffect(() => {
+    window.addEventListener(AUTH_CHANGED, reload);
+    return () => window.removeEventListener(AUTH_CHANGED, reload);
+  }, [reload]);
+  return result;
 }
 
 /** ブラウザがパスキーの画面を閉じたとき（取り消し）は、エラーとして見せない */
