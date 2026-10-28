@@ -22,15 +22,23 @@ export type CarouselSection = {
  * 中の横スクロール（`data-swipe-ignore`）の上で始めた操作では切り替えない
  */
 export function FinanceCarousel({ sections }: { sections: CarouselSection[] }) {
-  const [index, setIndex] = useState(0);
+  // 開いている欄は id で持つ。年度を変えると欄が増減する（「予算と決算」は両方ある年度だけ）ので、
+  // 同じ欄があればそのまま、無くなったら同じ位置（はみ出すなら最後）の欄を開く
+  const [open, setOpen] = useState<{ id: string; index: number }>({
+    id: sections[0]?.id ?? "",
+    index: 0,
+  });
   const [direction, setDirection] = useState<"next" | "prev">("next");
   const root = useRef<HTMLDivElement>(null);
   const start = useRef<{ x: number; y: number; t: number } | null>(null);
   const n = sections.length;
+  const found = sections.findIndex((s) => s.id === open.id);
+  const index = found >= 0 ? found : Math.min(open.index, n - 1);
 
   function go(step: 1 | -1) {
     setDirection(step > 0 ? "next" : "prev");
-    setIndex((i) => (i + step + n) % n);
+    const next = (index + step + n) % n;
+    setOpen({ id: sections[next].id, index: next });
   }
 
   function onTouchStart(e: React.TouchEvent) {
