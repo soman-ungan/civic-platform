@@ -7,35 +7,19 @@ use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
 
 use crate::AppState;
 use crate::analysis::store::{self, Stored};
 use crate::error::{ApiError, ApiJson};
 use crate::moderation::{self, Verdict};
 use crate::participant::{MaybeParticipant, Participant};
-use crate::routes::{municipalities, topics};
+use crate::progress::{self, Progress, RESIDENCY_TYPES, has_relation};
+use crate::routes::municipalities;
+use crate::status::StatementStatus;
 use crate::util::{new_id, now_iso};
 
 /// 意見の最大文字数（DB の CHECK と同じ。文字数は Unicode のコードポイント単位）
 pub const MAX_STATEMENT_CHARS: usize = 140;
-
-const RESIDENCY_TYPES: [&str; 4] = ["resident", "neighbor", "commuter", "related"];
-
-async fn has_relation(
-    pool: &SqlitePool,
-    user_id: &str,
-    municipality_id: &str,
-) -> Result<bool, ApiError> {
-    let found: Option<String> = sqlx::query_scalar(
-        "SELECT user_id FROM user_municipality_relations WHERE user_id = $1 AND municipality_id = $2",
-    )
-    .bind(user_id)
-    .bind(municipality_id)
-    .fetch_optional(pool)
-    .await?;
-    Ok(found.is_some())
-}
 
 // ===== 居住地属性（このまちとの関わり方） =====
 
@@ -99,12 +83,6 @@ pub struct StatementCard {
 }
 
 #[derive(Debug, Serialize)]
-pub struct Progress {
-    pub voted: i64,
-    pub total: i64,
-}
-
-#[derive(Debug, Serialize)]
 pub struct NextStatement {
     /// まだ投票していない承認済みの意見。全部投票し終えたら null
     pub statement: Option<StatementCard>,
@@ -120,27 +98,11 @@ pub async fn next_statement(
     MaybeParticipant(user_id): MaybeParticipant,
 ) -> Result<Json<NextStatement>, ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
-    topics::ensure_in_municipality(&state.pool, &municipality.id, &topic_id).await?;
-
-    let total: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM statements WHERE topic_id = $1 AND status = 'approved'",
-    )
-    .bind(&topic_id)
-    .fetch_one(&state.pool)
-    .await?;
+    progress::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
+    let progress = progress::progress(&state.pool, &topic_id, user_id.as_deref()).await?;
 
     // Cookie の無い人は「まだ何も投票していない人」として扱う（空文字の user_id は存在しない）
     let user_id = user_id.unwrap_or_default();
-
-    let voted: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM votes v
-         JOIN statements s ON s.id = v.statement_id
-         WHERE s.topic_id = $1 AND s.status = 'approved' AND v.user_id = $2",
-    )
-    .bind(&topic_id)
-    .bind(&user_id)
-    .fetch_one(&state.pool)
-    .await?;
 
     // 候補: 承認済みで、まだ投票していない意見
     let candidates: Vec<StatementCard> = sqlx::query_as(
@@ -171,7 +133,7 @@ pub async fn next_statement(
 
     Ok(Json(NextStatement {
         statement,
-        progress: Progress { voted, total },
+        progress,
         needs_relation,
     }))
 }
@@ -220,15 +182,12 @@ pub async fn vote(
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
 
     // その自治体のそのトピックの、承認済みの意見であること
+    progress::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
     let found: Option<String> = sqlx::query_scalar(
-        "SELECT s.id FROM statements s
-         JOIN topics t ON t.id = s.topic_id
-         WHERE s.id = $1 AND s.topic_id = $2 AND t.municipality_id = $3 AND s.status = 'approved'
-           AND t.status = 'published'",
+        "SELECT id FROM statements WHERE id = $1 AND topic_id = $2 AND status = 'approved'",
     )
     .bind(&statement_id)
     .bind(&topic_id)
-    .bind(&municipality.id)
     .fetch_optional(&state.pool)
     .await?;
     if found.is_none() {
@@ -277,7 +236,7 @@ pub struct StatementInput {
 #[derive(Debug, Serialize)]
 pub struct PostedStatement {
     pub id: String,
-    pub status: &'static str,
+    pub status: StatementStatus,
     /// 却下されたときの書き直しの提案（フェーズ4の AI モデレーションで使う）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suggestion: Option<String>,
@@ -311,7 +270,7 @@ pub async fn post_statement(
 ) -> Result<(StatusCode, Participant, Json<PostedStatement>), ApiError> {
     let body = validate_statement_body(&input.body)?;
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
-    topics::ensure_in_municipality(&state.pool, &municipality.id, &topic_id).await?;
+    progress::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
 
     let participant = Participant::ensure(&state, existing).await?;
 

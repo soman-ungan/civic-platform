@@ -4,10 +4,10 @@
 
 import { useState } from "react";
 
-import { ApiError, apiFetch } from "@/lib/api-client";
-import { MAX_STATEMENT_CHARS, countChars } from "@/lib/labels";
-
-type Posted = { id: string; status: string; suggestion?: string };
+import { BUTTON_PRIMARY } from "@/components/ui/styles";
+import { apiFetch, errorMessage } from "@/lib/api-client";
+import { MAX_STATEMENT_CHARS, countChars } from "@/lib/statement";
+import type { PostedStatement } from "@/lib/types";
 
 /** 「自分の意見を追加」。返信やコメントではなく、投票カードに並ぶ新しい意見として投稿する */
 export function StatementForm({
@@ -34,7 +34,7 @@ export function StatementForm({
     setSending(true);
     setMessage(null);
     try {
-      const posted = await apiFetch<Posted>(endpoint, {
+      const posted = await apiFetch<PostedStatement>(endpoint, {
         method: "POST",
         body: { body: text },
       });
@@ -64,7 +64,7 @@ export function StatementForm({
     } catch (e) {
       setMessage({
         kind: "error",
-        text: e instanceof ApiError ? e.message : "投稿に失敗しました",
+        text: errorMessage(e, "投稿に失敗しました"),
       });
     } finally {
       setSending(false);
@@ -112,7 +112,8 @@ export function StatementForm({
             他の人の意見への返信ではなく、みんなが賛成・反対できる1つの意見として書いてください。
           </p>
           <p className="mt-1 text-xs text-zinc-500">
-            投稿は公開前に AI（Anthropic の Claude）で確認します。送るのは本文だけで、あなたを識別する情報は送りません。
+            投稿は公開前に AI（Anthropic の
+            Claude）で確認します。送るのは本文だけで、あなたを識別する情報は送りません。
           </p>
           <textarea
             id="statement-body"
@@ -138,7 +139,7 @@ export function StatementForm({
               <button
                 type="submit"
                 disabled={count === 0 || tooLong || sending}
-                className="h-11 rounded-full bg-zinc-900 px-5 text-sm font-medium text-white disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+                className={`h-11 px-5 text-sm ${BUTTON_PRIMARY}`}
               >
                 {sending ? "確認中…" : "投稿する"}
               </button>

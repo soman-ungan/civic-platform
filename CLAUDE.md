@@ -24,9 +24,16 @@
 ## リポジトリ構成（モノレポ）
 ```
 civic-platform/
-├── backend/              Rust / axum / sqlx（API サーバー＋収集バッチ）
-│   └── src/collectors/   自治体・議事録システム別の収集アダプタ
+├── backend/              Rust / axum / sqlx（API サーバー＋運営のコマンド）
+│   ├── src/routes/       API（自治体・トピック・投票・分析・まちのお金）
+│   ├── src/progress.rs   参加のルール（進み具合・分析を見られるか・参加できるトピックか）。ルールはここだけで変える
+│   ├── src/status.rs     意見と公開の状態の型（DB の CHECK と同じ値）
+│   ├── src/cli/          運営のコマンド（clap。docs/cli.md）
+│   ├── src/collect/      行政資料の収集アダプタ
+│   └── src/{analysis,moderation,tagging,minutes,budget,llm}/  分析・AI・取り込み
 ├── frontend/             Next.js (App Router) / TypeScript / Tailwind CSS
+│   ├── src/components/ui/  よく使う見た目（チップ・横スクロールの行・切り替え・空の欄・ボタンのクラス）
+│   └── src/lib/          API（api-paths・api-server・api-client・use-api）、型（types.ts）、表示の決まり
 ├── data/                 SQLite ファイル（*.db は git 管理しない）
 │   └── seeds/            自治体・地区マスタの初期データ（git 管理する）
 └── docs/                 設計書・ADR
@@ -146,9 +153,10 @@ civic-platform/
   - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）
   - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}` — Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count` を返す（承認済みの意見だけで数える）
   - `PUT /municipalities/{slug}/relation` — このまちとの関わり方（投票の前に必要）。地区は受け取らない
-  - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗（Polis の優先度で重み付けした抽選）
+  - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗 `progress`（`voted`・`total`・`analysis_unlocked`。Polis の優先度で重み付けした抽選）
   - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・`statements_by_group`・`group_composition`（グループごとの関わり方の構成）・関わり方ごとの集計（分析対象が5人未満なら insufficient。関わり方の集計は二次秘匿済み）
     - **そのトピックのすべての承認済み意見に投票するまでは `locked`（残り件数）を返す**。全体の傾向に投票が左右されないようにするため。意見が増えれば再びロックされる
+    - 分析を見られるかのルールは `backend/src/progress.rs` の `Progress::analysis_unlocked` の1か所だけ。画面は `progress.analysis_unlocked` を見る（ルールを写さない）
   - `GET /municipalities/{slug}/finances?year=` — まちのお金。年度ごとに `settlement`（決算カード）と `budget`（公開済みの当初予算。主な事業つき）。金額は千円、`per_capita` は円。年度を省くと最新（予算だけの年度を含む）。`trend` は決算の年度と、決算がまだ無く予算だけがある年度（`kind`: settlement / budget）。トピックの詳細の `finances` は、分野タグに対応する目的別歳出と、今年度の主な事業（5件まで）
   - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。投票を終えたトピックの分だけを返す（Cookie が無ければ空）
   - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`

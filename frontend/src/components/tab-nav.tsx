@@ -5,24 +5,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-/**
- * 自治体のトップのタブ（URL の最初の部分が自治体の slug）。
- * 並び順がスワイプの向きになる（左のタブ → 右のタブ）
- */
-export function tabsFor(pathname: string) {
-  const slug = pathname.split("/")[1] ?? "";
-  // swipe: その画面の横フリックで隣のタブへ移るか。まちのお金は、横フリックを欄の切り替えに使う（ユーザーと決定）
-  const tabs = [
-    { href: `/${slug}`, label: "トピック", swipe: true },
-    { href: `/${slug}/finances`, label: "まちのお金", swipe: false },
-  ];
-  return { tabs, current: tabs.findIndex((t) => t.href === pathname) };
-}
-
-/** 右のタブへは nav-forward、左のタブへは nav-back（globals.css のスライドの向き） */
-export function transitionTo(from: number, to: number): string[] {
-  return [to > from ? "nav-forward" : "nav-back"];
-}
+import { tabsFor, transitionTo } from "@/lib/tabs";
 
 /** タブ「トピック｜まちのお金」。URL を読むので、レイアウトでは Suspense の中に置く */
 export function TabNav() {
@@ -33,7 +16,7 @@ export function TabNav() {
 export function TabNavFallback() {
   return (
     <div aria-hidden className="flex">
-      {["トピック", "まちのお金"].map((label) => (
+      {tabsFor("").tabs.map(({ label }) => (
         <span
           key={label}
           className="flex h-11 flex-1 items-center justify-center border-b-2 border-transparent text-sm text-zinc-500"

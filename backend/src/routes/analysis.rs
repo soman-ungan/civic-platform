@@ -15,7 +15,8 @@ use crate::analysis::repness::RepfulFor;
 use crate::analysis::store::{self, Stored};
 use crate::error::ApiError;
 use crate::participant::MaybeParticipant;
-use crate::routes::{municipalities, topics};
+use crate::progress::{self, RESIDENCY_TYPES};
+use crate::routes::municipalities;
 
 /// グループを表示する最小の参加者数（分析に含まれる人数）。
 /// 少人数ではグループの集計が個人の投票そのものになるため（Polis にはない、このプロジェクトの判断）
@@ -24,8 +25,6 @@ pub const MIN_DISPLAY_PARTICIPANTS: usize = 5;
 pub const MIN_CELL_SIZE: i64 = 5;
 /// タイムラインにピン留めする合意点の条件: 全グループで (A+1)/(S+2) がこの値以上
 pub const PIN_THRESHOLD: f64 = 0.8;
-
-const RESIDENCY_TYPES: [&str; 4] = ["resident", "neighbor", "commuter", "related"];
 
 #[derive(Debug, Serialize)]
 pub struct RepresentativeOut {
@@ -453,14 +452,14 @@ pub async fn topic_analysis(
     MaybeParticipant(user_id): MaybeParticipant,
 ) -> Result<Json<AnalysisView>, ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
-    topics::ensure_in_municipality(&state.pool, &municipality.id, &topic_id).await?;
+    progress::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
 
-    // すべての承認済みの意見に投票するまでは見せない（意見が増えれば、また投票が必要になる）
-    let (voted, total) = topics::progress(&state.pool, &topic_id, user_id.as_deref()).await?;
-    if voted < total {
+    // 決まった数に投票するまでは見せない（ルールは progress::Progress::analysis_unlocked）
+    let p = progress::progress(&state.pool, &topic_id, user_id.as_deref()).await?;
+    if !p.analysis_unlocked() {
         return Ok(Json(AnalysisView::Locked {
-            remaining: total - voted,
-            total,
+            remaining: p.total - p.voted,
+            total: p.total,
         }));
     }
 
@@ -601,10 +600,15 @@ pub async fn municipality_consensus(
     .fetch_all(&state.pool)
     .await?;
 
+    let progress =
+        progress::progress_by_topic(&state.pool, &municipality.id, Some(&user_id)).await?;
+
     let mut out = Vec::new();
     for (topic_id, title) in topics {
-        let (voted, total) = topics::progress(&state.pool, &topic_id, Some(&user_id)).await?;
-        if total == 0 || voted < total {
+        let Some(p) = progress.get(&topic_id) else {
+            continue;
+        };
+        if p.total == 0 || !p.analysis_unlocked() {
             continue;
         }
         let Some(Stored::Ready { result, .. }) = store::load(&state.pool, &topic_id).await? else {

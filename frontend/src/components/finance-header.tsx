@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import Link from "next/link";
-
+import { SegmentedSwitch } from "@/components/ui/segmented-switch";
+import { BADGE_AMBER } from "@/components/ui/styles";
 import { YearChips } from "@/components/year-chips";
 import { type FinanceView, KIND_LABEL, financesHref } from "@/lib/finance-view";
 import {
@@ -14,8 +14,7 @@ import {
 import type { FinanceKind, Finances } from "@/lib/types";
 
 /** 予算の印（決算がまだ無い年度や、予算を選んでいるとき） */
-const BUDGET_MARK =
-  "rounded bg-amber-100 px-1 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100";
+const BUDGET_MARK = `rounded px-1 ${BADGE_AMBER}`;
 
 /**
  * まちのお金の固定のヘッダー: 年度のチップ、「決算｜予算」と「1人あたり｜総額」の切り替え、大きな数字。
@@ -51,7 +50,7 @@ export function FinanceHeader({
           <span className="flex items-center gap-1.5">
             {fiscalYearLabel(f.fiscal_year)}
             {v.kinds.length > 1 ? (
-              <Switch
+              <SegmentedSwitch
                 label="決算と予算の切り替え"
                 options={(["settlement", "budget"] as const).map((kind) => ({
                   key: kind,
@@ -66,7 +65,7 @@ export function FinanceHeader({
               </span>
             )}
           </span>
-          <Switch
+          <SegmentedSwitch
             label="金額の見せ方"
             options={(["per_capita", "total"] as const).map((u) => ({
               key: u,
@@ -91,41 +90,5 @@ export function FinanceHeader({
         </p>
       </div>
     </div>
-  );
-}
-
-/** 2つ並びの切り替え（URL を変える。履歴は増やさない） */
-function Switch<K extends string>({
-  label,
-  options,
-  current,
-}: {
-  label: string;
-  options: { key: K; label: string; href: string }[];
-  current: K;
-}) {
-  return (
-    <span
-      role="group"
-      aria-label={label}
-      className="inline-flex rounded-full border border-zinc-300 p-0.5 dark:border-zinc-700"
-    >
-      {options.map((o) => (
-        <Link
-          key={o.key}
-          href={o.href}
-          scroll={false}
-          replace
-          aria-current={o.key === current ? "true" : undefined}
-          className={`inline-flex min-h-8 items-center rounded-full px-3 ${
-            o.key === current
-              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-              : "text-zinc-600 dark:text-zinc-400"
-          }`}
-        >
-          {o.label}
-        </Link>
-      ))}
-    </span>
   );
 }

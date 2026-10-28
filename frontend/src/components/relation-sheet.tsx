@@ -4,7 +4,13 @@
 
 import { useState } from "react";
 
-import { ApiError, apiFetch } from "@/lib/api-client";
+import {
+  BUTTON_PRIMARY,
+  BUTTON_SECONDARY,
+  ERROR_TEXT,
+} from "@/components/ui/styles";
+import { apiFetch, errorMessage } from "@/lib/api-client";
+import { municipalityApi } from "@/lib/api-paths";
 import { RESIDENCY_LABELS } from "@/lib/labels";
 import type { ResidencyType } from "@/lib/types";
 
@@ -33,16 +39,13 @@ export function RelationSheet({
     setSaving(true);
     setError(null);
     try {
-      await apiFetch(
-        `/api/municipalities/${encodeURIComponent(slug)}/relation`,
-        {
-          method: "PUT",
-          body: { residency_type: residency },
-        },
-      );
+      await apiFetch(`${municipalityApi(slug)}/relation`, {
+        method: "PUT",
+        body: { residency_type: residency },
+      });
       onSaved();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "保存に失敗しました");
+      setError(errorMessage(e, "保存に失敗しました"));
       setSaving(false);
     }
   }
@@ -90,20 +93,20 @@ export function RelationSheet({
           ))}
         </fieldset>
 
-        {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
+        {error && <p className={`mt-3 ${ERROR_TEXT}`}>{error}</p>}
 
         <div className="mt-5 flex gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="h-12 flex-1 rounded-full border border-zinc-300 text-sm dark:border-zinc-700"
+            className={`h-12 flex-1 text-sm ${BUTTON_SECONDARY}`}
           >
             あとで
           </button>
           <button
             type="submit"
             disabled={!residency || saving}
-            className="h-12 flex-[2] rounded-full bg-zinc-900 text-sm font-medium text-white disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+            className={`h-12 flex-[2] text-sm ${BUTTON_PRIMARY}`}
           >
             {saving ? "保存中…" : "保存して投票する"}
           </button>

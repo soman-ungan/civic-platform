@@ -19,6 +19,7 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::llm::{Effort, Llm, Purpose, Request};
+use crate::status::Publication;
 use crate::util::{new_id, now_iso};
 
 /// 目的別歳出の費目（決算カードと同じ表記。比べるため）
@@ -536,14 +537,14 @@ pub async fn set_status(
     pool: &SqlitePool,
     municipality_id: &str,
     fiscal_year: i32,
-    status: &str,
+    status: Publication,
 ) -> Result<bool, sqlx::Error> {
-    let published_at = (status == "published").then(now_iso);
+    let published_at = (status == Publication::Published).then(now_iso);
     let n = sqlx::query(
         "UPDATE budgets SET status = $1, published_at = COALESCE($2, published_at)
          WHERE municipality_id = $3 AND fiscal_year = $4",
     )
-    .bind(status)
+    .bind(status.as_str())
     .bind(published_at)
     .bind(municipality_id)
     .bind(fiscal_year)

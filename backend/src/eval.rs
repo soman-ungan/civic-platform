@@ -105,7 +105,7 @@ pub async fn run_moderation(
         let started = Instant::now();
         let review = moderation.review_as(pool, &case.body, Purpose::Eval).await;
         latencies.push(started.elapsed());
-        let actual = review.verdict.status().to_owned();
+        let actual = review.verdict.status().as_str().to_owned();
         report.total += 1;
         if actual == case.expected {
             report.correct += 1;

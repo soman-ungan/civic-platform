@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { SwipeNav } from "@/components/swipe-nav";
 import { TabNav, TabNavFallback } from "@/components/tab-nav";
+import { municipalityApi } from "@/lib/api-paths";
 import { apiGet } from "@/lib/api-server";
 import type { MunicipalityDetail } from "@/lib/types";
 
@@ -37,9 +38,7 @@ async function MunicipalityName({
   params,
 }: Pick<LayoutProps<"/[municipality]">, "params">) {
   const { municipality: slug } = await params;
-  const municipality = await apiGet<MunicipalityDetail>(
-    `/api/municipalities/${encodeURIComponent(slug)}`,
-  );
+  const municipality = await apiGet<MunicipalityDetail>(municipalityApi(slug));
   if (!municipality) {
     notFound();
   }

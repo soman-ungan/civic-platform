@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 
+import { BADGE_AMBER } from "@/components/ui/styles";
+import { FLAG_LABEL } from "@/lib/budget-fields";
 import {
   SOURCE_NOTE,
   fiscalYearLabel,
@@ -9,7 +11,7 @@ import {
   shareText,
   thousandYen,
 } from "@/lib/money";
-import type { TopicFinances as TopicFinancesData } from "@/lib/types";
+import type { TopicFinanceData } from "@/lib/types";
 
 /**
  * この分野のお金。トピックの分野タグに対応する目的別歳出（決算の最新の年度）と、
@@ -21,7 +23,7 @@ export function TopicFinances({
   finances,
 }: {
   slug: string;
-  finances: TopicFinancesData | null;
+  finances: TopicFinanceData | null;
 }) {
   if (!finances) return null;
   const budget = finances.budget;
@@ -75,8 +77,10 @@ export function TopicFinances({
               >
                 <span>
                   {p.flag && (
-                    <span className="mr-1 inline-block rounded bg-amber-100 px-1 text-xs text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
-                      {p.flag === "new" ? "新規" : "拡充"}
+                    <span
+                      className={`mr-1 inline-block rounded px-1 text-xs ${BADGE_AMBER}`}
+                    >
+                      {FLAG_LABEL[p.flag]}
                     </span>
                   )}
                   {budget.source.url ? (

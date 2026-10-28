@@ -228,9 +228,14 @@ async fn draft_is_saved_replaced_and_published() {
         .await
         .unwrap();
     assert!(
-        budget::set_status(&pool, "092100", 2026, "published")
-            .await
-            .unwrap()
+        budget::set_status(
+            &pool,
+            "092100",
+            2026,
+            backend::status::Publication::Published
+        )
+        .await
+        .unwrap()
     );
     assert!(
         budget::save_draft(&pool, &input, &checked, false)

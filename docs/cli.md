@@ -8,6 +8,7 @@ backend（Rust）は、API サーバーとしてだけでなく、運営のた�
 - ビルドしたものは `./backend <コマンド>`（`cargo build --release` なら `target/release/backend`）でも同じです
 - 引数を付けずに実行すると、API サーバーが起動します
 - どのコマンドも、起動のたびに DB のマイグレーションを自動で適用します
+- `--help` で、コマンドと引数の一覧が出ます（例: `cargo run -- --help`、`cargo run -- import minutes --help`）。`--help` は設定（`.env`）や DB が無くても使えます
 
 ## 準備
 

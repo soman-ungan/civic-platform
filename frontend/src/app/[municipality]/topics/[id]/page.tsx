@@ -7,7 +7,8 @@ import { Suspense } from "react";
 import { TopicInteraction } from "@/components/topic-interaction";
 import { TopicFinances } from "@/components/topic-finances";
 import { TopicSources } from "@/components/topic-sources";
-import { apiGet } from "@/lib/api-server";
+import { municipalityApi, topicApi } from "@/lib/api-paths";
+import { apiGet, requestCookie } from "@/lib/api-server";
 import { SOURCE_LABELS } from "@/lib/labels";
 import type { MunicipalityDetail, TopicDetail } from "@/lib/types";
 
@@ -28,10 +29,11 @@ async function TopicView({
   params,
 }: Pick<PageProps<"/[municipality]/topics/[id]">, "params">) {
   const { municipality: slug, id } = await params;
-  const path = `/api/municipalities/${encodeURIComponent(slug)}`;
+  // 参加者ごとの値（参加状態など）のため、Cookie を backend に渡す
+  const cookie = await requestCookie();
   const [municipality, topic] = await Promise.all([
-    apiGet<MunicipalityDetail>(path),
-    apiGet<TopicDetail>(`${path}/topics/${encodeURIComponent(id)}`),
+    apiGet<MunicipalityDetail>(municipalityApi(slug)),
+    apiGet<TopicDetail>(topicApi(slug, id), { cookie }),
   ]);
   if (!municipality || !topic) {
     notFound();

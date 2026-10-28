@@ -5,6 +5,8 @@ import path from "node:path";
 
 import type { NextConfig } from "next";
 
+import { apiInternalUrl as apiInternalUrlOf } from "./src/lib/api-base";
+
 // .env はモノレポのルートに 1 つだけ置く方針のため、ルートの .env も読み込む。
 // 既に設定済みの環境変数（デプロイ先での設定など）は上書きされない。
 const rootEnv = path.resolve(process.cwd(), "..", ".env");
@@ -24,7 +26,7 @@ if (
 
 // backend の URL（サーバー側だけで使う）。ブラウザは同一オリジンの /api/* を呼び、
 // 開発時は下の rewrites で backend に転送する。本番ではリバースプロキシが /api を振り分ける。
-const apiInternalUrl = process.env.API_INTERNAL_URL ?? "http://127.0.0.1:8080";
+const apiInternalUrl = apiInternalUrlOf();
 
 const nextConfig: NextConfig = {
   cacheComponents: true,

@@ -5,6 +5,9 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 
+import { ChipButton } from "@/components/ui/chip";
+import { ScrollRow } from "@/components/ui/scroll-row";
+import { BADGE_AMBER } from "@/components/ui/styles";
 import { SOURCE_LABELS } from "@/lib/labels";
 import type { Participation, Tag, Topic } from "@/lib/types";
 
@@ -44,29 +47,32 @@ export function TopicFeed({
   return (
     <>
       {tags.length > 0 && (
-        <nav
-          aria-label="タグで絞り込む"
-          data-swipe-ignore
-          className="-mx-4 shrink-0 overflow-x-auto px-4 pb-3"
+        <ScrollRow
+          label="タグで絞り込む"
+          className="shrink-0 pb-3"
+          listClassName="gap-2"
         >
-          <ul className="flex w-max gap-2">
-            <li>
-              <Chip active={selected === null} onClick={() => select(null)}>
-                すべて
-              </Chip>
+          <li>
+            <ChipButton
+              size="md"
+              active={selected === null}
+              onClick={() => select(null)}
+            >
+              すべて
+            </ChipButton>
+          </li>
+          {tags.map((tag) => (
+            <li key={tag.id}>
+              <ChipButton
+                size="md"
+                active={selected === tag.id}
+                onClick={() => select(selected === tag.id ? null : tag.id)}
+              >
+                #{tag.name}
+              </ChipButton>
             </li>
-            {tags.map((tag) => (
-              <li key={tag.id}>
-                <Chip
-                  active={selected === tag.id}
-                  onClick={() => select(selected === tag.id ? null : tag.id)}
-                >
-                  #{tag.name}
-                </Chip>
-              </li>
-            ))}
-          </ul>
-        </nav>
+          ))}
+        </ScrollRow>
       )}
 
       <div
@@ -93,31 +99,6 @@ export function TopicFeed({
   );
 }
 
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={`h-9 whitespace-nowrap rounded-full border px-3.5 text-sm transition-colors ${
-        active
-          ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-          : "border-zinc-300 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 /** 参加状態ごとのカードの見た目と、状態の表示 */
 const PARTICIPATION_STYLES: Record<
   Participation,
@@ -129,8 +110,7 @@ const PARTICIPATION_STYLES: Record<
   },
   in_progress: {
     card: "border-amber-400 bg-amber-50/60 active:bg-amber-100 dark:border-amber-600 dark:bg-amber-950/30",
-    badge:
-      "bg-amber-100 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100",
+    badge: BADGE_AMBER,
   },
   completed: {
     card: "border-emerald-200 bg-emerald-50/60 active:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/30",

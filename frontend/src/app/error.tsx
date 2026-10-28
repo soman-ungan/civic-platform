@@ -4,6 +4,8 @@
 
 import { useEffect } from "react";
 
+import { BUTTON_PRIMARY } from "@/components/ui/styles";
+
 export default function Error({
   error,
   retry,
@@ -25,7 +27,7 @@ export default function Error({
         <button
           type="button"
           onClick={() => retry()}
-          className="mt-6 h-11 rounded-full bg-zinc-900 px-5 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+          className={`mt-6 h-11 px-5 text-sm ${BUTTON_PRIMARY}`}
         >
           再読み込み
         </button>

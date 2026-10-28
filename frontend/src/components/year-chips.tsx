@@ -2,9 +2,10 @@
 
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef } from "react";
 
+import { ChipLink } from "@/components/ui/chip";
+import { ScrollRow } from "@/components/ui/scroll-row";
 import { financesHref } from "@/lib/finance-view";
 import type { Unit } from "@/lib/money";
 import type { FinanceKind, FinanceYear } from "@/lib/types";
@@ -33,35 +34,24 @@ export function YearChips({
   }, [selected]);
 
   return (
-    <nav
-      aria-label="年度"
-      data-swipe-ignore
-      className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]"
-    >
-      <ul className="flex w-max gap-1.5">
-        {[...years].reverse().map(({ fiscal_year: y, settlement }) => {
-          const active = y === selected;
-          return (
-            <li key={y}>
-              <Link
-                ref={active ? current : undefined}
-                href={financesHref(slug, y, view, unit)}
-                scroll={false}
-                aria-current={active ? "page" : undefined}
-                className={`inline-flex min-h-9 items-center rounded-full border px-3 text-xs tabular-nums ${
-                  active
-                    ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                    : "border-zinc-300 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
-                }`}
-              >
-                {y}年度
-                {/* 決算がまだ無く、予算だけの年度 */}
-                {!settlement && <span className="ml-1 opacity-70">予算</span>}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+    <ScrollRow label="年度">
+      {[...years].reverse().map(({ fiscal_year: y, settlement }) => {
+        const active = y === selected;
+        return (
+          <li key={y}>
+            <ChipLink
+              ref={active ? current : undefined}
+              href={financesHref(slug, y, view, unit)}
+              active={active}
+              className="tabular-nums"
+            >
+              {y}年度
+              {/* 決算がまだ無く、予算だけの年度 */}
+              {!settlement && <span className="ml-1 opacity-70">予算</span>}
+            </ChipLink>
+          </li>
+        );
+      })}
+    </ScrollRow>
   );
 }

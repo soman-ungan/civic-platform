@@ -10,6 +10,7 @@ use sqlx::SqlitePool;
 use crate::AppState;
 use crate::error::ApiError;
 use crate::participant::MaybeParticipant;
+use crate::progress::{self, Participation, Progress};
 use crate::routes::{finances, municipalities};
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -70,30 +71,6 @@ pub struct TopicSource {
     pub url: Option<String>,
 }
 
-/// トピックへの参加状態。承認済みの意見だけで数える（意見が増えれば completed は in_progress に戻る）
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Participation {
-    /// まだ1件も投票していない
-    None,
-    /// 投票したが、未投票の意見が残っている
-    InProgress,
-    /// すべての意見に投票した
-    Completed,
-}
-
-impl Participation {
-    fn from_counts(voted: i64, total: i64) -> Self {
-        if voted == 0 {
-            Self::None
-        } else if voted >= total {
-            Self::Completed
-        } else {
-            Self::InProgress
-        }
-    }
-}
-
 #[derive(Debug, Serialize)]
 pub struct TopicList {
     pub topics: Vec<Topic>,
@@ -148,61 +125,13 @@ async fn tags_by_topic(
     Ok(map)
 }
 
-/// 参加者がトピックごとに投票した、承認済みの意見の数
-async fn voted_counts(
-    pool: &SqlitePool,
-    municipality_id: &str,
-    user_id: Option<&str>,
-) -> Result<HashMap<String, i64>, ApiError> {
-    let Some(user_id) = user_id else {
-        return Ok(HashMap::new());
-    };
-    let rows: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT s.topic_id, count(*) FROM votes v
-         JOIN statements s ON s.id = v.statement_id
-         JOIN topics t ON t.id = s.topic_id
-         WHERE v.user_id = $1 AND s.status = 'approved' AND t.municipality_id = $2
-         GROUP BY s.topic_id",
-    )
-    .bind(user_id)
-    .bind(municipality_id)
-    .fetch_all(pool)
-    .await?;
-    Ok(rows.into_iter().collect())
-}
-
-/// 参加者がトピックで投票した承認済みの意見の数と、承認済みの意見の総数
-pub async fn progress(
-    pool: &SqlitePool,
-    topic_id: &str,
-    user_id: Option<&str>,
-) -> Result<(i64, i64), ApiError> {
-    let total: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM statements WHERE topic_id = $1 AND status = 'approved'",
-    )
-    .bind(topic_id)
-    .fetch_one(pool)
-    .await?;
-    let voted: i64 = match user_id {
-        Some(uid) => {
-            sqlx::query_scalar(
-                "SELECT count(*) FROM votes v
-                 JOIN statements s ON s.id = v.statement_id
-                 WHERE s.topic_id = $1 AND s.status = 'approved' AND v.user_id = $2",
-            )
-            .bind(topic_id)
-            .bind(uid)
-            .fetch_one(pool)
-            .await?
-        }
-        None => 0,
-    };
-    Ok((voted, total))
-}
-
 fn into_topic(row: TopicRow, tags: Vec<Tag>, voted_count: i64) -> Topic {
     Topic {
-        participation: Participation::from_counts(voted_count, row.statement_count),
+        participation: Progress {
+            voted: voted_count,
+            total: row.statement_count,
+        }
+        .participation(),
         voted_count,
         id: row.id,
         title: row.title,
@@ -214,23 +143,6 @@ fn into_topic(row: TopicRow, tags: Vec<Tag>, voted_count: i64) -> Topic {
         participant_count: row.participant_count,
         tags,
     }
-}
-
-/// トピックが指定の自治体に属し、公開済みか確かめる。別の自治体のトピックや下書きなら 404。
-/// 投票・投稿・次の意見・分析は、すべてここを通る
-pub async fn ensure_in_municipality(
-    pool: &SqlitePool,
-    municipality_id: &str,
-    topic_id: &str,
-) -> Result<(), ApiError> {
-    let found: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM topics WHERE id = $1 AND municipality_id = $2 AND status = 'published'",
-    )
-    .bind(topic_id)
-    .bind(municipality_id)
-    .fetch_optional(pool)
-    .await?;
-    found.map(|_| ()).ok_or(ApiError::NotFound)
 }
 
 /// GET /api/municipalities/{slug}/topics?tag={tag_id} — 新しい順
@@ -255,7 +167,7 @@ pub async fn list(
     .await?;
 
     let mut tags_map = tags_by_topic(&state.pool, &municipality.id).await?;
-    let voted = voted_counts(&state.pool, &municipality.id, user_id.as_deref()).await?;
+    let voted = progress::voted_counts(&state.pool, &municipality.id, user_id.as_deref()).await?;
 
     // チップ用: 重複を除いた全タグ（kind, name 順）
     let mut all_tags: Vec<Tag> = tags_map.values().flatten().cloned().collect();
@@ -292,15 +204,16 @@ pub async fn detail(
         .await?
         .ok_or(ApiError::NotFound)?;
 
-    let tags = tags_by_topic(&state.pool, &municipality.id)
+    let tags = sqlx::query_as(
+        "SELECT g.id, g.kind, g.name FROM topic_tags tt JOIN tags g ON g.id = tt.tag_id
+         WHERE tt.topic_id = $1 ORDER BY g.kind, g.name",
+    )
+    .bind(&row.id)
+    .fetch_all(&state.pool)
+    .await?;
+    let voted_count = progress::progress(&state.pool, &row.id, user_id.as_deref())
         .await?
-        .remove(&row.id)
-        .unwrap_or_default();
-    let voted_count = voted_counts(&state.pool, &municipality.id, user_id.as_deref())
-        .await?
-        .get(&row.id)
-        .copied()
-        .unwrap_or(0);
+        .voted;
     let sources = sqlx::query_as(
         "SELECT s.speaker_label AS speaker, s.quote, d.title AS document_title, d.held_on, d.url
          FROM topic_sources s JOIN documents d ON d.id = s.document_id

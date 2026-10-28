@@ -5,10 +5,11 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useId, useState } from "react";
 
+import { ScrollRow } from "@/components/ui/scroll-row";
 import { termNote } from "@/lib/finance-terms";
 import { type Unit, fiscalYearLabel, roughYen, thousandYen } from "@/lib/money";
 import { financesQuery } from "@/lib/finance-view";
-import type { FinanceKind, Finances } from "@/lib/types";
+import type { FinanceKind, TrendYear } from "@/lib/types";
 
 const WIDTH = 320;
 const HEIGHT = 190;
@@ -49,7 +50,7 @@ export function FinanceTrend({
   view,
   unit: mode,
 }: {
-  trend: Finances["trend"];
+  trend: TrendYear[];
   /** 最新の年度の目的別歳出の費目（大きい順） */
   latestOrder: string[];
   /** ヘッダーで選んでいる年度 */
@@ -90,7 +91,7 @@ export function FinanceTrend({
   if (years.length < 2) return null;
 
   /** 年度・系列ごとの値（mode の単位） */
-  const valueOf = (t: Finances["trend"][number], key: string): number => {
+  const valueOf = (t: TrendYear, key: string): number => {
     const raw =
       key === OTHER
         ? Object.entries(t.expenditure_purpose)
@@ -167,44 +168,38 @@ export function FinanceTrend({
         </div>
       </div>
 
-      <nav
-        aria-label="表示する費目"
-        data-swipe-ignore
-        className="-mx-4 mb-3 overflow-x-auto px-4 [scrollbar-width:none]"
-      >
-        <ul className="flex w-max gap-1.5">
-          {series.map((s) => {
-            const on = !hidden.has(s.key);
-            return (
-              <li key={s.key}>
-                <button
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => toggle(s.key)}
-                  title={termNote("purpose", s.key) ?? undefined}
-                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 text-xs whitespace-nowrap ${
-                    on
-                      ? "border-zinc-400 text-zinc-800 dark:border-zinc-500 dark:text-zinc-200"
-                      : "border-zinc-200 text-zinc-400 line-through dark:border-zinc-800 dark:text-zinc-600"
-                  }`}
-                >
-                  <span
-                    aria-hidden
-                    className="inline-block h-2.5 w-2.5 rounded-sm"
-                    style={{
-                      background: on ? s.color : "transparent",
-                      outline: `1.5px solid ${s.color}`,
-                    }}
-                  />
-                  {s.key === OTHER
-                    ? `その他（${Math.max(latestOrder.length - TOP_SERIES, 0)}項目）`
-                    : s.key}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+      <ScrollRow label="表示する費目" className="mb-3">
+        {series.map((s) => {
+          const on = !hidden.has(s.key);
+          return (
+            <li key={s.key}>
+              <button
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggle(s.key)}
+                title={termNote("purpose", s.key) ?? undefined}
+                className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 text-xs whitespace-nowrap ${
+                  on
+                    ? "border-zinc-400 text-zinc-800 dark:border-zinc-500 dark:text-zinc-200"
+                    : "border-zinc-200 text-zinc-400 line-through dark:border-zinc-800 dark:text-zinc-600"
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className="inline-block h-2.5 w-2.5 rounded-sm"
+                  style={{
+                    background: on ? s.color : "transparent",
+                    outline: `1.5px solid ${s.color}`,
+                  }}
+                />
+                {s.key === OTHER
+                  ? `その他（${Math.max(latestOrder.length - TOP_SERIES, 0)}項目）`
+                  : s.key}
+              </button>
+            </li>
+          );
+        })}
+      </ScrollRow>
 
       {visible.length === 0 ? (
         <p className="rounded-xl bg-zinc-50 px-3 py-10 text-center text-sm text-zinc-500 dark:bg-zinc-900">

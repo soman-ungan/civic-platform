@@ -14,14 +14,6 @@ export const SOURCE_LABELS: Record<Topic["source_type"], string> = {
   citizen: "市民提案",
 };
 
-/** 意見の最大文字数（backend の MAX_STATEMENT_CHARS と同じ） */
-export const MAX_STATEMENT_CHARS = 140;
-
-/** サーバーと同じく、Unicode のコードポイント単位で数える（絵文字も1文字） */
-export function countChars(text: string): number {
-  return [...text].length;
-}
-
 /** 居住地属性の短い表記（表の見出し用） */
 export const RESIDENCY_SHORT_LABELS: Record<ResidencyType, string> = {
   resident: "住民",

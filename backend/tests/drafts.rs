@@ -7,6 +7,7 @@ mod common;
 use axum::http::StatusCode;
 use backend::analysis::store::run_all;
 use backend::drafts;
+use backend::status::Publication;
 use common::{request, seed_polarized, test_pool, test_state};
 use serde_json::json;
 
@@ -62,7 +63,11 @@ async fn draft_is_hidden_until_published() {
     assert_eq!(post.status, StatusCode::NOT_FOUND);
 
     assert_eq!(drafts::list(&pool).await.unwrap().len(), 1);
-    assert!(drafts::set_status(&pool, "t1", "published").await.unwrap());
+    assert!(
+        drafts::set_status(&pool, "t1", Publication::Published)
+            .await
+            .unwrap()
+    );
     assert!(drafts::list(&pool).await.unwrap().is_empty());
 
     let detail = request(&state, "GET", T1, None, None).await;
@@ -70,7 +75,11 @@ async fn draft_is_hidden_until_published() {
     assert_eq!(run_all(&pool, true).await.unwrap(), 2);
 
     // 保管すると、また見えなくなる
-    assert!(drafts::set_status(&pool, "t1", "archived").await.unwrap());
+    assert!(
+        drafts::set_status(&pool, "t1", Publication::Archived)
+            .await
+            .unwrap()
+    );
     let detail = request(&state, "GET", T1, None, None).await;
     assert_eq!(detail.status, StatusCode::NOT_FOUND);
 }

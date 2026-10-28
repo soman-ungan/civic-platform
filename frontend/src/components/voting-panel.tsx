@@ -2,11 +2,14 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { RelationSheet } from "@/components/relation-sheet";
 import { StatementForm } from "@/components/statement-form";
-import { ApiError, apiFetch } from "@/lib/api-client";
+import { BUTTON_SECONDARY, ERROR_TEXT } from "@/components/ui/styles";
+import { ApiError, apiFetch, errorMessage } from "@/lib/api-client";
+import { topicApi } from "@/lib/api-paths";
+import { useApi } from "@/lib/use-api";
 import type { NextStatement, VoteValue } from "@/lib/types";
 
 const VOTE_BUTTONS: { value: VoteValue; label: string; className: string }[] = [
@@ -42,44 +45,23 @@ export function VotingPanel({
   /** 次の意見を読み込むたびに、投票の進捗を知らせる */
   onProgress?: (progress: NextStatement["progress"]) => void;
 }) {
-  const base = `/api/municipalities/${encodeURIComponent(slug)}/topics/${encodeURIComponent(topicId)}`;
-
-  const [data, setData] = useState<NextStatement | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  const base = topicApi(slug, topicId);
+  const {
+    data,
+    error: loadError,
+    reload: load,
+    update,
+  } = useApi<NextStatement>(`${base}/next-statement`);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // 居住地属性の登録待ちの投票（登録が済んだら送る）
   const [pendingVote, setPendingVote] = useState<VoteValue | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const next = await apiFetch<NextStatement>(`${base}/next-statement`);
-      setData(next);
-      setLoadError(false);
-      onProgress?.(next.progress);
-    } catch {
-      setLoadError(true);
-    }
-  }, [base, onProgress]);
-
-  // 初回の読み込み。投票後の再読み込みはイベントハンドラーから load() を呼ぶ
+  // 次の意見を読み込むたびに、進捗を知らせる（投票後の再読み込みはイベントハンドラーから load() を呼ぶ）
+  const latest = data?.progress;
   useEffect(() => {
-    let ignore = false;
-    apiFetch<NextStatement>(`${base}/next-statement`)
-      .then((next) => {
-        if (!ignore) {
-          setData(next);
-          setLoadError(false);
-          onProgress?.(next.progress);
-        }
-      })
-      .catch(() => {
-        if (!ignore) setLoadError(true);
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [base, onProgress]);
+    if (latest) onProgress?.(latest);
+  }, [latest, onProgress]);
 
   async function sendVote(statementId: string, value: VoteValue) {
     setBusy(true);
@@ -97,7 +79,7 @@ export function VotingPanel({
       if (e instanceof ApiError && e.code === "relation_required") {
         setPendingVote(value);
       } else {
-        setVoteError(e instanceof ApiError ? e.message : "投票に失敗しました");
+        setVoteError(errorMessage(e, "投票に失敗しました"));
       }
     } finally {
       setBusy(false);
@@ -116,7 +98,7 @@ export function VotingPanel({
   function onRelationSaved() {
     const value = pendingVote;
     setPendingVote(null);
-    setData((d) => (d ? { ...d, needs_relation: false } : d));
+    update((d) => (d ? { ...d, needs_relation: false } : d));
     if (value !== null && data?.statement) {
       void sendVote(data.statement.id, value);
     }
@@ -131,7 +113,7 @@ export function VotingPanel({
         <button
           type="button"
           onClick={() => void load()}
-          className="mt-3 h-11 rounded-full border border-zinc-300 px-5 text-sm dark:border-zinc-700"
+          className={`mt-3 h-11 px-5 text-sm ${BUTTON_SECONDARY}`}
         >
           再読み込み
         </button>
@@ -179,9 +161,7 @@ export function VotingPanel({
             </blockquote>
           </div>
 
-          {voteError && (
-            <p className="mt-3 text-sm text-rose-600">{voteError}</p>
-          )}
+          {voteError && <p className={`mt-3 ${ERROR_TEXT}`}>{voteError}</p>}
 
           {/* 親指で押しやすいよう、画面下部に固定する */}
           <div className="sticky bottom-0 -mx-4 mt-4 bg-background/95 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">

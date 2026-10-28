@@ -9,8 +9,8 @@ import { VotingPanel } from "@/components/voting-panel";
 import type { NextStatement } from "@/lib/types";
 
 /**
- * 投票と「みんなの意見」をつなぐ。すべての意見に投票し終えたら分析を読み込み直し、
- * 意見が増えて未投票ができたら（分析はロックされるので）また読み込み直す。
+ * 投票と「みんなの意見」をつなぐ。分析を見られるようになったら（`progress.analysis_unlocked`。
+ * ルールは backend の1か所）分析を読み込み直し、意見が増えてまたロックされたら読み込み直す。
  *
  * 画面は2段でスクロールする。投票の部分では、トピックの説明（`intro`）を上に貼り付け、
  * 議会での議論やお金（`context`）はその下を流れて隠れる。「みんなの意見」まで進むと、
@@ -30,15 +30,14 @@ export function TopicInteraction({
   context?: React.ReactNode;
 }) {
   const [refreshKey, setRefreshKey] = useState(0);
-  // 直前の「投票し終えているか」。最初の報告では読み込み直さない（分析側が自分で読み込む）
-  const completed = useRef<boolean | null>(null);
+  // 直前の「分析を見られるか」。最初の報告では読み込み直さない（分析側が自分で読み込む）
+  const unlocked = useRef<boolean | null>(null);
 
   const onProgress = useCallback((p: NextStatement["progress"]) => {
-    const done = p.total > 0 && p.voted >= p.total;
-    if (completed.current !== null && completed.current !== done) {
+    if (unlocked.current !== null && unlocked.current !== p.analysis_unlocked) {
       setRefreshKey((k) => k + 1);
     }
-    completed.current = done;
+    unlocked.current = p.analysis_unlocked;
   }, []);
 
   return (

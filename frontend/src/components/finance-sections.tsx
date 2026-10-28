@@ -7,6 +7,7 @@ import { FinanceBars } from "@/components/finance-bars";
 import { FinanceNature } from "@/components/finance-nature";
 import { FinanceTrend } from "@/components/finance-trend";
 import { InfoTip } from "@/components/info-tip";
+import { EmptyState } from "@/components/ui/empty-state";
 import { termNote } from "@/lib/finance-terms";
 import { type FinanceView, KIND_LABEL } from "@/lib/finance-view";
 import { type Unit, fiscalYearLabel, thousandYen } from "@/lib/money";
@@ -38,7 +39,7 @@ export function financeSections(
     .map(([key]) => key);
   const lacking = (items: unknown[]) =>
     items.length === 0 ? (
-      <Empty>この年度の{kind}には、この内訳がありません。</Empty>
+      <EmptyState>この年度の{kind}には、この内訳がありません。</EmptyState>
     ) : null;
 
   return [
@@ -62,7 +63,7 @@ export function financeSections(
             unit={unit}
           />
         ) : (
-          <Empty>推移は、2つ以上の年度の数字がそろうと出ます。</Empty>
+          <EmptyState>推移は、2つ以上の年度の数字がそろうと出ます。</EmptyState>
         ),
     },
     {
@@ -106,11 +107,11 @@ export function financeSections(
       title: "主な事業（予算）",
       lead: `${year}の当初予算の主な事業。事業の説明は、原本のページをご覧ください。`,
       content: !b ? (
-        <Empty>{NO_BUDGET}</Empty>
+        <EmptyState>{NO_BUDGET}</EmptyState>
       ) : b.projects.length === 0 ? (
-        <Empty>
+        <EmptyState>
           この年度の予算の概要からは、主な事業を取り出せていません。
-        </Empty>
+        </EmptyState>
       ) : (
         <BudgetProjects
           projects={b.projects}
@@ -126,9 +127,9 @@ export function financeSections(
       title: "予算と決算",
       lead: `${year}に、当初予算で見込んだ額と、決算で実際に使った額です（目的別）。`,
       content: !s ? (
-        <Empty>{NO_SETTLEMENT}</Empty>
+        <EmptyState>{NO_SETTLEMENT}</EmptyState>
       ) : !b ? (
-        <Empty>{NO_BUDGET}</Empty>
+        <EmptyState>{NO_BUDGET}</EmptyState>
       ) : (
         <BudgetComparison
           budget={b.expenditure_purpose}
@@ -142,23 +143,14 @@ export function financeSections(
       title: "財政の指標",
       lead: "決算から計算される、財政の健全さの目安です。",
       content: !s ? (
-        <Empty>{NO_SETTLEMENT}</Empty>
+        <EmptyState>{NO_SETTLEMENT}</EmptyState>
       ) : s.indicators.length === 0 ? (
-        <Empty>この年度の決算には、指標がありません。</Empty>
+        <EmptyState>この年度の決算には、指標がありません。</EmptyState>
       ) : (
         <Indicators indicators={s.indicators} />
       ),
     },
   ];
-}
-
-/** データが無い欄の説明 */
-function Empty({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="rounded-xl bg-zinc-50 px-4 py-10 text-center text-sm leading-6 text-zinc-500 dark:bg-zinc-900">
-      {children}
-    </p>
-  );
 }
 
 function Indicators({ indicators }: { indicators: FinanceIndicator[] }) {

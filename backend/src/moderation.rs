@@ -16,6 +16,7 @@ use serde_json::json;
 use sqlx::SqlitePool;
 
 use crate::llm::{Effort, Llm, LlmError, Purpose, Request};
+use crate::status::StatementStatus;
 use crate::util::now_iso;
 
 /// 言い換えの提案の最大文字数（意見の本文と同じ）
@@ -79,12 +80,12 @@ pub enum Verdict {
 
 impl Verdict {
     /// statements.status に入れる値
-    pub fn status(&self) -> &'static str {
+    pub fn status(&self) -> StatementStatus {
         match self {
-            Self::Approved => "approved",
-            Self::Rejected { .. } => "rejected",
-            Self::Flagged => "flagged",
-            Self::Pending => "pending",
+            Self::Approved => StatementStatus::Approved,
+            Self::Rejected { .. } => StatementStatus::Rejected,
+            Self::Flagged => StatementStatus::Flagged,
+            Self::Pending => StatementStatus::Pending,
         }
     }
 }
@@ -199,7 +200,7 @@ pub async fn save(
     review: &Review,
 ) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE statements SET status = $1, moderation_note = $2 WHERE id = $3")
-        .bind(review.verdict.status())
+        .bind(review.verdict.status().as_str())
         .bind(&review.note)
         .bind(statement_id)
         .execute(pool)
@@ -282,14 +283,14 @@ pub async fn decide(
     approve: bool,
 ) -> Result<bool, sqlx::Error> {
     let (status, note) = if approve {
-        ("approved", "運営者が公開")
+        (StatementStatus::Approved, "運営者が公開")
     } else {
-        ("rejected", "運営者が非公開")
+        (StatementStatus::Rejected, "運営者が非公開")
     };
     let note = format!("{note}（{}）", now_iso());
     let result =
         sqlx::query("UPDATE statements SET status = $1, moderation_note = $2 WHERE id = $3")
-            .bind(status)
+            .bind(status.as_str())
             .bind(note)
             .bind(statement_id)
             .execute(pool)
