@@ -4,11 +4,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { TopicInteraction } from "@/components/topic-interaction";
-import { TopicFinances } from "@/components/topic-finances";
-import { TopicSources } from "@/components/topic-sources";
-import { municipalityApi, topicApi } from "@/lib/api-paths";
-import { apiGet, requestCookie } from "@/lib/api-server";
+import { TopicInteraction } from "@/components/topics/interaction";
+import { TopicFinances } from "@/components/topics/finances";
+import { TopicSources } from "@/components/topics/sources";
+import { municipalityApi, topicApi } from "@/lib/api/paths";
+import { apiGet, requestCookie } from "@/lib/api/server";
 import { SOURCE_LABELS } from "@/lib/labels";
 import type {
   AnalysisView,

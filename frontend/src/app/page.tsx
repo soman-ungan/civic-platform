@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { MUNICIPALITIES_API } from "@/lib/api-paths";
-import { apiGet } from "@/lib/api-server";
+import { MUNICIPALITIES_API } from "@/lib/api/paths";
+import { apiGet } from "@/lib/api/server";
 import type { Municipality } from "@/lib/types";
 
 // 公開中の自治体が1つだけのときは src/proxy.ts がそのページへリダイレクトする。

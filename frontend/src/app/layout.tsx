@@ -2,7 +2,7 @@
 
 import type { Metadata, Viewport } from "next";
 
-import { SiteFooter } from "@/components/site-footer";
+import { SiteFooter } from "@/components/layout/site-footer";
 import "./globals.css";
 
 export const metadata: Metadata = {

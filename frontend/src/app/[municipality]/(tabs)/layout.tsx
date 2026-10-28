@@ -3,10 +3,10 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { SwipeNav } from "@/components/swipe-nav";
-import { TabNav, TabNavFallback } from "@/components/tab-nav";
-import { municipalityApi } from "@/lib/api-paths";
-import { apiGet } from "@/lib/api-server";
+import { SwipeNav } from "@/components/layout/swipe-nav";
+import { TabNav, TabNavFallback } from "@/components/layout/tab-nav";
+import { municipalityApi } from "@/lib/api/paths";
+import { apiGet } from "@/lib/api/server";
 import type { MunicipalityDetail } from "@/lib/types";
 
 /**

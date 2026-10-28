@@ -2,8 +2,8 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 
-import { apiInternalUrl } from "@/lib/api-base";
-import { MUNICIPALITIES_API } from "@/lib/api-paths";
+import { apiInternalUrl } from "@/lib/api/base";
+import { MUNICIPALITIES_API } from "@/lib/api/paths";
 import type { Municipality } from "@/lib/types";
 
 /**

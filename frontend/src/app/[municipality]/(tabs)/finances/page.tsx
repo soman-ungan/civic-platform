@@ -3,14 +3,14 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { FinanceCarousel } from "@/components/finance-carousel";
-import { FinanceHeader } from "@/components/finance-header";
-import { financeSections } from "@/components/finance-sections";
-import { FinanceSources } from "@/components/finance-sources";
-import { PageSlide } from "@/components/page-slide";
-import { municipalityApi } from "@/lib/api-paths";
-import { apiGet } from "@/lib/api-server";
-import { KIND_LABEL, financeView, parseUnit } from "@/lib/finance-view";
+import { FinanceCarousel } from "@/components/finances/carousel";
+import { FinanceHeader } from "@/components/finances/header";
+import { financeSections } from "@/components/finances/sections";
+import { FinanceSources } from "@/components/finances/sources";
+import { PageSlide } from "@/components/layout/page-slide";
+import { municipalityApi } from "@/lib/api/paths";
+import { apiGet } from "@/lib/api/server";
+import { KIND_LABEL, financeView, parseUnit } from "@/lib/finances/view";
 import type { Finances, MunicipalityDetail } from "@/lib/types";
 
 export default function FinancesPage({

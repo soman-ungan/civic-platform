@@ -3,11 +3,11 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { ConsensusPins } from "@/components/consensus-pins";
-import { PageSlide } from "@/components/page-slide";
-import { TopicFeed } from "@/components/topic-feed";
-import { municipalityApi } from "@/lib/api-paths";
-import { apiGet, requestCookie } from "@/lib/api-server";
+import { ConsensusPins } from "@/components/topics/consensus-pins";
+import { PageSlide } from "@/components/layout/page-slide";
+import { TopicFeed } from "@/components/topics/feed";
+import { municipalityApi } from "@/lib/api/paths";
+import { apiGet, requestCookie } from "@/lib/api/server";
 import type {
   MunicipalityConsensus,
   MunicipalityDetail,
