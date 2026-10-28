@@ -134,6 +134,30 @@ fn amount_text_must_match_the_value() {
     assert!(checked.projects.is_empty());
 }
 
+#[test]
+fn same_project_on_a_detail_page_is_dropped() {
+    let mut pages = pages();
+    // 後ろの、重点事業を1件ずつ説明するページ
+    pages.push("１ 公害防止対策事業費\n事業費 8,937 千円\n".into());
+    pages.push("歴史民俗資料館運営費 8,937\n".into());
+    let mut r = raw();
+    r.projects = vec![
+        project("公害防止対策費", 8937, 2, &["環境・ごみ"]),
+        project("公害防止対策事業費", 8937, 4, &["環境・ごみ"]),
+        // 金額が同じでも、分野が違えば別の事業
+        project("歴史民俗資料館運営費", 8937, 5, &["農林水産業"]),
+    ];
+    let checked = budget::check(r, &pages, &tags());
+    let names: Vec<_> = checked.projects.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, ["公害防止対策費", "歴史民俗資料館運営費"]);
+    assert!(
+        checked
+            .notes
+            .iter()
+            .any(|n| n.contains("同じ事業とみなして"))
+    );
+}
+
 #[tokio::test]
 async fn draft_is_saved_replaced_and_published() {
     let pool = common::test_pool().await;
@@ -203,6 +227,16 @@ fn real_nasu_r8() {
     check_real(
         "../data/private/budget/neighbors/nasu-R8gaiyou.pdf",
         "../data/private/budget/neighbors/nasu-r8-extraction.json",
+    );
+}
+
+/// 那須烏山市の令和8年度の概要（性質別に「投資・出資金」「貸付金」が分かれている）
+#[test]
+#[ignore = "data/private/budget/neighbors/ に実物の PDF と AI の応答が要る"]
+fn real_nasukarasuyama_r8() {
+    check_real(
+        "../data/private/budget/neighbors/nasukarasuyama-R8gaiyou.pdf",
+        "../data/private/budget/neighbors/nasukarasuyama-r8-extraction.json",
     );
 }
 

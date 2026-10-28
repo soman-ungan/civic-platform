@@ -278,7 +278,20 @@ pub fn check(raw: Raw, pages: &[String], tags: &HashMap<String, String>) -> Chec
                 id
             })
             .take(2)
-            .collect();
+            .collect::<Vec<_>>();
+        // 概要によっては、一覧のあとに重点事業を1件ずつ説明するページがあり、同じ事業を少し違う名前で
+        // もう一度拾う（大田原市の令和6年度）。金額が同じで分野が重なる事業は、先に出たほうだけを残す
+        if let Some(first) = out
+            .projects
+            .iter()
+            .find(|q| q.amount == p.amount && q.tag_ids.iter().any(|t| tag_ids.contains(t)))
+        {
+            out.notes.push(format!(
+                "事業「{}」（{} 千円、{}ページ）: 「{}」（{}ページ）と同じ事業とみなして捨てた",
+                p.name, p.amount, page, first.name, first.page
+            ));
+            continue;
+        }
         out.projects.push(Project {
             name: p.name.trim().to_owned(),
             amount: p.amount,
