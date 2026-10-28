@@ -5,11 +5,14 @@
 -- 氏名は会議録の表記のとおり（髙・瀨などの字も変えない）
 --
 -- term_start（任期の開始日）は選挙の日。議員は 2023-11-19 の大田原市議会議員選挙
--- 【要確認】市長と、定例会の前に議員でなくなった2人の在職の期間は仮の値
+-- 市長は 2022-03-20 の大田原市長選挙で初当選（2026-03-22 の選挙で2期目）。選挙の日を任期の開始日とする
+-- 【要確認】定例会の前に議員でなくなった2人の在職の期間と、補欠選挙で選ばれた2人の任期の開始日は仮の値
 -- 出典: 大田原市議会 令和8年第1回定例会 会議録（第1号〜第6号）の出席議員・発言者
 --   https://ssp.kaigiroku.net/tenant/ohtawara/MinuteView.html?council_id=608&schedule_id=2&is_search=false&view_years=2026
+--   令和8年第2回定例会 会議録（第1号の議席の変更。補欠選挙で選ばれた2人）
+--   https://ssp.kaigiroku.net/tenant/ohtawara/MinuteView.html?council_id=615&schedule_id=2&is_search=false&view_years=2026
 INSERT INTO public_officials (id, municipality_id, name, role, term_start, term_end, note) VALUES
-    ('092100-mayor-souma-kenichi',     '092100', '相馬憲一',     'mayor',     '2026-02-24', NULL, '市長。任期の開始日は要確認'),
+    ('092100-mayor-souma-kenichi',     '092100', '相馬憲一',     'mayor',     '2022-03-20', NULL, '市長。2022-03-20 の大田原市長選挙で初当選、2026-03-22 の選挙で2期目'),
     ('092100-council-saitou-fujio',    '092100', '齋藤藤男',     'councilor', '2023-11-19', NULL, '1番。2023-11-19 の大田原市議会議員選挙で当選'),
     ('092100-council-iga-jun',         '092100', '伊賀純',       'councilor', '2023-11-19', NULL, '2番。2023-11-19 の大田原市議会議員選挙で当選'),
     ('092100-council-maeda-noritaka',  '092100', '前田則隆',     'councilor', '2023-11-19', NULL, '3番。2023-11-19 の大田原市議会議員選挙で当選'),
@@ -29,6 +32,9 @@ INSERT INTO public_officials (id, municipality_id, name, role, term_start, term_
     ('092100-council-takita-ichirou',  '092100', '滝田一郎',     'councilor', '2023-11-19', NULL, '18番。2023-11-19 の大田原市議会議員選挙で当選'),
     ('092100-council-kikuchi-hisamitsu','092100','菊池久光',     'councilor', '2023-11-19', NULL, '19番。2023-11-19 の大田原市議会議員選挙で当選'),
     ('092100-council-kimishima-takaaki','092100','君島孝明',     'councilor', '2023-11-19', NULL, '20番、議長。2023-11-19 の大田原市議会議員選挙で当選'),
+    -- 補欠選挙（無投票と聞いている）で選ばれた2人。【要確認】任期の開始日は、同じ時期の市長選挙の日による仮の値
+    ('092100-council-yada-masahiro',   '092100', '谷田雅洋',     'councilor', '2026-03-22', NULL, '令和8年第2回定例会で10番。補欠選挙で選出。任期の開始日は要確認'),
+    ('092100-council-hirayama-kazuhiro','092100','平山一浩',     'councilor', '2026-03-22', NULL, '令和8年第2回定例会で9番。補欠選挙で選出。任期の開始日は要確認'),
     -- 定例会の前に議員でなくなった人。発言者にはならないが、トピックの説明や意見に名前を入れないために登録する
     -- 【要確認】在職の期間。term_end は会議録に書かれた日（辞職願の提出日・報告の日）による仮の値
     ('092100-council-hikichi-tatsuo',  '092100', '引地達雄',     'councilor', '2026-02-20', '2026-02-20', '2026-02-20 に辞職願を提出（第1号の会議録で報告）。在職の期間は要確認'),
