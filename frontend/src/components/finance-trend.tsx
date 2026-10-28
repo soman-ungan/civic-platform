@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useId, useState } from "react";
 
 import { termNote } from "@/lib/finance-terms";
-import { fiscalYearLabel, roughYen, thousandYen } from "@/lib/money";
+import { type Unit, fiscalYearLabel, roughYen, thousandYen } from "@/lib/money";
 import { financesQuery } from "@/lib/finance-view";
 import type { FinanceKind, Finances } from "@/lib/types";
 
@@ -23,8 +23,6 @@ const OTHER = "その他";
 /** 積み上げの段の間のすき間（px） */
 const GAP = 2;
 
-type Mode = "per_capita" | "total";
-
 /** 2015 → H27、2020 → R2（軸の目盛り用の短い表記） */
 function shortYear(year: number): string {
   return year >= 2019 ? `R${year - 2018}` : `H${year - 1988}`;
@@ -39,7 +37,7 @@ function niceStep(max: number): number {
 
 /**
  * 歳出の推移（目的別の積み上げの縦棒）。横軸は年度、縦軸は金額（0 から）。
- * 1人あたり（円）と総額を切り替えられ、費目のチップで表示・非表示を切り替える（最初は全部 = 歳出の合計）。
+ * 1人あたり（円）と総額は、ヘッダーの切り替え（`unit`）に従う。費目のチップで表示・非表示を切り替える（最初は全部 = 歳出の合計）。
  * 色は費目に付け、表示を切り替えても変えない。ヘッダーで選んだ年度をハイライトする。
  * 棒をタップすると、ヘッダーの年度もその年度に切り替える（URL の ?year= を変える。2つの年度の選び方を連動させる）。
  * 決算がまだ無い年度は当初予算の棒を、同じ積み上げで薄く斜線にして出し、目盛りの下に「予算」と書く
@@ -49,6 +47,7 @@ export function FinanceTrend({
   latestOrder,
   selectedYear,
   view,
+  unit: mode,
 }: {
   trend: Finances["trend"];
   /** 最新の年度の目的別歳出の費目（大きい順） */
@@ -57,10 +56,11 @@ export function FinanceTrend({
   selectedYear: number;
   /** ヘッダーの「決算／予算」の切り替え（年度を変えても引き継ぐ） */
   view: FinanceKind;
+  /** ヘッダーの「1人あたり｜総額」の切り替え */
+  unit: Unit;
 }) {
   // url(#…) で参照するので、useId の記号を除く
   const hatch = `hatch${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const [mode, setMode] = useState<Mode>("per_capita");
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const router = useRouter();
   const pathname = usePathname();
@@ -76,7 +76,7 @@ export function FinanceTrend({
   function selectYear(year: number) {
     if (year === selectedYear) return;
     setPendingYear(year);
-    router.replace(`${pathname}${financesQuery(year, view)}`, {
+    router.replace(`${pathname}${financesQuery(year, view, mode)}`, {
       scroll: false,
     });
   }
@@ -146,33 +146,7 @@ export function FinanceTrend({
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div
-          role="group"
-          aria-label="単位"
-          className="inline-flex rounded-full border border-zinc-300 p-0.5 text-xs dark:border-zinc-700"
-        >
-          {(
-            [
-              ["per_capita", "1人あたり"],
-              ["total", "総額"],
-            ] as const
-          ).map(([m, label]) => (
-            <button
-              key={m}
-              type="button"
-              aria-pressed={mode === m}
-              onClick={() => setMode(m)}
-              className={`min-h-8 rounded-full px-3 ${
-                mode === m
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "text-zinc-600 dark:text-zinc-400"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <div className="mb-2 flex items-center justify-end gap-2">
         <div className="flex gap-1.5">
           <button
             type="button"

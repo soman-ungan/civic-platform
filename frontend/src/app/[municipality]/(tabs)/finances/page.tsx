@@ -9,7 +9,7 @@ import { financeSections } from "@/components/finance-sections";
 import { FinanceSources } from "@/components/finance-sources";
 import { PageSlide } from "@/components/page-slide";
 import { apiGet } from "@/lib/api-server";
-import { KIND_LABEL, financeView } from "@/lib/finance-view";
+import { KIND_LABEL, financeView, parseUnit } from "@/lib/finance-view";
 import type { Finances, MunicipalityDetail } from "@/lib/types";
 
 export default function FinancesPage({
@@ -34,7 +34,7 @@ async function FinancesView({
   searchParams,
 }: Pick<PageProps<"/[municipality]/finances">, "params" | "searchParams">) {
   const { municipality: slug } = await params;
-  const { year, view: requested } = await searchParams;
+  const { year, view: requested, unit: unitParam } = await searchParams;
   const path = `/api/municipalities/${encodeURIComponent(slug)}`;
   const query =
     typeof year === "string" ? `?year=${encodeURIComponent(year)}` : "";
@@ -50,10 +50,16 @@ async function FinancesView({
     f,
     typeof requested === "string" ? requested : undefined,
   );
+  const unit = parseUnit(unitParam);
 
   return (
     <>
-      <FinanceHeader slug={municipality.slug} finances={f} view={v} />
+      <FinanceHeader
+        slug={municipality.slug}
+        finances={f}
+        view={v}
+        unit={unit}
+      />
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto w-full max-w-md px-4 pt-2 pb-6">
@@ -64,7 +70,7 @@ async function FinancesView({
             で説明が出ます。
           </p>
 
-          <FinanceCarousel sections={financeSections(f, v)} />
+          <FinanceCarousel sections={financeSections(f, v, unit)} />
 
           <FinanceSources
             municipalityName={municipality.name}

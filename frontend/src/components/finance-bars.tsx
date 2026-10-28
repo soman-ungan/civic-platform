@@ -3,7 +3,13 @@
 import { FinanceDonut } from "@/components/finance-donut";
 import { InfoTip } from "@/components/info-tip";
 import { type TermKind, termNote } from "@/lib/finance-terms";
-import { roughYen, shareText, thousandYen, yen } from "@/lib/money";
+import {
+  type Unit,
+  amountText,
+  shareText,
+  thousandYen,
+  yen,
+} from "@/lib/money";
 import type { FinanceAmount } from "@/lib/types";
 
 /** 円グラフの区切りの数の上限（dataviz: 6つまで） */
@@ -11,7 +17,7 @@ const DONUT_SLICES = 6;
 
 /**
  * 費目ごとの横棒（大きい順）。量の比較なので1色（dataviz: sequential は1色）。
- * 棒ごとに1人あたりと割合を文字でも出すので、色や長さだけに頼らない（表の代わりにもなる）。
+ * 棒ごとに金額（1人あたりか総額。ヘッダーの切り替え）と割合を文字でも出すので、色や長さだけに頼らない（表の代わりにもなる）。
  * 費目の名前の横の ⓘ で、短い説明を出す。`limit` を超える費目は「その他」にまとめる。
  * `donut` のときは上に円グラフを出す。円の区切りは6つまで（dataviz）なので、大きい順の5つと「その他」にし、
  * 一覧には全部の費目を残して、円と同じ色の見本を付ける（6番目からは「その他」の色）
@@ -19,12 +25,15 @@ const DONUT_SLICES = 6;
 export function FinanceBars({
   items,
   kind,
+  unit,
   limit,
   donut = false,
 }: {
   items: FinanceAmount[];
   /** 説明の辞書（lib/finance-terms.ts） */
   kind: TermKind;
+  /** 1人あたりか総額か（ヘッダーの切り替え） */
+  unit: Unit;
   limit?: number;
   donut?: boolean;
 }) {
@@ -53,7 +62,7 @@ export function FinanceBars({
     key: r.key,
     label: r.key,
     value: r.value,
-    valueText: r.per_capita !== null ? roughYen(r.per_capita) : "—",
+    valueText: amountText(unit, r.value, r.per_capita),
     shareText: shareText(r.value / total),
     color: colorOf(i),
   }));
@@ -64,7 +73,11 @@ export function FinanceBars({
       key: "__other",
       label: `その他（${tail.length}項目）`,
       value,
-      valueText: roughYen(tail.reduce((a, r) => a + (r.per_capita ?? 0), 0)),
+      valueText: amountText(
+        unit,
+        value,
+        tail.reduce((a, r) => a + (r.per_capita ?? 0), 0),
+      ),
       shareText: shareText(value / total),
       color: colorOf(DONUT_SLICES - 1),
     });
@@ -89,7 +102,7 @@ export function FinanceBars({
                 {row.note && <InfoTip label={row.key} note={row.note} />}
               </span>
               <span className="tabular-nums text-zinc-700 dark:text-zinc-300">
-                {row.per_capita !== null ? roughYen(row.per_capita) : "—"}
+                {amountText(unit, row.value, row.per_capita)}
                 <span className="ml-1.5 text-xs text-zinc-500">
                   {row.share !== null && shareText(row.share)}
                 </span>

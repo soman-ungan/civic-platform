@@ -24,6 +24,24 @@ export function thousandYen(value: number): string {
   return `${Math.round(value / 10).toLocaleString("ja-JP")}万円`;
 }
 
+/** 金額の見せ方（まちのお金のヘッダーで切り替える） */
+export type Unit = "per_capita" | "total";
+
+export const UNIT_LABEL: Record<Unit, string> = {
+  per_capita: "1人あたり",
+  total: "総額",
+};
+
+/** 単位に合わせた金額の文字。`value` は千円、`perCapita` は円 */
+export function amountText(
+  unit: Unit,
+  value: number | null,
+  perCapita: number | null,
+): string {
+  if (unit === "total") return value !== null ? thousandYen(value) : "—";
+  return perCapita !== null ? roughYen(perCapita) : "—";
+}
+
 /** 0〜1 → 「37.8%」 */
 export function shareText(share: number): string {
   return `${(share * 100).toLocaleString("ja-JP", { maximumFractionDigits: 1 })}%`;

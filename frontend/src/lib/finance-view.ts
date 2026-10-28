@@ -2,6 +2,7 @@
 
 // まちのお金で、選んだ年度と「決算／予算」の切り替えから、画面に出す数字を選ぶ
 
+import type { Unit } from "@/lib/money";
 import type { FinanceAmount, FinanceKind, Finances } from "@/lib/types";
 
 export const KIND_LABEL: Record<FinanceKind, string> = {
@@ -61,17 +62,29 @@ export function financeView(
 }
 
 /**
- * まちのお金の URL の ?以降。切り替えは既定（決算）でないときだけ付ける。
+ * まちのお金の URL の ?以降。切り替え（決算／予算、1人あたり／総額）は、既定でないときだけ付ける。
  * 年度のチップ・推移の棒・切り替えのどれから変えても、同じ形にする
  */
-export function financesQuery(year: number, kind: FinanceKind): string {
-  return `?year=${year}${kind === "budget" ? "&view=budget" : ""}`;
+export function financesQuery(
+  year: number,
+  kind: FinanceKind,
+  unit: Unit,
+): string {
+  return `?year=${year}${kind === "budget" ? "&view=budget" : ""}${
+    unit === "total" ? "&unit=total" : ""
+  }`;
 }
 
 export function financesHref(
   slug: string,
   year: number,
   kind: FinanceKind,
+  unit: Unit,
 ): string {
-  return `/${slug}/finances${financesQuery(year, kind)}`;
+  return `/${slug}/finances${financesQuery(year, kind, unit)}`;
+}
+
+/** URL の ?unit= から単位を読む（既定は1人あたり） */
+export function parseUnit(value: unknown): Unit {
+  return value === "total" ? "total" : "per_capita";
 }
