@@ -18,7 +18,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
-use crate::llm::{Effort, Llm, Purpose, Request};
+use crate::extraction::{Extraction, Prompt};
+use crate::llm::{Effort, Purpose, Request};
 use crate::status::Publication;
 use crate::util::{new_id, now_iso};
 
@@ -367,31 +368,47 @@ pub struct Input {
     pub pdf: Vec<u8>,
 }
 
-/// PDF を AI で読み、確かめる（保存はしない）
+/// AI に渡すもの（指示文・出力の形・入力の文）。PDF は API では添付し、共同作業では直接読んでもらう
+pub async fn prompt(pool: &SqlitePool, fiscal_year: i32) -> Result<Prompt, sqlx::Error> {
+    let (_, definitions) = field_tags(pool).await?;
+    Ok(Prompt {
+        system: format!("{SYSTEM_PROMPT}{definitions}"),
+        user: format!("{fiscal_year}年度の当初予算の概要です。書き写してください。"),
+        schema: schema(),
+        attachment: None,
+    })
+}
+
+/// PDF を AI で読み（または共同作業の出力を受け取り）、確かめる（保存はしない）
 pub async fn extract(
     pool: &SqlitePool,
-    llm: &Llm,
-    model: &str,
+    extraction: &Extraction<'_>,
     input: &Input,
 ) -> anyhow::Result<Checked> {
     let pages = pdftext::page_texts(&input.pdf)?;
-    let (tags, definitions) = field_tags(pool).await?;
-    let request = Request {
-        purpose: Purpose::Extraction,
-        model: model.to_owned(),
-        system: format!("{SYSTEM_PROMPT}{definitions}"),
-        user: format!(
-            "{}年度の当初予算の概要です。書き写してください。",
-            input.fiscal_year
-        ),
-        schema: schema(),
-        effort: Effort::Medium,
-        max_tokens: 32_000,
-        pdf: Some(input.pdf.clone()),
+    let (tags, _) = field_tags(pool).await?;
+    let value = match extraction {
+        Extraction::Api { llm, model } => {
+            let prompt = prompt(pool, input.fiscal_year).await?;
+            let request = Request {
+                purpose: Purpose::Extraction,
+                model: (*model).to_owned(),
+                system: prompt.system,
+                user: prompt.user,
+                schema: prompt.schema,
+                effort: Effort::Medium,
+                max_tokens: 32_000,
+                pdf: Some(input.pdf.clone()),
+            };
+            let value = llm.structured(pool, &request).await?;
+            tracing::debug!(output = %value, "budget extraction output");
+            value
+        }
+        Extraction::Manual(value) => value.clone(),
     };
-    let value = llm.structured(pool, &request).await?;
-    tracing::debug!(output = %value, "budget extraction output");
-    let raw: Raw = serde_json::from_value(value)?;
+    let raw: Raw = serde_json::from_value(value).map_err(|e| {
+        anyhow::anyhow!("出力の形が合いません（extraction prompt の「出力の形」）: {e}")
+    })?;
     Ok(check(raw, &pages, &tags))
 }
 
@@ -401,6 +418,8 @@ pub async fn save_draft(
     input: &Input,
     checked: &Checked,
     again: bool,
+    // `documents.extraction`（api / manual）
+    method: &str,
 ) -> anyhow::Result<String> {
     let existing: Option<(String, String)> = sqlx::query_as(
         "SELECT id, status FROM budgets WHERE municipality_id = $1 AND fiscal_year = $2",
@@ -466,6 +485,11 @@ pub async fn save_draft(
             .bind(&sha256)
             .fetch_one(&mut *tx)
             .await?;
+    sqlx::query("UPDATE documents SET extraction = $1 WHERE id = $2")
+        .bind(method)
+        .bind(&document_id)
+        .execute(&mut *tx)
+        .await?;
 
     let budget_id = new_id();
     sqlx::query(

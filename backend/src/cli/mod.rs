@@ -6,6 +6,7 @@
 mod budget;
 mod collect;
 mod eval;
+mod extraction;
 mod import;
 mod moderation;
 mod topics;
@@ -61,7 +62,7 @@ pub enum Command {
         #[arg(long)]
         force: bool,
     },
-    /// 会議録・予算の概要を取り込んで、下書きを作る（費用がかかる）
+    /// 会議録・予算の概要を取り込んで、下書きを作る（API を使うと費用がかかる。--extraction なら費用なし）
     Import {
         #[command(subcommand)]
         command: import::Command,
@@ -80,6 +81,11 @@ pub enum Command {
     Budget {
         #[command(subcommand)]
         command: Option<budget::Command>,
+    },
+    /// 共同作業（Claude Code など）で AI の作業をするための、指示文・出力の形・入力を書き出す（費用なし）
+    Extraction {
+        #[command(subcommand)]
+        command: extraction::Command,
     },
     /// AI のモデレーション・タグ付けの精度を評価する（実際の API を呼ぶので費用がかかる）
     Eval {
@@ -180,6 +186,7 @@ pub async fn run(ctx: &Ctx, command: Command) -> anyhow::Result<()> {
         Command::Topics { command } => topics::run(ctx, command).await?,
         Command::Collect { command } => collect::run(ctx, command).await?,
         Command::Budget { command } => budget::run(ctx, command).await?,
+        Command::Extraction { command } => extraction::run(ctx, command).await?,
         Command::Eval { command } => eval::run(ctx, command).await?,
     }
     Ok(())

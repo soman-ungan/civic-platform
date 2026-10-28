@@ -212,7 +212,7 @@ async fn draft_is_saved_replaced_and_published() {
         pdf: b"%PDF-1.7 fake".to_vec(),
     };
     let checked = budget::check(raw(), &pages(), &tags());
-    budget::save_draft(&pool, &input, &checked, false)
+    budget::save_draft(&pool, &input, &checked, false, "manual")
         .await
         .unwrap();
 
@@ -224,7 +224,7 @@ async fn draft_is_saved_replaced_and_published() {
     assert_eq!(url.as_deref(), Some("https://example.jp/R8yosangaiyou.pdf"));
 
     // 下書きは置き換えられる。公開済みは --again が要る
-    budget::save_draft(&pool, &input, &checked, false)
+    budget::save_draft(&pool, &input, &checked, false, "manual")
         .await
         .unwrap();
     assert!(
@@ -238,11 +238,11 @@ async fn draft_is_saved_replaced_and_published() {
         .unwrap()
     );
     assert!(
-        budget::save_draft(&pool, &input, &checked, false)
+        budget::save_draft(&pool, &input, &checked, false, "manual")
             .await
             .is_err()
     );
-    budget::save_draft(&pool, &input, &checked, true)
+    budget::save_draft(&pool, &input, &checked, true, "manual")
         .await
         .unwrap();
     let (status, _, _) = budget::load(&pool, "092100", 2026).await.unwrap().unwrap();
@@ -279,6 +279,50 @@ fn real_nasukarasuyama_r8() {
         "../data/private/budget/neighbors/nasukarasuyama-R8gaiyou.pdf",
         "../data/private/budget/neighbors/nasukarasuyama-r8-extraction.json",
     );
+}
+
+/// 保存してある実物の応答を、共同作業の出力（manual）として取り込むと、API の時と同じ結果になる
+#[tokio::test]
+#[ignore = "data/private/budget/ に実物の PDF と AI の応答が要る"]
+async fn real_manual_extraction_matches_check() {
+    let (Ok(pdf), Ok(json)) = (
+        std::fs::read("../data/private/budget/R8yosangaiyou.pdf"),
+        std::fs::read_to_string("../data/private/budget/r8-extraction.json"),
+    ) else {
+        return;
+    };
+    let pool = common::test_pool().await;
+    common::seed_fixture(&pool).await;
+    sqlx::raw_sql(include_str!("../../data/seeds/020_field_tags.sql"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let input = Input {
+        municipality_id: "092100".into(),
+        fiscal_year: 2026,
+        url: None,
+        collector_source_id: None,
+        pdf,
+    };
+    let checked = budget::extract(
+        &pool,
+        &backend::extraction::Extraction::Manual(value.clone()),
+        &input,
+    )
+    .await
+    .unwrap();
+    let pages = budget::pdftext::page_texts(&input.pdf).unwrap();
+    let tags: HashMap<String, String> =
+        sqlx::query_as("SELECT name, id FROM tags WHERE kind = 'field'")
+            .fetch_all(&pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .collect();
+    let direct = budget::check(serde_json::from_value(value).unwrap(), &pages, &tags);
+    assert_eq!(checked, direct);
+    println!("{} 件", checked.projects.len());
 }
 
 fn check_real(pdf: &str, json: &str) {

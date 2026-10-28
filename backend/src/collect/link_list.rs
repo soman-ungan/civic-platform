@@ -19,6 +19,7 @@ use super::fetch::{self, Fetched, Fetcher};
 use super::settlement_card::{decode_html, fiscal_year_of};
 use super::{Collector, Options, Report, Source};
 use crate::budget;
+use crate::extraction::Extraction;
 use crate::llm::Llm;
 
 /// 当初予算の概要の取り込み。PDF を AI で読むので、`Llm` を持つ
@@ -135,7 +136,11 @@ impl Collector for BudgetOverview<'_> {
                 collector_source_id: Some(source.id.clone()),
                 pdf: bytes,
             };
-            let checked = budget::extract(pool, self.llm, self.model, &input).await?;
+            let extraction = Extraction::Api {
+                llm: self.llm,
+                model: self.model,
+            };
+            let checked = budget::extract(pool, &extraction, &input).await?;
             if options.dry_run {
                 report.lines.push(format!(
                     "{year}年度（--dry-run のため保存していません）\n{}",
@@ -143,7 +148,7 @@ impl Collector for BudgetOverview<'_> {
                 ));
                 continue;
             }
-            budget::save_draft(pool, &input, &checked, false).await?;
+            budget::save_draft(pool, &input, &checked, false, extraction.method()).await?;
             fetch::remember(pool, &cache).await?;
             report.lines.push(format!(
                 "{year}年度: 下書きを作りました（事業 {} 件、捨てたもの {} 件）。確認: budget show <slug> {year}",

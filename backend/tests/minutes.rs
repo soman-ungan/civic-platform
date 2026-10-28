@@ -6,6 +6,7 @@ mod common;
 
 use std::sync::Arc;
 
+use backend::extraction::Extraction;
 use backend::llm::{Fake, Llm};
 use backend::minutes::{Input, Outcome, import, prepare};
 use backend::moderation::Moderation;
@@ -100,8 +101,10 @@ async fn stops_when_speakers_are_not_in_roster() {
     let (pool, llm, fake, moderation) = setup(false).await;
     let outcome = import(
         &pool,
-        &llm,
-        "claude-opus-5-5",
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
         &moderation,
         &input(),
         false,
@@ -146,8 +149,10 @@ async fn imports_checked_topics_as_drafts() {
 
     let Outcome::Imported(report) = import(
         &pool,
-        &llm,
-        "claude-opus-5-5",
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
         &moderation,
         &input(),
         false,
@@ -184,8 +189,10 @@ async fn saved_draft_has_sources_and_statements() {
     }
     let Outcome::Imported(report) = import(
         &pool,
-        &llm,
-        "claude-opus-5-5",
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
         &moderation,
         &input(),
         false,
@@ -261,8 +268,10 @@ async fn saved_draft_has_sources_and_statements() {
     // 同じ会議録は二度取り込まない。again なら同じ文書から作り直せる
     match import(
         &pool,
-        &llm,
-        "claude-opus-5-5",
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
         &moderation,
         &input(),
         false,
@@ -277,8 +286,10 @@ async fn saved_draft_has_sources_and_statements() {
     fake.push_json(json!({"topics": []}));
     let Outcome::Imported(again) = import(
         &pool,
-        &llm,
-        "claude-opus-5-5",
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
         &moderation,
         &input(),
         true,
@@ -304,8 +315,10 @@ async fn text_without_speakers_is_reported() {
     assert!(matches!(
         import(
             &pool,
-            &llm,
-            "claude-opus-5-5",
+            &Extraction::Api {
+                llm: &llm,
+                model: "claude-opus-5-5",
+            },
             &moderation,
             &i,
             false,
@@ -326,8 +339,10 @@ async fn published_topic_shows_sources() {
     }
     let Outcome::Imported(report) = import(
         &pool,
-        &llm,
-        "claude-opus-5-5",
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
         &moderation,
         &input(),
         false,
@@ -371,8 +386,10 @@ async fn statement_with_failed_moderation_is_kept_as_pending() {
     fake.push_json(approve());
     let Outcome::Imported(report) = import(
         &pool,
-        &llm,
-        "claude-opus-5-5",
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
         &moderation,
         &input(),
         false,
@@ -401,8 +418,10 @@ async fn procedural_minutes_are_skipped_unless_forced() {
         .replace("日程第　１　一般質問", "日程第　１　会期の決定");
     match import(
         &pool,
-        &llm,
-        "claude-opus-5-5",
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
         &moderation,
         &i,
         false,
@@ -418,9 +437,19 @@ async fn procedural_minutes_are_skipped_unless_forced() {
 
     fake.push_json(json!({"topics": []}));
     assert!(matches!(
-        import(&pool, &llm, "claude-opus-5-5", &moderation, &i, false, true)
-            .await
-            .unwrap(),
+        import(
+            &pool,
+            &Extraction::Api {
+                llm: &llm,
+                model: "claude-opus-5-5",
+            },
+            &moderation,
+            &i,
+            false,
+            true
+        )
+        .await
+        .unwrap(),
         Outcome::Imported(_)
     ));
 }
@@ -433,8 +462,10 @@ async fn short_chair_remarks_are_not_sent() {
     fake.push_json(json!({"topics": []}));
     import(
         &pool,
-        &llm,
-        "claude-opus-5-5",
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
         &moderation,
         &i,
         false,
@@ -463,8 +494,10 @@ async fn empty_topics_are_retried_once() {
     }
     let Outcome::Imported(report) = import(
         &pool,
-        &llm,
-        "claude-opus-5-5",
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
         &moderation,
         &input(),
         false,
@@ -482,8 +515,10 @@ async fn empty_topics_are_retried_once() {
     let before = fake.requests().len();
     import(
         &pool,
-        &llm,
-        "claude-opus-5-5",
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
         &moderation,
         &input(),
         true,
@@ -492,4 +527,49 @@ async fn empty_topics_are_retried_once() {
     .await
     .unwrap();
     assert_eq!(fake.requests().len() - before, 2);
+}
+
+/// 共同作業で作った出力（manual）は API を呼ばずに、API の時と同じ検査を通って下書きになる
+#[tokio::test]
+async fn manual_extraction_uses_the_same_checks_without_api() {
+    let (pool, _llm, fake, _) = setup(true).await;
+    let manual = Extraction::Manual(extraction_reply());
+
+    // 保存しない確かめ（preview）
+    let (topics, notes) = backend::minutes::preview(&pool, &manual, &input())
+        .await
+        .unwrap();
+    assert_eq!(topics.len(), 1);
+    assert_eq!(topics[0].statements.len(), 3);
+    assert!(notes.iter().any(|n| n.contains("無い引用")));
+
+    // 取り込み（最初の意見のモデレーションは、API キーが無ければ全件承認）
+    let Outcome::Imported(report) = import(
+        &pool,
+        &manual,
+        &Moderation::AutoApprove,
+        &input(),
+        false,
+        false,
+    )
+    .await
+    .unwrap() else {
+        panic!("取り込めていない")
+    };
+    assert_eq!(report.topics.len(), 1);
+    assert!(fake.requests().is_empty(), "API を呼んでいる");
+    let method: Option<String> =
+        sqlx::query_scalar("SELECT extraction FROM documents WHERE id = $1")
+            .bind(&report.document_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(method.as_deref(), Some("manual"));
+
+    // 形の合わない JSON は、分かる言葉で止める
+    let broken = Extraction::Manual(json!({"topic": []}));
+    let err = backend::minutes::preview(&pool, &broken, &input())
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("出力の形が合いません"), "{err}");
 }
