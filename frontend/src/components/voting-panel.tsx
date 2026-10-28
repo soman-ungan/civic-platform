@@ -39,11 +39,14 @@ export function VotingPanel({
   slug,
   topicId,
   onProgress,
+  initial,
 }: {
   slug: string;
   topicId: string;
   /** 次の意見を読み込むたびに、投票の進捗を知らせる */
   onProgress?: (progress: NextStatement["progress"]) => void;
+  /** サーバー側で取ってきた最初の意見（あれば、JS を待たずに表示できる） */
+  initial?: NextStatement | null;
 }) {
   const base = topicApi(slug, topicId);
   const {
@@ -51,7 +54,7 @@ export function VotingPanel({
     error: loadError,
     reload: load,
     update,
-  } = useApi<NextStatement>(`${base}/next-statement`);
+  } = useApi<NextStatement>(`${base}/next-statement`, undefined, initial);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // 居住地属性の登録待ちの投票（登録が済んだら送る）

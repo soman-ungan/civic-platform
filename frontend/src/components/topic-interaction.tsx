@@ -6,7 +6,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { AnalysisPanel } from "@/components/analysis-panel";
 import { VotingPanel } from "@/components/voting-panel";
-import type { NextStatement } from "@/lib/types";
+import type { AnalysisView, NextStatement } from "@/lib/types";
 
 /**
  * 投票と「みんなの意見」をつなぐ。分析を見られるようになったら（`progress.analysis_unlocked`。
@@ -21,6 +21,8 @@ export function TopicInteraction({
   topicId,
   intro,
   context,
+  initialNext,
+  initialAnalysis,
 }: {
   slug: string;
   topicId: string;
@@ -28,6 +30,9 @@ export function TopicInteraction({
   intro?: React.ReactNode;
   /** 説明の下を流れて隠れてよいもの（議会での議論・この分野のお金） */
   context?: React.ReactNode;
+  /** サーバー側で取ってきた最初の意見と分析（HTML に最初から入れて、表示を速くする） */
+  initialNext?: NextStatement | null;
+  initialAnalysis?: AnalysisView | null;
 }) {
   const [refreshKey, setRefreshKey] = useState(0);
   // 直前の「分析を見られるか」。最初の報告では読み込み直さない（分析側が自分で読み込む）
@@ -49,9 +54,19 @@ export function TopicInteraction({
           </div>
         )}
         {context}
-        <VotingPanel slug={slug} topicId={topicId} onProgress={onProgress} />
+        <VotingPanel
+          slug={slug}
+          topicId={topicId}
+          onProgress={onProgress}
+          initial={initialNext}
+        />
       </div>
-      <AnalysisPanel slug={slug} topicId={topicId} refreshKey={refreshKey} />
+      <AnalysisPanel
+        slug={slug}
+        topicId={topicId}
+        refreshKey={refreshKey}
+        initial={initialAnalysis}
+      />
     </>
   );
 }

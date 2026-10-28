@@ -10,7 +10,12 @@ import { TopicSources } from "@/components/topic-sources";
 import { municipalityApi, topicApi } from "@/lib/api-paths";
 import { apiGet, requestCookie } from "@/lib/api-server";
 import { SOURCE_LABELS } from "@/lib/labels";
-import type { MunicipalityDetail, TopicDetail } from "@/lib/types";
+import type {
+  AnalysisView,
+  MunicipalityDetail,
+  NextStatement,
+  TopicDetail,
+} from "@/lib/types";
 
 export default function TopicPage({
   params,
@@ -31,9 +36,17 @@ async function TopicView({
   const { municipality: slug, id } = await params;
   // 参加者ごとの値（参加状態など）のため、Cookie を backend に渡す
   const cookie = await requestCookie();
-  const [municipality, topic] = await Promise.all([
+  // 最初の意見と分析もサーバー側で取り、HTML に最初から入れる（JS を待ってから取りに行くと、表示が遅れる）。
+  // こちらは失敗してもページをエラーにせず、ブラウザ側で取り直す（エラーとやり直しの表示もそちら）
+  const [municipality, topic, next, analysis] = await Promise.all([
     apiGet<MunicipalityDetail>(municipalityApi(slug)),
     apiGet<TopicDetail>(topicApi(slug, id), { cookie }),
+    apiGet<NextStatement>(`${topicApi(slug, id)}/next-statement`, {
+      cookie,
+    }).catch(() => null),
+    apiGet<AnalysisView>(`${topicApi(slug, id)}/analysis`, { cookie }).catch(
+      () => null,
+    ),
   ]);
   if (!municipality || !topic) {
     notFound();
@@ -73,6 +86,8 @@ async function TopicView({
           <TopicInteraction
             slug={municipality.slug}
             topicId={topic.id}
+            initialNext={next}
+            initialAnalysis={analysis}
             intro={
               topic.description ? (
                 <p className="text-sm leading-6 text-zinc-700 dark:text-zinc-300">
