@@ -260,3 +260,27 @@ pub async fn registered_account(pool: &SqlitePool, state: &AppState) -> String {
         .unwrap();
     cookie_for(state, &id)
 }
+
+/// 偽の LLM が返す、意見の審査の答え（ADR 0007 の4つの観点）
+#[allow(dead_code)]
+pub fn review_reply(
+    harm: &str,
+    person: &str,
+    votable: &str,
+    duplicate_of: i64,
+) -> serde_json::Value {
+    serde_json::json!({
+        "harm": harm,
+        "person": person,
+        "votable": votable,
+        "duplicate_of": duplicate_of,
+        "reason": "",
+        "suggestion": ""
+    })
+}
+
+/// 偽の LLM が返す「公開」の答え
+#[allow(dead_code)]
+pub fn approved_reply() -> serde_json::Value {
+    review_reply("ok", "ok", "ok", 0)
+}

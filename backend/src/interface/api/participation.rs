@@ -15,7 +15,6 @@ use crate::interface::api::participant::{MaybeParticipant, Participant};
 use crate::process::analysis::store::{self, Stored};
 use crate::process::moderation::{self, Verdict};
 use crate::process::progress::{self, PostPermission, Progress, RESIDENCY_TYPES, has_relation};
-use crate::shared::status::StatementStatus;
 use crate::shared::util::{new_id, now_iso};
 
 /// 意見の最大文字数（DB の CHECK と同じ。文字数は Unicode のコードポイント単位）
@@ -250,11 +249,26 @@ pub struct StatementInput {
 
 #[derive(Debug, Serialize)]
 pub struct PostedStatement {
-    pub id: String,
-    pub status: StatementStatus,
-    /// 却下されたときの書き直しの提案（フェーズ4の AI モデレーションで使う）
+    /// 保存した意見の ID。重複（`duplicate`）のときは保存しないので無い
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// approved / rejected / flagged / pending、または duplicate（同じ意見がすでにある。ADR 0005）
+    pub status: &'static str,
+    /// 非公開の理由の種類（harm / person / official_name / not_votable。ADR 0007）。理由の文は返さない
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rejection: Option<&'static str>,
+    /// 非公開のときの書き直しの提案
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suggestion: Option<String>,
+    /// 重複のとき、案内する既存の意見（その場で投票してもらう）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub similar: Option<SimilarStatement>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SimilarStatement {
+    pub id: String,
+    pub body: String,
 }
 
 /// 前後の空白を除き、1〜140 文字であることを確かめる
@@ -326,21 +340,51 @@ pub async fn post_statement(
     .execute(&state.pool)
     .await?;
 
-    let review = state.moderation.review(&state.pool, body).await;
-    moderation::save(&state.pool, &id, &review).await?;
-    let verdict = review.verdict;
+    let context = moderation::context_for_topic(&state.pool, &topic_id, Some(&id)).await?;
+    let review = state.moderation.review(&state.pool, body, &context).await;
 
-    let suggestion = match &verdict {
-        Verdict::Rejected { suggestion } => suggestion.clone(),
-        _ => None,
+    // 同じ意見がすでにあれば、保存せず（上限にも数えない）、その意見への投票を案内する（ADR 0005）
+    if let Verdict::Duplicate { statement_id } = &review.verdict {
+        sqlx::query("DELETE FROM statements WHERE id = $1")
+            .bind(&id)
+            .execute(&state.pool)
+            .await?;
+        let body = context
+            .statements
+            .iter()
+            .find(|(sid, _)| sid == statement_id)
+            .map(|(_, b)| b.clone())
+            .unwrap_or_default();
+        return Ok((
+            StatusCode::OK,
+            participant,
+            Json(PostedStatement {
+                id: None,
+                status: "duplicate",
+                rejection: None,
+                suggestion: None,
+                similar: Some(SimilarStatement {
+                    id: statement_id.clone(),
+                    body,
+                }),
+            }),
+        ));
+    }
+
+    moderation::save(&state.pool, &id, &review).await?;
+    let (rejection, suggestion) = match &review.verdict {
+        Verdict::Rejected { reason, suggestion } => (Some(reason.as_str()), suggestion.clone()),
+        _ => (None, None),
     };
     Ok((
         StatusCode::CREATED,
         participant,
         Json(PostedStatement {
-            id,
-            status: verdict.status(),
+            id: Some(id),
+            status: review.verdict.status().as_str(),
+            rejection,
             suggestion,
+            similar: None,
         }),
     ))
 }

@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::ingest::extraction::{Extraction, Prompt};
-use crate::process::moderation::{Moderation, Verdict};
+use crate::process::moderation::{self, Context, Moderation, Verdict};
 use crate::shared::llm::{Effort, Llm, Purpose, Request};
 use crate::shared::status::StatementStatus;
 use crate::shared::util::{new_id, now_iso};
@@ -361,9 +361,15 @@ pub async fn import(
             .same_as
             .as_ref()
             .is_some_and(|t| t.status == "published");
+        // 最初の意見の審査には、下書きのトピックを渡す（似た意見は取り込みの側で見ているので、意見の一覧は渡さない）
+        let context = Context {
+            topic: Some((topic.title.clone(), topic.description.clone())),
+            statements: Vec::new(),
+            officials: moderation::official_names(pool, &input.municipality_id).await?,
+        };
         let mut kept = Vec::new();
         for statement in &topic.statements {
-            let review = moderation.review(pool, &statement.body).await;
+            let review = moderation.review(pool, &statement.body, &context).await;
             match review.verdict {
                 Verdict::Approved | Verdict::Pending => {
                     let status = if to_published {
