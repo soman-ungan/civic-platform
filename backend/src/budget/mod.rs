@@ -55,6 +55,23 @@ pub const NATURE_KEYS: &[&str] = &[
     "その他",
 ];
 
+/// 歳入の費目の名前を、決算カードの名前にそろえる（資料では「市税」「県支出金」などと書く）。
+/// 対応の無い名前は、そのまま返す（歳入は自治体ごとの費目があり得るので捨てない）
+pub fn revenue_key(name: &str) -> String {
+    let to = match name {
+        "市税" | "町税" | "村税" | "区税" => "地方税",
+        "市債" | "町債" | "村債" | "区債" => "地方債",
+        "県支出金" | "都支出金" | "道支出金" | "府支出金" => "都道府県支出金",
+        "分担金及び負担金" => "分担金・負担金",
+        "地方特例交付金" => "地方特例交付金等",
+        "環境性能割交付金" => "自動車税環境性能割交付金",
+        // 決算カードは使用料と手数料を分けるが、予算の資料は分けていない
+        "使用料及び手数料" => "使用料・手数料",
+        _ => name,
+    };
+    to.to_owned()
+}
+
 pub const SYSTEM_PROMPT: &str = r#"あなたは、日本の市町村の「当初予算の概要」の PDF から、数字と事業の名前を正確に書き写す係です。
 
 # 書き写すもの
@@ -192,6 +209,15 @@ pub fn check(raw: Raw, pages: &[String], tags: &HashMap<String, String>) -> Chec
         let mut merged: Vec<(String, i64)> = Vec::new();
         for item in items {
             let mut key = item.key.trim().to_owned();
+            if category == "revenue" {
+                let to = revenue_key(&key);
+                if to != key {
+                    out.notes.push(format!(
+                        "{category}: 「{key}」は決算カードの名前「{to}」にした"
+                    ));
+                    key = to;
+                }
+            }
             if let Some(keys) = keys
                 && !keys.contains(&key.as_str())
             {

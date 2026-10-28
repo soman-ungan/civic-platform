@@ -135,6 +135,42 @@ fn amount_text_must_match_the_value() {
 }
 
 #[test]
+fn revenue_keys_follow_the_settlement_card() {
+    let mut r = raw();
+    r.revenue = vec![
+        item("市税", 400),
+        item("県支出金", 200),
+        item("使用料及び手数料", 100),
+        // 対応の無い名前は残す
+        item("自治体独自の収入", 50),
+        // 名前をそろえて同じになったら足す
+        item("地方税", 250),
+    ];
+    let checked = budget::check(r, &pages(), &tags());
+    let revenue: Vec<_> = checked
+        .items
+        .iter()
+        .filter(|(c, _, _)| *c == "revenue")
+        .map(|(_, k, v)| (k.as_str(), *v))
+        .collect();
+    assert_eq!(
+        revenue,
+        [
+            ("地方税", 650),
+            ("都道府県支出金", 200),
+            ("使用料・手数料", 100),
+            ("自治体独自の収入", 50),
+        ]
+    );
+    assert!(
+        checked
+            .notes
+            .iter()
+            .any(|n| n.contains("「市税」は決算カードの名前「地方税」"))
+    );
+}
+
+#[test]
 fn same_project_on_a_detail_page_is_dropped() {
     let mut pages = pages();
     // 後ろの、重点事業を1件ずつ説明するページ
