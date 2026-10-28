@@ -38,6 +38,7 @@ export async function registerPasskey(operatorToken?: string): Promise<Me> {
       operator_token: operatorToken,
     },
   });
+  rememberPasskey();
   notifyAuthChanged();
   return me;
 }
@@ -54,6 +55,7 @@ export async function loginWithPasskey(): Promise<Me> {
     method: "POST",
     body: { challenge_id: started.challenge_id, credential },
   });
+  rememberPasskey();
   notifyAuthChanged();
   return me;
 }
@@ -61,6 +63,28 @@ export async function loginWithPasskey(): Promise<Me> {
 export async function logout(): Promise<void> {
   await apiFetch<void>(AUTH_API.logout, { method: "POST" });
   notifyAuthChanged();
+}
+
+// この端末でパスキーを作ったか・ログインしたかの印。ログアウトしても残す（次に「ログイン」を先に案内するため）。
+// サーバーはログアウトした端末のパスキーを知らず、ブラウザにも端末のパスキーを調べる手段が無いので、ここに持つ。
+// 中身は印だけで、利用者の ID などは入れない。消えても案内の順番が変わるだけ
+const HAS_PASSKEY_KEY = "civic-platform:has-passkey";
+
+function rememberPasskey() {
+  try {
+    window.localStorage.setItem(HAS_PASSKEY_KEY, "1");
+  } catch {
+    // 保存できないブラウザ（プライベートモードなど）では、印を残さない
+  }
+}
+
+/** この端末でパスキーを作ったか、ログインしたことがあるか */
+export function hasPasskeyOnDevice(): boolean {
+  try {
+    return window.localStorage.getItem(HAS_PASSKEY_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 // 登録・ログイン・ログアウトを、同じページのほかの部品（フッターなど）に知らせる
