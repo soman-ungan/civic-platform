@@ -6,7 +6,8 @@
 
 use std::collections::HashMap;
 
-use serde::Serialize;
+use serde::ser::SerializeStruct;
+use serde::{Serialize, Serializer};
 use sqlx::SqlitePool;
 
 use crate::error::ApiError;
@@ -14,8 +15,9 @@ use crate::error::ApiError;
 /// このまちとの関わり方（ADR 0002。市民を分けてよいのは、これだけ）
 pub const RESIDENCY_TYPES: [&str; 4] = ["resident", "neighbor", "commuter", "related"];
 
-/// 参加者がトピックで投票した承認済みの意見の数と、承認済みの意見の総数
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+/// 参加者がトピックで投票した承認済みの意見の数と、承認済みの意見の総数。
+/// API では `analysis_unlocked` も返す（画面が分析を開く条件を写さずに済むように）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Progress {
     pub voted: i64,
     pub total: i64,
@@ -37,6 +39,16 @@ impl Progress {
         } else {
             Participation::InProgress
         }
+    }
+}
+
+impl Serialize for Progress {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut s = serializer.serialize_struct("Progress", 3)?;
+        s.serialize_field("voted", &self.voted)?;
+        s.serialize_field("total", &self.total)?;
+        s.serialize_field("analysis_unlocked", &self.analysis_unlocked())?;
+        s.end()
     }
 }
 

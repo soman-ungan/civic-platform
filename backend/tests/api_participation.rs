@@ -264,7 +264,10 @@ async fn next_statement_for_new_visitor() {
     let (_pool, state) = setup().await;
     let json = next(&state, None).await;
     assert_eq!(json["needs_relation"], true);
-    assert_eq!(json["progress"], json!({ "voted": 0, "total": 3 }));
+    assert_eq!(
+        json["progress"],
+        json!({ "voted": 0, "total": 3, "analysis_unlocked": false })
+    );
     let id = json["statement"]["id"].as_str().unwrap();
     assert!(
         ["a1", "a2", "a3"].contains(&id),
@@ -292,7 +295,10 @@ async fn next_statement_skips_voted_and_ends_with_null() {
 
     let json = next(&state, Some(&cookie)).await;
     assert_eq!(json["statement"], Value::Null);
-    assert_eq!(json["progress"], json!({ "voted": 3, "total": 3 }));
+    assert_eq!(
+        json["progress"],
+        json!({ "voted": 3, "total": 3, "analysis_unlocked": true })
+    );
 }
 
 #[tokio::test]
