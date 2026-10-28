@@ -6,7 +6,7 @@ mod common;
 
 use std::collections::HashMap;
 
-use backend::budget::{self, Input, Raw, RawItem, RawProject};
+use backend::ingest::budget::{self, Input, Raw, RawItem, RawProject};
 
 fn item(key: &str, value: i64) -> RawItem {
     RawItem {
@@ -307,7 +307,7 @@ async fn real_manual_extraction_matches_check() {
     };
     let checked = budget::extract(
         &pool,
-        &backend::extraction::Extraction::Manual(value.clone()),
+        &backend::ingest::extraction::Extraction::Manual(value.clone()),
         &input,
     )
     .await

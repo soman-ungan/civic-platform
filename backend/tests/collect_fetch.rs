@@ -11,7 +11,7 @@ use axum::Router;
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::IntoResponse;
 use axum::routing::get;
-use backend::collect::fetch::{self, FetchError, Fetched, Fetcher};
+use backend::ingest::collect::fetch::{self, FetchError, Fetched, Fetcher};
 
 /// 受けたリクエストのパスと時刻
 type Log = Arc<Mutex<Vec<(String, Instant)>>>;

@@ -6,8 +6,8 @@ mod common;
 
 use std::sync::Arc;
 
-use backend::extraction::Extraction;
-use backend::minutes::{Input, Outcome, import, prepare};
+use backend::ingest::extraction::Extraction;
+use backend::ingest::minutes::{Input, Outcome, import, prepare};
 use backend::moderation::Moderation;
 use backend::shared::llm::{Fake, Llm};
 use common::{seed_fixture, test_pool};
@@ -540,7 +540,7 @@ async fn manual_extraction_uses_the_same_checks_without_api() {
     let manual = Extraction::Manual(extraction_reply());
 
     // 保存しない確かめ（preview）
-    let (topics, notes) = backend::minutes::preview(&pool, &manual, &input())
+    let (topics, notes) = backend::ingest::minutes::preview(&pool, &manual, &input())
         .await
         .unwrap();
     assert_eq!(topics.len(), 1);
@@ -572,7 +572,7 @@ async fn manual_extraction_uses_the_same_checks_without_api() {
 
     // 形の合わない JSON は、分かる言葉で止める
     let broken = Extraction::Manual(json!({"topic": []}));
-    let err = backend::minutes::preview(&pool, &broken, &input())
+    let err = backend::ingest::minutes::preview(&pool, &broken, &input())
         .await
         .unwrap_err();
     assert!(err.to_string().contains("出力の形が合いません"), "{err}");

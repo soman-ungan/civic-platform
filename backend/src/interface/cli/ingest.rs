@@ -11,10 +11,10 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::collect::store::{Meta, sidecar};
-use crate::collect::{self, fetch as fetch_cache, settlement_card};
-use crate::extraction::Extraction;
-use crate::{budget, minutes};
+use crate::ingest::collect::store::{Meta, sidecar};
+use crate::ingest::collect::{self, fetch as fetch_cache, settlement_card};
+use crate::ingest::extraction::Extraction;
+use crate::ingest::{budget, minutes};
 use clap::{Args, ValueEnum};
 
 use super::{Ctx, municipality_id, required, skip};

@@ -17,7 +17,7 @@ mod records;
 
 use std::path::Path;
 
-use crate::collect::store::Store;
+use crate::ingest::collect::store::Store;
 use crate::moderation::Moderation;
 use crate::seed;
 use crate::shared::config::Config;

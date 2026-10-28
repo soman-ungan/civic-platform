@@ -276,7 +276,7 @@ pub fn check(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::minutes::parse::SpeakerKind;
+    use crate::ingest::minutes::parse::SpeakerKind;
 
     fn utterances() -> Vec<Utterance> {
         vec![

@@ -16,7 +16,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
-use crate::extraction::{Extraction, Prompt};
+use crate::ingest::extraction::{Extraction, Prompt};
 use crate::moderation::{Moderation, Verdict};
 use crate::shared::llm::{Effort, Llm, Purpose, Request};
 use crate::shared::status::StatementStatus;
