@@ -3,6 +3,7 @@
 backend（Rust）は、API サーバーとしてだけでなく、運営のためのコマンドとしても使います。
 自治体のデータの投入、会議録・予算の取り込み、AI の判定の確認などは、すべてこのコマンドで行います。
 管理画面は、認証（開発フェーズ6）ができるまではありません。
+資料がどのコマンドで DB のどこに入るかの全体は、[docs/data-flow.md](data-flow.md) にあります。
 
 - 開発中は `backend/` で `cargo run -- <コマンド>` として実行します
 - ビルドしたものは `./backend <コマンド>`（`cargo build --release` なら `target/release/backend`）でも同じです
