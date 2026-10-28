@@ -454,7 +454,7 @@ async fn import_minutes(ctx: &Ctx, args: ImportArgs) -> anyhow::Result<()> {
                 );
             }
             if !report.notes.is_empty() {
-                println!("捨てたもの:");
+                println!("捨てたもの・確かめること:");
                 for note in &report.notes {
                     println!("  {note}");
                 }
@@ -626,7 +626,7 @@ async fn print_minutes_preview(
         }
     }
     if !notes.is_empty() {
-        println!("\n捨てたもの:");
+        println!("\n捨てたもの・確かめること:");
         for note in &notes {
             println!("  {note}");
         }
