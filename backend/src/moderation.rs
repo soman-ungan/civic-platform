@@ -127,6 +127,7 @@ impl Moderation {
             schema: schema(),
             effort: Effort::Low,
             max_tokens: 2048,
+            pdf: None,
         };
         match llm.structured(pool, &request).await {
             Ok(value) => match serde_json::from_value::<LlmVerdict>(value) {

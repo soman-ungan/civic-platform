@@ -8,6 +8,7 @@ license = "AGPL-3.0-only"
 anyhow = "1.0.104"
 axum = "0.8"
 axum-extra = { version = "0.12.6", features = ["cookie-signed", "cookie-key-expansion"] }
+base64 = "0.23.1"
 calamine = "0.37.0"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 cookie = { version = "0.18", default-features = false }

@@ -220,6 +220,7 @@ pub async fn import(
         schema: extract::schema(),
         effort: Effort::Medium,
         max_tokens: 32_000,
+        pdf: None,
     };
     // まれに、中身の無いトピックだけが返ることがある（タイトルが空）。そのときは1回だけやり直す
     let mut raw: extract::RawOutput;

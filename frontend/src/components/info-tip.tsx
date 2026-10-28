@@ -5,7 +5,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 /** ほかの吹き出しを閉じる合図（同時に開くのは1つだけ） */
-const OPEN_EVENT = "infotip-open";
+export const OPEN_EVENT = "infotip-open";
 
 /**
  * ⓘ のボタンと、短い説明の吹き出し。タップで開き、画面のどこかに触れると閉じる

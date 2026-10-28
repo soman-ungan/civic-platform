@@ -104,6 +104,7 @@ civic-platform/
   - 自治体の取り違えを防ぐため、テスト用 seed には最低2自治体を入れる。
 
 ## よく使うコマンド（整備され次第更新する）
+- 運営のコマンドの全体（利用する人向け）は `docs/cli.md`。コマンドを足したり変えたりしたら、そちらも直す
 - 初回: `cp .env.example .env`（`.env` はルートに1つ。backend / sqlx-cli は親ディレクトリを遡って読み、frontend は `next.config.ts` でルートの `.env` を読む）
   - `.env.example` に変数が増えたら手元の `.env` にも追記する（`NEXT_PUBLIC_SOURCE_URL` が無いと本番ビルドが失敗する）
   - `SESSION_SECRET`（参加者 Cookie の署名鍵）は必須。`openssl rand -hex 32` で作る。未設定・32 バイト未満なら backend は起動しない
@@ -126,9 +127,13 @@ civic-platform/
     - `cargo run -- topics drafts | show <id> | publish <id> | archive <id>` — 下書きの確認と公開
     - `cargo run -- topics edit <id> [--title] [--description]` / `topics statement add|edit|remove ...` / `topics tag add|remove <topic_id> <tag_id>` — 手直し
     - 公人の名簿は `data/seeds/030_officials_<団体コード>_<slug>.sql`
-  - 収集（`docs/design/collection.md`。User-Agent に入れる連絡先 `COLLECTOR_CONTACT` が必須。AI は使わない）
+  - 収集（`docs/design/collection.md`。User-Agent に入れる連絡先 `COLLECTOR_CONTACT` が必須）
     - `cargo run -- collect list` — 収集先・規約の確認日・最後の取得
-    - `cargo run -- collect run [--source <id>] [--year <n>] [--dry-run]` — 有効な収集先から取得する（総務省の決算カード → `settlement_items` と `municipality_stats`）。取得はすべて `collect::fetch::Fetcher` を通す（robots.txt・間隔・条件付き取得）。規約の確認の記録（`terms_url`・`terms_checked_at`）が無い収集先は動かない
+    - `cargo run -- collect run [--source <id>] [--year <n>] [--dry-run] [--ai]` — 有効な収集先から取得する（総務省の決算カード → `settlement_items` と `municipality_stats`）。取得はすべて `collect::fetch::Fetcher` を通す（robots.txt・間隔・条件付き取得）。規約の確認の記録（`terms_url`・`terms_checked_at`）が無い収集先は動かない。AI で資料を読む収集先（当初予算の概要）は、`--source` で選ぶか `--ai` を付けたときだけ動く（**費用がかかる**）
+  - 予算（当初予算の概要の PDF。`docs/plans/2026-10-27-phase5c-budget.md`。`EXTRACTION_MODEL` と抽出の1日の上限を使う。**poppler-utils（`pdftotext`）が要る**）
+    - `cargo run -- import budget --municipality <slug> --file <pdf> --year <n> [--url <URL>] [--dry-run] [--again]` — 手で取った PDF から下書きを作る。**実際の API を呼ぶので費用がかかる**（40ページで約 0.8 ドル）。`--dry-run` は読んで確かめた結果を出すだけ
+    - `cargo run -- budget list | show <slug> <year> | publish <slug> <year> | archive <slug> <year>` — 下書きの確認と公開。下書きは API のどこにも出ない
+    - 款別・性質別・歳入は合計で検算し、事業は名前と金額がそのページの本文にあるものだけを残す。事業の説明の文章は持たない（市の著作物のため。原本のページへリンクする）
     - 費目と分野タグの対応は `data/seeds/025_settlement_item_tags.sql`（おおまか。画面でも注記する）
   - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト（`data/seeds/` の適用テストも含む）
   - `sqlx migrate add <name>` / `sqlx migrate run` / `sqlx migrate info`
@@ -144,7 +149,7 @@ civic-platform/
   - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗（Polis の優先度で重み付けした抽選）
   - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・`statements_by_group`・`group_composition`（グループごとの関わり方の構成）・関わり方ごとの集計（分析対象が5人未満なら insufficient。関わり方の集計は二次秘匿済み）
     - **そのトピックのすべての承認済み意見に投票するまでは `locked`（残り件数）を返す**。全体の傾向に投票が左右されないようにするため。意見が増えれば再びロックされる
-  - `GET /municipalities/{slug}/finances?year=` — まちのお金（決算カード）。金額は千円、`per_capita` は円。年度を省くと最新。トピックの詳細の `finances` は、分野タグに対応する目的別歳出
+  - `GET /municipalities/{slug}/finances?year=` — まちのお金。年度ごとに `settlement`（決算カード）と `budget`（公開済みの当初予算。主な事業つき）。金額は千円、`per_capita` は円。年度を省くと最新（予算だけの年度を含む）。トピックの詳細の `finances` は、分野タグに対応する目的別歳出と、今年度の主な事業（5件まで）
   - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。投票を終えたトピックの分だけを返す（Cookie が無ければ空）
   - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`
   - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）。判定の結果 `status`（approved / rejected / flagged / pending）と、rejected のときは言い換えの提案 `suggestion` を返す

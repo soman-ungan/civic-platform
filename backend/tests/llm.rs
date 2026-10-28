@@ -25,6 +25,7 @@ fn request() -> Request {
         schema: json!({"type": "object"}),
         effort: Effort::Low,
         max_tokens: 1024,
+        pdf: None,
     }
 }
 

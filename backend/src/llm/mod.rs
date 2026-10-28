@@ -84,6 +84,8 @@ pub struct Request {
     pub effort: Effort,
     /// 考える過程の分も含めた出力の上限
     pub max_tokens: u32,
+    /// 一緒に渡す PDF（行政資料からの抽出）。`user` の前に置く
+    pub pdf: Option<Vec<u8>>,
 }
 
 /// API が返す使用量

@@ -6,7 +6,9 @@ use backend::llm::Llm;
 use backend::llm::client::AnthropicClient;
 use backend::moderation::{self, Moderation};
 use backend::tagging::{self, Tagger};
-use backend::{AppState, analysis, app, collect, config::Config, db, drafts, eval, minutes, seed};
+use backend::{
+    AppState, analysis, app, budget, collect, config::Config, db, drafts, eval, minutes, seed,
+};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -57,11 +59,6 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         return Ok(());
-    }
-
-    // `cargo run -- collect list | run [--source <id>] [--year <n>] [--dry-run]`: 行政資料の収集
-    if args.first().map(String::as_str) == Some("collect") {
-        return collect_command(&pool, &config, &args[1..]).await;
     }
 
     // `cargo run -- topics drafts | show <id> | publish <id> | archive <id>`: 下書きの確認と公開
@@ -115,6 +112,18 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         return Ok(());
+    }
+
+    // `cargo run -- collect list | run [--source <id>] [--year <n>] [--dry-run]`: 行政資料の収集
+    // （予算の概要は AI で読むので、ANTHROPIC_API_KEY が要る。費用がかかる）
+    if args.first().map(String::as_str) == Some("collect") {
+        return collect_command(&pool, &config, llm.as_ref(), &args[1..]).await;
+    }
+
+    // `cargo run -- budget list | show <slug> <year> | publish <slug> <year> | archive <slug> <year>`:
+    // 予算の下書きの確認と公開
+    if args.first().map(String::as_str) == Some("budget") {
+        return budget_command(&pool, &args[1..]).await;
     }
 
     // `cargo run -- import minutes --municipality <slug> --file <path> --title <会議名>
@@ -265,7 +274,10 @@ async fn import_command(
             .and_then(|i| args.get(i + 1))
             .cloned()
     };
-    let usage = "使い方: import minutes --municipality <slug> --file <path> --title <会議名> --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again] [--force]";
+    if args.first().map(String::as_str) == Some("budget") {
+        return import_budget(pool, config, llm, args).await;
+    }
+    let usage = "使い方: import minutes --municipality <slug> --file <path> --title <会議名> --held-on <YYYY-MM-DD> [--url <URL>] [--dry-run] [--again] [--force]\n       import budget --municipality <slug> --file <pdf> --year <n> [--url <URL>] [--dry-run] [--again]";
     if args.first().map(String::as_str) != Some("minutes") {
         anyhow::bail!(usage);
     }
@@ -396,6 +408,7 @@ async fn import_command(
 async fn collect_command(
     pool: &sqlx::SqlitePool,
     config: &Config,
+    llm: Option<&Llm>,
     args: &[String],
 ) -> anyhow::Result<()> {
     let option = |name: &str| {
@@ -438,20 +451,33 @@ async fn collect_command(
                 fiscal_year: option("--year").map(|y| y.parse()).transpose()?,
             };
             let only = option("--source");
-            let targets: Vec<_> = sources
+            // AI で資料を読む収集先（予算の概要）は費用がかかるので、--source で選ぶか --ai を付けたときだけ動かす
+            let with_ai = args.iter().any(|a| a == "--ai");
+            let uses_ai = |s: &collect::Source| s.adapter == "html_link_list";
+            let (targets, skipped): (Vec<_>, Vec<_>) = sources
                 .into_iter()
                 .filter(|s| match &only {
                     Some(id) => s.id == *id,
                     // 手動の取り込み（会議録など）は自動では取得しない
                     None => s.is_enabled && s.adapter != "manual_upload",
                 })
-                .collect();
+                .partition(|s| only.is_some() || with_ai || !uses_ai(s));
+            for s in &skipped {
+                println!(
+                    "{}: AI で資料を読む（費用がかかる）ので飛ばしました。動かすときは --source {} か --ai",
+                    s.id, s.id
+                );
+            }
             if targets.is_empty() {
                 anyhow::bail!("処理する収集先がありません（collect list で確かめてください）");
             }
             for source in targets {
                 println!("== {} ({})", source.id, source.adapter);
-                let report = collect::run_source(pool, &source, contact, &options).await?;
+                let ai = llm.map(|llm| collect::Ai {
+                    llm,
+                    model: &config.extraction_model,
+                });
+                let report = collect::run_source(pool, &source, contact, &options, ai).await?;
                 for line in &report.lines {
                     println!("  {line}");
                 }
@@ -460,7 +486,98 @@ async fn collect_command(
                 }
             }
         }
-        _ => anyhow::bail!("使い方: collect [list | run [--source <id>] [--year <n>] [--dry-run]]"),
+        _ => anyhow::bail!(
+            "使い方: collect [list | run [--source <id>] [--year <n>] [--dry-run] [--ai]]"
+        ),
+    }
+    Ok(())
+}
+
+/// `import budget`: 手で取った当初予算の概要の PDF を取り込む（ほかの自治体の試しにも使う）。
+/// AI で読むので費用がかかる。`--dry-run` は読んで確かめた結果を出すだけで、保存しない
+async fn import_budget(
+    pool: &sqlx::SqlitePool,
+    config: &Config,
+    llm: Option<&Llm>,
+    args: &[String],
+) -> anyhow::Result<()> {
+    let option = |name: &str| {
+        args.iter()
+            .position(|a| a == name)
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+    };
+    let (Some(slug), Some(file), Some(year)) =
+        (option("--municipality"), option("--file"), option("--year"))
+    else {
+        anyhow::bail!(
+            "使い方: import budget --municipality <slug> --file <pdf> --year <n> [--url <URL>] [--dry-run] [--again]"
+        );
+    };
+    let Some(llm) = llm else {
+        anyhow::bail!("ANTHROPIC_API_KEY が設定されていないため、予算の概要を読めません");
+    };
+    let municipality_id = municipality_id(pool, &slug).await?;
+    let input = budget::Input {
+        municipality_id,
+        fiscal_year: year.parse()?,
+        url: option("--url"),
+        collector_source_id: None,
+        pdf: std::fs::read(&file)?,
+    };
+    let checked = budget::extract(pool, llm, &config.extraction_model, &input).await?;
+    print!("{}", budget::render(&checked, input.url.as_deref()));
+    if args.iter().any(|a| a == "--dry-run") {
+        println!("（--dry-run のため保存していません）");
+        return Ok(());
+    }
+    let again = args.iter().any(|a| a == "--again");
+    budget::save_draft(pool, &input, &checked, again).await?;
+    println!("下書きを作りました。確認: budget show {slug} {year} → budget publish {slug} {year}");
+    Ok(())
+}
+
+async fn municipality_id(pool: &sqlx::SqlitePool, slug: &str) -> anyhow::Result<String> {
+    sqlx::query_scalar("SELECT id FROM municipalities WHERE slug = $1")
+        .bind(slug)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("自治体が見つかりません: {slug}"))
+}
+
+async fn budget_command(pool: &sqlx::SqlitePool, args: &[String]) -> anyhow::Result<()> {
+    let usage = "使い方: budget [list | show <slug> <year> | publish <slug> <year> | archive <slug> <year>]";
+    match (args.first().map(String::as_str), args.get(1), args.get(2)) {
+        (Some("list") | None, _, _) => {
+            let rows = budget::list(pool).await?;
+            if rows.is_empty() {
+                println!("予算はまだありません");
+            }
+            for (slug, year, status, total) in rows {
+                println!("{slug}  {year}年度  [{status}]  歳出 {total} 千円");
+            }
+        }
+        (Some("show"), Some(slug), Some(year)) => {
+            let id = municipality_id(pool, slug).await?;
+            let Some((status, checked, url)) = budget::load(pool, &id, year.parse()?).await? else {
+                anyhow::bail!("{slug} の {year}年度の予算はありません");
+            };
+            println!("[{status}]");
+            print!("{}", budget::render(&checked, url.as_deref()));
+        }
+        (Some(cmd @ ("publish" | "archive")), Some(slug), Some(year)) => {
+            let id = municipality_id(pool, slug).await?;
+            let status = if cmd == "publish" {
+                "published"
+            } else {
+                "archived"
+            };
+            if !budget::set_status(pool, &id, year.parse()?, status).await? {
+                anyhow::bail!("{slug} の {year}年度の予算はありません");
+            }
+            println!("{slug} {year}年度: {status}");
+        }
+        _ => anyhow::bail!(usage),
     }
     Ok(())
 }

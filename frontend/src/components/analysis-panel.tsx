@@ -131,16 +131,16 @@ function ReadyView({
         </p>
       </div>
 
-      <GroupCompositionChart
-        groups={view.groups}
-        composition={view.group_composition}
-      />
-
       <GroupTable
         groups={view.groups}
         rows={view.statements_by_group}
         myGroupId={view.map.you?.group_id ?? null}
         consensusIds={view.consensus.map((c) => c.statement_id)}
+      />
+
+      <GroupCompositionChart
+        groups={view.groups}
+        composition={view.group_composition}
       />
 
       <ResidencyDotPlot rows={view.residency} />

@@ -7,6 +7,7 @@
 //! 取得はすべて `fetch::Fetcher` を通す（robots.txt・間隔・条件付き取得・大きさの上限）。
 
 pub mod fetch;
+pub mod link_list;
 pub mod robots;
 pub mod settlement_card;
 
@@ -110,13 +111,22 @@ fn min_interval(config: &Value) -> Duration {
     )
 }
 
+/// 資料を AI で読むアダプタに渡す、LLM の口と抽出のモデル
+#[derive(Clone, Copy)]
+pub struct Ai<'a> {
+    pub llm: &'a crate::llm::Llm,
+    pub model: &'a str,
+}
+
 /// 1つの収集先を処理する。無効な収集先・規約の確認の記録が無い収集先は動かさない。
-/// `contact` は運営者の連絡先（`COLLECTOR_CONTACT`。User-Agent に入れる）
+/// `contact` は運営者の連絡先（`COLLECTOR_CONTACT`。User-Agent に入れる）。
+/// `ai` は資料を AI で読むアダプタ（予算の概要など）に要る。無ければ、そのアダプタは止める
 pub async fn run_source(
     pool: &SqlitePool,
     source: &Source,
     contact: &str,
     options: &Options,
+    ai: Option<Ai<'_>>,
 ) -> anyhow::Result<Report> {
     if !source.is_enabled {
         anyhow::bail!("収集先 {} は無効です（is_enabled = false）", source.id);
@@ -131,6 +141,20 @@ pub async fn run_source(
             settlement_card::SettlementCard
                 .collect(pool, &fetcher, source, options)
                 .await?
+        }
+        "html_link_list" if source.kind == "budget" => {
+            let Some(ai) = ai else {
+                anyhow::bail!(
+                    "収集先 {}: 予算の概要を読むには ANTHROPIC_API_KEY が要ります",
+                    source.id
+                );
+            };
+            link_list::BudgetOverview {
+                llm: ai.llm,
+                model: ai.model,
+            }
+            .collect(pool, &fetcher, source, options)
+            .await?
         }
         other => anyhow::bail!(
             "収集先 {}: 自動で取得できないアダプタです: {other}",

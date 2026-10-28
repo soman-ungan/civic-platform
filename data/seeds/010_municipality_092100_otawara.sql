@@ -34,3 +34,15 @@ INSERT INTO collector_sources (id, municipality_id, kind, adapter, base_url, con
      '{"terms_url": "https://www.soumu.go.jp/menu_kyotsuu/policy/tyosaku.html", "terms_checked_at": "2026-10-27", "min_interval_secs": 5, "from_fiscal_year": 2015}',
      TRUE)
 ON CONFLICT DO NOTHING;
+
+--   当初予算の概要（大田原市のサイト）: PDF を AI で読み、数字と事業の名前だけを取り出す（説明の文章は持たない）。
+--     規約: 「著作権法上認められた場合を除き、無断で複製・転用できない」（2026-10-27 確認）。
+--     数字（事実）と事業の名前だけを使い、原本へリンクする。公開の範囲は情報政策課に確認中
+--     robots.txt: /_system/ と /search.html 以外は制限なし（2026-10-27 確認）
+--     AI の費用を抑えるため、from_fiscal_year より前の年度は取り込まない
+INSERT INTO collector_sources (id, municipality_id, kind, adapter, base_url, config, is_enabled) VALUES
+    ('092100-budget-overview', '092100', 'budget', 'html_link_list',
+     'https://www.city.ohtawara.tochigi.jp/docs/2023051700017/',
+     '{"terms_url": "https://www.city.ohtawara.tochigi.jp/docs/2013092300048/", "terms_checked_at": "2026-10-27", "min_interval_secs": 5, "link_pattern": "^当初予算の概要", "from_fiscal_year": 2026}',
+     TRUE)
+ON CONFLICT DO NOTHING;

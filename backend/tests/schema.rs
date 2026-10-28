@@ -74,6 +74,10 @@ async fn all_tables_exist() {
     assert_eq!(
         tables,
         [
+            "budget_items",
+            "budget_project_tags",
+            "budget_projects",
+            "budgets",
             "collector_sources",
             "districts",
             "documents",

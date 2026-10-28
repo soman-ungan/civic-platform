@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! まちのお金（総務省の決算カード）。金額は千円、1人あたりは円。
-//! 出典は公共データ利用規約（第1.0版）に従い、画面で「総務省 市町村決算カードを加工して作成」と示す
+//! まちのお金。決算（総務省の決算カード）と予算（自治体の当初予算の概要）。金額は千円、1人あたりは円。
+//! 決算の出典は公共データ利用規約（第1.0版）に従い、画面で「総務省 市町村決算カードを加工して作成」と示す。
+//! 予算は数字と事業の名前だけを返し、説明は原本の PDF のページへのリンクにする（市の著作物のため）
 
 use std::collections::BTreeMap;
 
@@ -50,10 +51,17 @@ pub struct TrendYear {
 }
 
 #[derive(Debug, Serialize)]
-pub struct Finances {
-    /// データのある年度（古い順）
-    pub years: Vec<i32>,
+pub struct YearInfo {
     pub fiscal_year: i32,
+    /// 決算（決算カード）があるか
+    pub settlement: bool,
+    /// 公開済みの予算があるか
+    pub budget: bool,
+}
+
+/// ある年度の決算（決算カード）
+#[derive(Debug, Serialize)]
+pub struct Settlement {
     pub population: Option<i64>,
     pub revenue_total: Option<i64>,
     pub expenditure_total: Option<i64>,
@@ -61,8 +69,61 @@ pub struct Finances {
     pub expenditure_purpose: Vec<Amount>,
     pub expenditure_nature: Vec<Amount>,
     pub indicators: Vec<Indicator>,
-    pub trend: Vec<TrendYear>,
     pub source: Source,
+}
+
+/// ある年度の当初予算（公開済みのものだけ）
+#[derive(Debug, Serialize)]
+pub struct BudgetView {
+    /// 一般会計の歳出の合計（千円）
+    pub total: i64,
+    /// 1人あたりの換算に使った人口と、その年度（予算の年度の人口はまだ無いので、それ以前で最新のもの）
+    pub population: Option<i64>,
+    pub population_year: Option<i32>,
+    pub revenue: Vec<Amount>,
+    pub expenditure_purpose: Vec<Amount>,
+    pub expenditure_nature: Vec<Amount>,
+    pub projects: Vec<BudgetProject>,
+    pub source: BudgetSource,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BudgetSource {
+    pub title: String,
+    /// 原本の PDF
+    pub url: Option<String>,
+}
+
+/// 主な事業。説明の文章は持たない（原本の PDF のページへリンクする）
+#[derive(Debug, Serialize)]
+pub struct BudgetProject {
+    pub name: String,
+    /// 千円
+    pub amount: i64,
+    pub per_capita: Option<i64>,
+    /// new: 新規 / expanded: 拡充
+    pub flag: Option<String>,
+    /// その自治体での政策・分野の名前（無い自治体もある）
+    pub plan_label: Option<String>,
+    pub page: i64,
+    pub tags: Vec<ProjectTag>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProjectTag {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Finances {
+    /// 決算か予算のある年度（古い順）
+    pub years: Vec<YearInfo>,
+    pub fiscal_year: i32,
+    pub settlement: Option<Settlement>,
+    pub budget: Option<BudgetView>,
+    /// 決算の推移（目的別歳出）
+    pub trend: Vec<TrendYear>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -77,6 +138,32 @@ struct ItemRow {
     item_key: String,
     value: Option<i64>,
     unit: String,
+}
+
+/// 公開済みの予算のある年度
+async fn budget_years(pool: &SqlitePool, municipality_id: &str) -> Result<Vec<i32>, ApiError> {
+    Ok(sqlx::query_scalar(
+        "SELECT fiscal_year FROM budgets WHERE municipality_id = $1 AND status = 'published' ORDER BY fiscal_year",
+    )
+    .bind(municipality_id)
+    .fetch_all(pool)
+    .await?)
+}
+
+/// その年度以前で最新の人口（予算の年度の人口はまだ無いため）
+async fn latest_population(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    fiscal_year: i32,
+) -> Result<Option<(i32, i64)>, ApiError> {
+    Ok(sqlx::query_as(
+        "SELECT fiscal_year, population FROM municipality_stats
+         WHERE municipality_id = $1 AND fiscal_year <= $2 ORDER BY fiscal_year DESC LIMIT 1",
+    )
+    .bind(municipality_id)
+    .bind(fiscal_year)
+    .fetch_optional(pool)
+    .await?)
 }
 
 async fn years(pool: &SqlitePool, municipality_id: &str) -> Result<Vec<i32>, ApiError> {
@@ -154,18 +241,26 @@ fn amounts(rows: &[&ItemRow], population: Option<i64>) -> (Vec<Amount>, Option<i
     (amounts, (!rows.is_empty()).then_some(total))
 }
 
-/// GET /api/municipalities/{slug}/finances?year= — 年度を省くと最新
+/// GET /api/municipalities/{slug}/finances?year= — 年度を省くと最新（予算だけの年度を含む）
 pub async fn finances(
     State(state): State<AppState>,
     Path(slug): Path<String>,
     Query(query): Query<FinancesQuery>,
 ) -> Result<Json<Finances>, ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
-    let years = years(&state.pool, &municipality.id).await?;
+    let settlement_years = years(&state.pool, &municipality.id).await?;
+    let budget_years = budget_years(&state.pool, &municipality.id).await?;
+    let mut all: Vec<i32> = settlement_years
+        .iter()
+        .chain(&budget_years)
+        .copied()
+        .collect();
+    all.sort();
+    all.dedup();
     let fiscal_year = match query.year {
-        Some(y) if years.contains(&y) => y,
+        Some(y) if all.contains(&y) => y,
         Some(_) => return Err(ApiError::NotFound),
-        None => *years.last().ok_or(ApiError::NotFound)?,
+        None => *all.last().ok_or(ApiError::NotFound)?,
     };
 
     let rows: Vec<ItemRow> = sqlx::query_as(
@@ -175,7 +270,53 @@ pub async fn finances(
     .bind(&municipality.id)
     .fetch_all(&state.pool)
     .await?;
-    let population = population(&state.pool, &municipality.id, fiscal_year).await?;
+    let settlement = if settlement_years.contains(&fiscal_year) {
+        Some(settlement(&state.pool, &municipality.id, fiscal_year, &rows).await?)
+    } else {
+        None
+    };
+    let budget = if budget_years.contains(&fiscal_year) {
+        budget(&state.pool, &municipality.id, fiscal_year).await?
+    } else {
+        None
+    };
+
+    let mut trend = Vec::new();
+    for &year in &settlement_years {
+        trend.push(TrendYear {
+            fiscal_year: year,
+            population: population(&state.pool, &municipality.id, year).await?,
+            expenditure_purpose: rows
+                .iter()
+                .filter(|r| r.fiscal_year == year && r.category == "expenditure_purpose")
+                .map(|r| (r.item_key.clone(), r.value))
+                .collect(),
+        });
+    }
+
+    Ok(Json(Finances {
+        years: all
+            .iter()
+            .map(|&y| YearInfo {
+                fiscal_year: y,
+                settlement: settlement_years.contains(&y),
+                budget: budget_years.contains(&y),
+            })
+            .collect(),
+        fiscal_year,
+        settlement,
+        budget,
+        trend,
+    }))
+}
+
+async fn settlement(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    fiscal_year: i32,
+    rows: &[ItemRow],
+) -> Result<Settlement, ApiError> {
+    let population = population(pool, municipality_id, fiscal_year).await?;
     let of = |category: &str| -> Vec<&ItemRow> {
         rows.iter()
             .filter(|r| r.fiscal_year == fiscal_year && r.category == category)
@@ -202,24 +343,8 @@ pub async fn finances(
             },
         })
         .collect();
-
-    let mut trend = Vec::new();
-    for &year in &years {
-        trend.push(TrendYear {
-            fiscal_year: year,
-            population: self::population(&state.pool, &municipality.id, year).await?,
-            expenditure_purpose: rows
-                .iter()
-                .filter(|r| r.fiscal_year == year && r.category == "expenditure_purpose")
-                .map(|r| (r.item_key.clone(), r.value))
-                .collect(),
-        });
-    }
-
-    Ok(Json(Finances {
-        source: source(&state.pool, &municipality.id, fiscal_year).await?,
-        years,
-        fiscal_year,
+    Ok(Settlement {
+        source: source(pool, municipality_id, fiscal_year).await?,
         population,
         revenue_total,
         expenditure_total,
@@ -227,8 +352,111 @@ pub async fn finances(
         expenditure_purpose,
         expenditure_nature,
         indicators,
-        trend,
+    })
+}
+
+/// 公開済みの予算。無ければ None
+async fn budget(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    fiscal_year: i32,
+) -> Result<Option<BudgetView>, ApiError> {
+    let row: Option<(String, i64, String, Option<String>)> = sqlx::query_as(
+        "SELECT b.id, b.total, d.title, d.url FROM budgets b JOIN documents d ON d.id = b.document_id
+         WHERE b.municipality_id = $1 AND b.fiscal_year = $2 AND b.status = 'published'",
+    )
+    .bind(municipality_id)
+    .bind(fiscal_year)
+    .fetch_optional(pool)
+    .await?;
+    let Some((id, total, title, url)) = row else {
+        return Ok(None);
+    };
+    let (population_year, population) = latest_population(pool, municipality_id, fiscal_year)
+        .await?
+        .unzip();
+    let items: Vec<ItemRow> = sqlx::query_as(
+        "SELECT $2 AS fiscal_year, category, item_key, value, 'thousand_yen' AS unit
+         FROM budget_items WHERE budget_id = $1 ORDER BY category, position",
+    )
+    .bind(&id)
+    .bind(fiscal_year)
+    .fetch_all(pool)
+    .await?;
+    let of = |category: &str| -> Vec<&ItemRow> {
+        items.iter().filter(|r| r.category == category).collect()
+    };
+    let projects = projects(pool, "p.budget_id = $1", &id, population, None).await?;
+    Ok(Some(BudgetView {
+        total,
+        population,
+        population_year,
+        revenue: amounts(&of("revenue"), population).0,
+        expenditure_purpose: amounts(&of("expenditure_purpose"), population).0,
+        expenditure_nature: amounts(&of("expenditure_nature"), population).0,
+        projects,
+        source: BudgetSource { title, url },
     }))
+}
+
+#[derive(sqlx::FromRow)]
+struct ProjectRow {
+    id: String,
+    name: String,
+    amount: i64,
+    flag: Option<String>,
+    plan_label: Option<String>,
+    page: i64,
+}
+
+/// 主な事業（金額の大きい順）。`filter` は budget_projects p に対する条件（$1 を使う）。
+/// `topic_id` を渡すと、そのトピックの分野タグを持つ事業だけにする
+async fn projects(
+    pool: &SqlitePool,
+    filter: &str,
+    arg: &str,
+    population: Option<i64>,
+    topic_id: Option<&str>,
+) -> Result<Vec<BudgetProject>, ApiError> {
+    let rows: Vec<ProjectRow> = sqlx::query_as(&format!(
+        "SELECT p.id, p.name, p.amount, p.flag, p.plan_label, p.page FROM budget_projects p
+         WHERE {filter}
+           AND (CAST($2 AS TEXT) IS NULL OR EXISTS (
+                SELECT 1 FROM budget_project_tags bt JOIN topic_tags tt ON tt.tag_id = bt.tag_id
+                WHERE bt.project_id = p.id AND tt.topic_id = $2))
+         ORDER BY p.amount DESC, p.position"
+    ))
+    .bind(arg)
+    .bind(topic_id)
+    .fetch_all(pool)
+    .await?;
+    let tags: Vec<(String, String, String)> = sqlx::query_as(&format!(
+        "SELECT bt.project_id, g.id, g.name FROM budget_project_tags bt
+         JOIN tags g ON g.id = bt.tag_id JOIN budget_projects p ON p.id = bt.project_id
+         WHERE {filter} ORDER BY g.id"
+    ))
+    .bind(arg)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| BudgetProject {
+            tags: tags
+                .iter()
+                .filter(|(pid, _, _)| *pid == r.id)
+                .map(|(_, id, name)| ProjectTag {
+                    id: id.clone(),
+                    name: name.clone(),
+                })
+                .collect(),
+            per_capita: per_capita(Some(r.amount), population),
+            name: r.name,
+            amount: r.amount,
+            flag: r.flag,
+            plan_label: r.plan_label,
+            page: r.page,
+        })
+        .collect())
 }
 
 /// トピックの詳細に出す「この分野の市のお金」。トピックの分野タグに対応する目的別歳出（最新の年度）
@@ -238,7 +466,21 @@ pub struct TopicFinances {
     pub population: Option<i64>,
     pub items: Vec<Amount>,
     pub source: Source,
+    /// この分野の今年度の主な事業（公開済みの最新の予算。分野タグが重なるもの、金額の大きい順に5件まで）
+    pub budget: Option<TopicBudget>,
 }
+
+#[derive(Debug, Serialize)]
+pub struct TopicBudget {
+    pub fiscal_year: i32,
+    pub projects: Vec<BudgetProject>,
+    /// 対象の事業の数（5件を超える分は「まちのお金」で見る）
+    pub project_count: usize,
+    pub source: BudgetSource,
+}
+
+/// トピックに出す主な事業の数
+const TOPIC_PROJECTS: usize = 5;
 
 pub async fn for_topic(
     pool: &SqlitePool,
@@ -270,7 +512,8 @@ pub async fn for_topic(
     .bind(topic_id)
     .fetch_all(pool)
     .await?;
-    if rows.is_empty() {
+    let budget = topic_budget(pool, municipality_id, topic_id).await?;
+    if rows.is_empty() && budget.is_none() {
         return Ok(None);
     }
     let population = population(pool, municipality_id, fiscal_year).await?;
@@ -289,5 +532,38 @@ pub async fn for_topic(
         fiscal_year,
         population,
         items,
+        budget,
+    }))
+}
+
+async fn topic_budget(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    topic_id: &str,
+) -> Result<Option<TopicBudget>, ApiError> {
+    let row: Option<(String, i32, String, Option<String>)> = sqlx::query_as(
+        "SELECT b.id, b.fiscal_year, d.title, d.url FROM budgets b JOIN documents d ON d.id = b.document_id
+         WHERE b.municipality_id = $1 AND b.status = 'published' ORDER BY b.fiscal_year DESC LIMIT 1",
+    )
+    .bind(municipality_id)
+    .fetch_optional(pool)
+    .await?;
+    let Some((id, fiscal_year, title, url)) = row else {
+        return Ok(None);
+    };
+    let population = latest_population(pool, municipality_id, fiscal_year)
+        .await?
+        .map(|(_, p)| p);
+    let mut projects = projects(pool, "p.budget_id = $1", &id, population, Some(topic_id)).await?;
+    if projects.is_empty() {
+        return Ok(None);
+    }
+    let project_count = projects.len();
+    projects.truncate(TOPIC_PROJECTS);
+    Ok(Some(TopicBudget {
+        fiscal_year,
+        projects,
+        project_count,
+        source: BudgetSource { title, url },
     }))
 }

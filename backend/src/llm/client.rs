@@ -6,6 +6,7 @@
 
 use std::time::Duration;
 
+use base64::Engine;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -102,12 +103,30 @@ pub fn build_body(req: &Request) -> Value {
             // 毎回同じ指示文はキャッシュして安くする（短すぎる場合はキャッシュされないだけ）
             "cache_control": {"type": "ephemeral"},
         }],
-        "messages": [{"role": "user", "content": req.user}],
+        "messages": [{"role": "user", "content": user_content(req)}],
         "output_config": {
             "effort": req.effort.as_str(),
             "format": {"type": "json_schema", "schema": req.schema},
         },
     })
+}
+
+/// 利用者の入力。PDF があれば、document ブロックとして本文の前に置く
+fn user_content(req: &Request) -> Value {
+    match &req.pdf {
+        None => Value::String(req.user.clone()),
+        Some(pdf) => json!([
+            {
+                "type": "document",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": base64::engine::general_purpose::STANDARD.encode(pdf),
+                },
+            },
+            {"type": "text", "text": req.user},
+        ]),
+    }
 }
 
 /// 応答から、止まった理由・最初のテキスト・使用量を取り出す。
@@ -150,12 +169,32 @@ mod tests {
             schema: json!({"type": "object"}),
             effort: Effort::Low,
             max_tokens: 1024,
+            pdf: None,
         });
         assert_eq!(body["model"], "claude-sonnet-5-5");
         assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
         assert_eq!(body["messages"][0]["content"], "本文");
         assert_eq!(body["output_config"]["effort"], "low");
         assert_eq!(body["output_config"]["format"]["type"], "json_schema");
+    }
+
+    #[test]
+    fn pdf_goes_before_the_text() {
+        let body = build_body(&Request {
+            purpose: Purpose::Extraction,
+            model: "claude-opus-5-5".into(),
+            system: "指示".into(),
+            user: "書き写してください".into(),
+            schema: json!({"type": "object"}),
+            effort: Effort::Medium,
+            max_tokens: 1024,
+            pdf: Some(b"%PDF".to_vec()),
+        });
+        let content = &body["messages"][0]["content"];
+        assert_eq!(content[0]["type"], "document");
+        assert_eq!(content[0]["source"]["media_type"], "application/pdf");
+        assert_eq!(content[0]["source"]["data"], "JVBERg==");
+        assert_eq!(content[1]["text"], "書き写してください");
     }
 
     #[test]

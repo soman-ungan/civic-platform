@@ -84,9 +84,16 @@ export type FinanceSource = {
   excel_url: string | null;
 };
 
-export type Finances = {
-  years: number[];
+export type FinanceYear = {
   fiscal_year: number;
+  /** 決算（決算カード）があるか */
+  settlement: boolean;
+  /** 公開済みの予算があるか */
+  budget: boolean;
+};
+
+/** ある年度の決算（総務省の決算カード） */
+export type Settlement = {
   population: number | null;
   revenue_total: number | null;
   expenditure_total: number | null;
@@ -94,13 +101,54 @@ export type Finances = {
   expenditure_purpose: FinanceAmount[];
   expenditure_nature: FinanceAmount[];
   indicators: FinanceIndicator[];
+  source: FinanceSource;
+};
+
+/** 主な事業。説明の文章は持たない（原本の PDF のページへリンクする） */
+export type BudgetProject = {
+  name: string;
+  /** 千円 */
+  amount: number;
+  per_capita: number | null;
+  flag: "new" | "expanded" | null;
+  /** その自治体での政策・分野の名前（無い自治体もある） */
+  plan_label: string | null;
+  page: number;
+  tags: { id: string; name: string }[];
+};
+
+export type BudgetSource = {
+  title: string;
+  /** 原本の PDF */
+  url: string | null;
+};
+
+/** ある年度の当初予算（自治体の「当初予算の概要」） */
+export type Budget = {
+  /** 一般会計の歳出の合計（千円） */
+  total: number;
+  /** 1人あたりの換算に使った人口と、その年度（予算の年度の人口はまだ無い） */
+  population: number | null;
+  population_year: number | null;
+  revenue: FinanceAmount[];
+  expenditure_purpose: FinanceAmount[];
+  expenditure_nature: FinanceAmount[];
+  projects: BudgetProject[];
+  source: BudgetSource;
+};
+
+export type Finances = {
+  years: FinanceYear[];
+  fiscal_year: number;
+  settlement: Settlement | null;
+  budget: Budget | null;
+  /** 決算の推移（目的別歳出） */
   trend: {
     fiscal_year: number;
     population: number | null;
     /** 目的別歳出（千円） */
     expenditure_purpose: Record<string, number | null>;
   }[];
-  source: FinanceSource;
 };
 
 export type TopicFinances = {
@@ -108,6 +156,13 @@ export type TopicFinances = {
   population: number | null;
   items: FinanceAmount[];
   source: FinanceSource;
+  /** この分野の今年度の主な事業（5件まで） */
+  budget: {
+    fiscal_year: number;
+    projects: BudgetProject[];
+    project_count: number;
+    source: BudgetSource;
+  } | null;
 };
 
 export type TopicList = {

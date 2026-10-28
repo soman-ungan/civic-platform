@@ -79,9 +79,15 @@ async fn collects_real_card_into_db() {
         fiscal_year: Some(2023),
     };
 
-    let report = collect::run_source(&pool, &source(&pool, "otawara").await, "test", &options)
-        .await
-        .unwrap();
+    let report = collect::run_source(
+        &pool,
+        &source(&pool, "otawara").await,
+        "test",
+        &options,
+        None,
+    )
+    .await
+    .unwrap();
     assert!(report.warnings.is_empty(), "{:?}", report.warnings);
     assert!(
         report.lines[0].contains("保存しました"),
@@ -106,9 +112,15 @@ async fn collects_real_card_into_db() {
     assert_eq!(population, 68873);
 
     // 2回目は変化なし
-    let report = collect::run_source(&pool, &source(&pool, "otawara").await, "test", &options)
-        .await
-        .unwrap();
+    let report = collect::run_source(
+        &pool,
+        &source(&pool, "otawara").await,
+        "test",
+        &options,
+        None,
+    )
+    .await
+    .unwrap();
     assert!(
         report.lines[0].contains("変わっていません"),
         "{:?}",
@@ -121,6 +133,7 @@ async fn collects_real_card_into_db() {
         &source(&pool, "nasushiobara").await,
         "test",
         &options,
+        None,
     )
     .await
     .unwrap();
@@ -157,6 +170,7 @@ async fn sources_without_terms_record_do_not_run() {
         &source(&pool, "s").await,
         "test",
         &Options::default(),
+        None,
     )
     .await
     .unwrap_err();
