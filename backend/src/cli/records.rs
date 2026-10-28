@@ -460,7 +460,7 @@ pub async fn show(ctx: &Ctx, args: ShowArgs) -> anyhow::Result<()> {
                 anyhow::bail!("意見が見つかりません: {id}");
             };
             let votes: Vec<(i64, i64)> = sqlx::query_as(
-                "SELECT value, COUNT(*) FROM votes WHERE statement_id = $1 GROUP BY value ORDER BY value DESC",
+                "SELECT vote_value, COUNT(*) FROM votes WHERE statement_id = $1 GROUP BY vote_value ORDER BY vote_value DESC",
             )
             .bind(id)
             .fetch_all(pool)

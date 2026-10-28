@@ -145,6 +145,19 @@ async fn records_and_moderation_use_the_same_verbs() {
         .await;
     assert!(out.contains("s1"), "{out}");
 
+    // 意見の詳細は、投票の数を出し、投稿者は出さない
+    sqlx::query(
+        "INSERT INTO votes (id, user_id, statement_id, vote_value, created_at)
+         VALUES ('v1', 'u2', 's1', 1, '2026-10-26T00:00:00Z')",
+    )
+    .execute(&env.pool)
+    .await
+    .unwrap();
+    let (code, out) = env.run(&["show", "statement", "--id", "s1"]).await;
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("賛成 1・反対 0・パス 0"), "{out}");
+    assert!(out.contains("市民の投稿") && !out.contains("u1"), "{out}");
+
     // 地区のタグは、選んだ自治体のものだけ
     let (_, out) = env.run(&["list", "tag", "-m", "otawara"]).await;
     assert!(out.contains("[分野]"), "{out}");
