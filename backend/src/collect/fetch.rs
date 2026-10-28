@@ -42,8 +42,8 @@ pub enum FetchError {
     Db(#[from] sqlx::Error),
 }
 
-/// 条件付き取得の記録（`fetch_cache` の1行）
-#[derive(Debug, Clone, PartialEq)]
+/// 条件付き取得の記録（`fetch_cache` の1行）。取り込みまでの間は原本の記録（`store::Meta`）に入れておく
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CacheEntry {
     pub source_id: String,
     pub url: String,
@@ -269,6 +269,11 @@ fn site_of(url: &reqwest::Url) -> Option<String> {
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// 中身のハッシュ（`fetch_cache.sha256`・`documents.sha256` と同じ形）
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    hex(&Sha256::digest(bytes))
 }
 
 async fn cached(

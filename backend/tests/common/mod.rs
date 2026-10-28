@@ -9,6 +9,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 /// マイグレーション済みのインメモリ DB を用意する。
 /// インメモリ DB は接続ごとに別物になるので、接続数を 1 に固定する。
+#[allow(dead_code)] // テストクレートごとに使う関数が異なるため
 pub async fn test_pool() -> SqlitePool {
     let options = SqliteConnectOptions::from_str("sqlite::memory:")
         .unwrap()

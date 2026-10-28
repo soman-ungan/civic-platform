@@ -7,8 +7,10 @@
 //! 3. Excel の中から、団体コードで自分の自治体のシートを探す（シートの名前は年度で違う）
 //! 4. 見出しの文字で値の位置を探して読み取り、合計で検算してから保存する
 //!
+//! 1〜3 が `fetch settlement`（そのシートがある Excel だけを置き場に置く）、4 が `import settlement`（`import`）。
+//!
 //! セルの位置は年度で行がずれるので固定しない。見出しの右にある最初の値を、その見出しの値とする。
-//! 原本（Excel）は保存しない。数値と出典（`documents`）だけを残す。
+//! 原本（Excel）は、取り込みが済んだら置き場から消す。数値と出典（`documents`）だけを残す。
 //! 出典の表示は公共データ利用規約（第1.0版）に従う（`docs/design/collection.md`）。
 
 use std::io::Cursor;
@@ -19,7 +21,10 @@ use regex::Regex;
 use serde_json::Value;
 use sqlx::SqlitePool;
 
+use std::path::Path;
+
 use super::fetch::{self, Fetched, Fetcher};
+use super::store::{Meta, Store};
 use super::{Collector, Options, Report, Source};
 
 /// Excel のある最初の年度（平成27年度）
@@ -472,17 +477,18 @@ pub fn excel_links(html: &str, prefecture: &str, base: &reqwest::Url) -> Vec<Str
         .collect()
 }
 
-// ===== 収集 =====
+// ===== 取得 =====
 
 pub struct SettlementCard;
 
 impl Collector for SettlementCard {
-    async fn collect(
+    async fn fetch(
         &self,
         pool: &SqlitePool,
         fetcher: &Fetcher,
         source: &Source,
         options: &Options,
+        store: &Store,
     ) -> anyhow::Result<Report> {
         let config = source.config_json()?;
         let index_url = config
@@ -534,48 +540,50 @@ impl Collector for SettlementCard {
                     outcome.get_or_insert_with(|| "前回から変わっていません".to_owned());
                     continue;
                 };
+                // どの Excel に自分のシートがあるかまでを見て、取る原本を1つに決める（北海道は複数に分かれている）
                 match find_card(&bytes, &code) {
                     Ok(None) => {
+                        // 自分のシートの無い Excel は、次から取り直さない
                         if !options.dry_run {
                             fetch::remember(pool, &cache).await?;
                         }
                     }
                     Ok(Some(card)) if card.fiscal_year != year => {
                         report.warnings.push(format!(
-                            "{year}年度: Excel の年度（{}年度）がページと違うので保存しません（{link}）",
+                            "{year}年度: Excel の年度（{}年度）がページと違うので取りません（{link}）",
                             card.fiscal_year
                         ));
-                        outcome = Some("保存しませんでした".into());
+                        outcome = Some("取りませんでした".into());
                         break;
                     }
                     Ok(Some(card)) => {
-                        let summary = format!(
-                            "{}{} 歳出 {} 千円・人口 {} 人",
-                            card.prefecture,
-                            card.name,
-                            card.total(Category::ExpenditurePurpose).unwrap_or(0),
-                            card.population.map_or("-".into(), |p| p.to_string()),
-                        );
+                        let summary = summary(&card);
                         if options.dry_run {
-                            outcome =
-                                Some(format!("{summary}（--dry-run のため保存していません）"));
+                            outcome = Some(format!("{summary}（--dry-run のため置いていません）"));
                         } else {
-                            save(pool, source, &card, &link, &page_url, &cache, bytes.len())
-                                .await?;
-                            fetch::remember(pool, &cache).await?;
-                            outcome = Some(format!("{summary}（保存しました）"));
-                        }
-                        if card.population.is_none() {
-                            report
-                                .warnings
-                                .push(format!("{year}年度: 人口が見つかりません"));
+                            let meta = Meta {
+                                url: Some(link.clone()),
+                                page_url: Some(page_url.clone()),
+                                source_id: Some(source.id.clone()),
+                                fiscal_year: Some(year),
+                                cache: Some(cache),
+                                ..Meta::default()
+                            };
+                            store.put(
+                                &source.slug,
+                                "settlement",
+                                &format!("{year}.xlsx"),
+                                &bytes,
+                                &meta,
+                            )?;
+                            outcome = Some(format!("{summary}（取得しました）"));
                         }
                         break;
                     }
                     Err(e) => {
                         // 形式が想定と違う。記録しないので、直してから再び取り込める
                         report.warnings.push(format!("{year}年度: {e}（{link}）"));
-                        outcome = Some("保存しませんでした".into());
+                        outcome = Some("取りませんでした".into());
                         break;
                     }
                 }
@@ -592,15 +600,101 @@ impl Collector for SettlementCard {
     }
 }
 
+fn summary(card: &Card) -> String {
+    format!(
+        "{}{} 歳出 {} 千円・人口 {} 人",
+        card.prefecture,
+        card.name,
+        card.total(Category::ExpenditurePurpose).unwrap_or(0),
+        card.population.map_or("-".into(), |p| p.to_string()),
+    )
+}
+
+// ===== 取り込み =====
+
+/// 置き場の決算カードを読み取って保存し、済んだ原本を消す（`keep` なら残す）。
+/// `fiscal_year` があれば、その年度だけ。`dry_run` なら読み取るだけで、保存も消しもしない
+pub async fn import(
+    pool: &SqlitePool,
+    store: &Store,
+    slug: &str,
+    fiscal_year: Option<i32>,
+    dry_run: bool,
+    keep: bool,
+) -> anyhow::Result<Report> {
+    let municipality_id: String =
+        sqlx::query_scalar("SELECT id FROM municipalities WHERE slug = $1")
+            .bind(slug)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("自治体が見つかりません: {slug}"))?;
+    let mut report = Report::default();
+    for path in store.originals(slug, "settlement")? {
+        let meta = Meta::read(&path)?;
+        let Some(year) = meta.fiscal_year else {
+            report
+                .warnings
+                .push(format!("{}: 記録に年度がありません", path.display()));
+            continue;
+        };
+        if fiscal_year.is_some_and(|f| f != year) {
+            continue;
+        }
+        let bytes = std::fs::read(&path)?;
+        let card = match find_card(&bytes, &municipality_id) {
+            Ok(Some(card)) => card,
+            Ok(None) => {
+                report.warnings.push(format!(
+                    "{year}年度: Excel に団体コード {municipality_id} のシートがありません（{}）",
+                    path.display()
+                ));
+                continue;
+            }
+            Err(e) => {
+                report
+                    .warnings
+                    .push(format!("{year}年度: {e}（{}）", path.display()));
+                continue;
+            }
+        };
+        if card.population.is_none() {
+            report
+                .warnings
+                .push(format!("{year}年度: 人口が見つかりません"));
+        }
+        let summary = summary(&card);
+        if dry_run {
+            report.lines.push(format!(
+                "{year}年度: {summary}（--dry-run のため保存していません）"
+            ));
+            continue;
+        }
+        save(pool, &municipality_id, &card, &path, &meta, bytes.len()).await?;
+        if let Some(cache) = &meta.cache {
+            fetch::remember(pool, cache).await?;
+        }
+        if !keep {
+            store.discard(&path)?;
+        }
+        report
+            .lines
+            .push(format!("{year}年度: {summary}（保存しました）"));
+    }
+    Ok(report)
+}
+
 async fn save(
     pool: &SqlitePool,
-    source: &Source,
+    municipality_id: &str,
     card: &Card,
-    excel_url: &str,
-    page_url: &str,
-    cache: &fetch::CacheEntry,
+    path: &Path,
+    meta: &Meta,
     size: usize,
 ) -> anyhow::Result<()> {
+    let sha256 = match &meta.cache {
+        Some(cache) => cache.sha256.clone(),
+        None => fetch::sha256_hex(&std::fs::read(path)?),
+    };
     let mut tx = pool.begin().await?;
     let title = format!(
         "市町村決算カード {}年度（{}）",
@@ -613,24 +707,24 @@ async fn save(
          ON CONFLICT (municipality_id, sha256) DO NOTHING",
     )
     .bind(crate::util::new_id())
-    .bind(&source.municipality_id)
+    .bind(municipality_id)
     .bind(&title)
-    .bind(excel_url)
-    .bind(&cache.sha256)
+    .bind(&meta.url)
+    .bind(&sha256)
     .bind(size as i64)
-    .bind(&source.id)
+    .bind(&meta.source_id)
     .bind(crate::util::now_iso())
     .execute(&mut *tx)
     .await?;
     let document_id: String =
         sqlx::query_scalar("SELECT id FROM documents WHERE municipality_id = $1 AND sha256 = $2")
-            .bind(&source.municipality_id)
-            .bind(&cache.sha256)
+            .bind(municipality_id)
+            .bind(&sha256)
             .fetch_one(&mut *tx)
             .await?;
 
     sqlx::query("DELETE FROM settlement_items WHERE municipality_id = $1 AND fiscal_year = $2")
-        .bind(&source.municipality_id)
+        .bind(municipality_id)
         .bind(card.fiscal_year)
         .execute(&mut *tx)
         .await?;
@@ -639,7 +733,7 @@ async fn save(
             "INSERT INTO settlement_items (municipality_id, fiscal_year, category, item_key, position, value, unit, document_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         )
-        .bind(&source.municipality_id)
+        .bind(municipality_id)
         .bind(card.fiscal_year)
         .bind(item.category.as_str())
         .bind(&item.key)
@@ -657,10 +751,10 @@ async fn save(
              ON CONFLICT (municipality_id, fiscal_year) DO UPDATE SET
                  population = excluded.population, source_url = excluded.source_url",
         )
-        .bind(&source.municipality_id)
+        .bind(municipality_id)
         .bind(card.fiscal_year)
         .bind(population)
-        .bind(page_url)
+        .bind(&meta.page_url)
         .execute(&mut *tx)
         .await?;
     }

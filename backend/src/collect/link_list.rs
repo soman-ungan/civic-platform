@@ -7,7 +7,8 @@
 //! - `link_pattern`: 取り込むリンクの文字の正規表現（例: `当初予算の概要`）
 //! - `from_fiscal_year`: この年度より前は取り込まない（AI の費用を抑えるため）
 //!
-//! 年度はリンクの文字の「令和8年度」などから読む。PDF は読み終えたら捨てる（原本を保持しない）。
+//! 年度はリンクの文字の「令和8年度」などから読む。取得した PDF は置き場（`store`）に `<年度>.pdf` として置き、
+//! `extract budget` が AI で読み、`import budget` が保存を終えたら消す（原本を保持しない）。
 
 use std::sync::LazyLock;
 
@@ -15,18 +16,13 @@ use regex::Regex;
 use serde_json::Value;
 use sqlx::SqlitePool;
 
-use super::fetch::{self, Fetched, Fetcher};
+use super::fetch::{Fetched, Fetcher};
 use super::settlement_card::{decode_html, fiscal_year_of};
+use super::store::{Meta, Store};
 use super::{Collector, Options, Report, Source};
-use crate::budget;
-use crate::extraction::Extraction;
-use crate::llm::Llm;
 
-/// 当初予算の概要の取り込み。PDF を AI で読むので、`Llm` を持つ
-pub struct BudgetOverview<'a> {
-    pub llm: &'a Llm,
-    pub model: &'a str,
-}
+/// 当初予算の概要の取得
+pub struct BudgetOverview;
 
 /// 一覧ページのリンク（URL, リンクの文字）
 pub fn links(html: &str, base: &reqwest::Url) -> Vec<(String, String)> {
@@ -59,13 +55,14 @@ fn normalize_digits(s: &str) -> String {
         .collect()
 }
 
-impl Collector for BudgetOverview<'_> {
-    async fn collect(
+impl Collector for BudgetOverview {
+    async fn fetch(
         &self,
         pool: &SqlitePool,
         fetcher: &Fetcher,
         source: &Source,
         options: &Options,
+        store: &Store,
     ) -> anyhow::Result<Report> {
         let config = source.config_json()?;
         let list_url = config
@@ -123,37 +120,37 @@ impl Collector for BudgetOverview<'_> {
             .fetch_optional(pool)
             .await?;
             if published.is_some() {
-                // 公開済みの予算は、運営者が確かめずに置き換えない（import budget --again で作り直す）
+                // 公開済みの予算は、運営者が確かめずに置き換えない（手で取って import budget --again で作り直す）
                 report.warnings.push(format!(
-                    "{year}年度: 資料が更新されましたが、公開済みなので置き換えません（{url}）"
+                    "{year}年度: 資料が更新されましたが、公開済みなので取得しません（{url}）"
                 ));
                 continue;
             }
-            let input = budget::Input {
-                municipality_id: source.municipality_id.clone(),
-                fiscal_year: year,
-                url: Some(url.clone()),
-                collector_source_id: Some(source.id.clone()),
-                pdf: bytes,
-            };
-            let extraction = Extraction::Api {
-                llm: self.llm,
-                model: self.model,
-            };
-            let checked = budget::extract(pool, &extraction, &input).await?;
             if options.dry_run {
                 report.lines.push(format!(
-                    "{year}年度（--dry-run のため保存していません）\n{}",
-                    budget::render(&checked, Some(&url))
+                    "{year}年度: {} バイト（--dry-run のため置いていません）",
+                    bytes.len()
                 ));
                 continue;
             }
-            budget::save_draft(pool, &input, &checked, false, extraction.method()).await?;
-            fetch::remember(pool, &cache).await?;
+            let meta = Meta {
+                url: Some(url.clone()),
+                source_id: Some(source.id.clone()),
+                fiscal_year: Some(year),
+                cache: Some(cache),
+                ..Meta::default()
+            };
+            let path = store.put(
+                &source.slug,
+                "budget",
+                &format!("{year}.pdf"),
+                &bytes,
+                &meta,
+            )?;
             report.lines.push(format!(
-                "{year}年度: 下書きを作りました（事業 {} 件、捨てたもの {} 件）。確認: budget show <slug> {year}",
-                checked.projects.len(),
-                checked.notes.len()
+                "{year}年度: 取得しました（{}）。次: extract budget -m {} -y {year}",
+                path.display(),
+                source.slug
             ));
         }
         Ok(report)

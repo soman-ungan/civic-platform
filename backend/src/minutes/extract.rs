@@ -193,7 +193,7 @@ pub fn check(
         let description_chars = description.chars().count();
         if description_chars > MAX_DESCRIPTION_CHARS {
             notes.push(format!(
-                "{title}: 説明が{description_chars}字で、{MAX_DESCRIPTION_CHARS}字を超えている（topics edit で直す）"
+                "{title}: 説明が{description_chars}字で、{MAX_DESCRIPTION_CHARS}字を超えている（edit topic で直す）"
             ));
         }
         if let Some(name) = contains_name(&format!("{title}{description}"), names) {
