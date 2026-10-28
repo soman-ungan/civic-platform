@@ -152,3 +152,29 @@ async fn insufficient_then_enough_votes_is_computed() {
         Some(Stored::Ready { .. })
     ));
 }
+
+#[tokio::test]
+async fn merging_an_anonymous_voter_into_an_account_triggers_recompute() {
+    let pool = common::test_pool().await;
+    polarized(&pool).await;
+    run_topic(&pool, "t1", false).await.unwrap();
+
+    // このトピックに投票していないアカウントへ、匿名の v00 の投票がすべて移る（数も時刻も変わらない）
+    sqlx::query("INSERT INTO users (id, created_at, registered_at) VALUES ('acct', $1, $1)")
+        .bind("2026-10-26T00:00:00Z")
+        .execute(&pool)
+        .await
+        .unwrap();
+    backend::records::accounts::merge_anonymous(&pool, "v00", "acct")
+        .await
+        .unwrap();
+    assert_eq!(
+        run_topic(&pool, "t1", false).await.unwrap(),
+        RunOutcome::Computed
+    );
+    let Some(Stored::Ready { state, .. }) = load(&pool, "t1").await.unwrap() else {
+        panic!()
+    };
+    assert!(state.in_conv.contains(&"acct".to_owned()));
+    assert!(!state.in_conv.contains(&"v00".to_owned()));
+}

@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use super::conversation::{ConvResult, ConvState, Outcome, Vote, update};
@@ -86,7 +87,9 @@ async fn mod_out(pool: &SqlitePool, topic_id: &str) -> Result<Vec<String>, sqlx:
     .await
 }
 
-/// 入力が変わったかを判定する値: 投票数・最新の投票時刻・非公開の意見
+/// 入力が変わったかを判定する値: 投票数・最新の投票時刻・投票した参加者・非公開の意見。
+/// 参加者を入れるのは、ログインで匿名の投票がアカウントに移ったとき（`records::accounts::merge_anonymous`）、
+/// 数も時刻も変わらず、参加者だけが入れ替わることがあるため
 async fn fingerprint(
     pool: &SqlitePool,
     topic_id: &str,
@@ -100,8 +103,20 @@ async fn fingerprint(
     .bind(topic_id)
     .fetch_one(pool)
     .await?;
+    let voters: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT v.user_id FROM votes v
+         JOIN statements s ON s.id = v.statement_id
+         WHERE s.topic_id = $1 ORDER BY v.user_id",
+    )
+    .bind(topic_id)
+    .fetch_all(pool)
+    .await?;
+    let voters: String = Sha256::digest(voters.join(",").as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
     Ok(format!(
-        "votes={count};latest={};mod_out={}",
+        "votes={count};latest={};voters={voters};mod_out={}",
         latest.unwrap_or_default(),
         mod_out.join(",")
     ))
@@ -143,6 +158,13 @@ pub async fn run_topic(
         })
         .collect();
     let mod_out: HashSet<String> = mod_out_ids.into_iter().collect();
+    // 前回の状態から、投票が1件も無くなった参加者を外す。ログインで匿名の投票がアカウントに移ると
+    // 匿名の参加者は消えるが、Polis の状態は行と in-conv を前回から引き継ぐので、投票の無い人として残ってしまう。
+    // Polis 本家は投票を消さないので、この場面は Polis との一致に関わらない
+    let mut prev_state = prev_state;
+    let voters: HashSet<&str> = votes.iter().map(|v| v.pid.as_str()).collect();
+    prev_state.row_order.retain(|p| voters.contains(p.as_str()));
+    prev_state.in_conv.retain(|p| voters.contains(p.as_str()));
 
     // 数理処理は CPU だけを使うので、ブロッキング用のスレッドで行う
     let outcome =
