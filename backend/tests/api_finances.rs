@@ -173,6 +173,14 @@ async fn budget_years_use_the_latest_population() {
     assert_eq!(b["projects"][1]["flag"], "new");
     assert_eq!(b["projects"][1]["tags"][0]["name"], "福祉・介護");
     assert_eq!(b["source"]["url"], "https://example.jp/R6gaiyou.pdf");
+    // 推移の最後に、予算だけの年度が予算として入る（人口はそれ以前で最新）
+    let trend = j["trend"].as_array().unwrap();
+    assert_eq!(trend.len(), 3);
+    assert_eq!(trend[1]["kind"], "settlement");
+    assert_eq!(trend[2]["fiscal_year"], 2024);
+    assert_eq!(trend[2]["kind"], "budget");
+    assert_eq!(trend[2]["population"], 100);
+    assert_eq!(trend[2]["expenditure_purpose"]["民生費"], 1500);
 }
 
 #[tokio::test]
@@ -182,6 +190,7 @@ async fn draft_budgets_are_hidden() {
     let res = get(&state, "/api/municipalities/otawara/finances").await;
     assert_eq!(res.json["fiscal_year"], 2023);
     assert!(res.json["budget"].is_null());
+    assert_eq!(res.json["trend"].as_array().unwrap().len(), 2);
     let res = get(&state, "/api/municipalities/otawara/finances?year=2024").await;
     assert_eq!(res.status, StatusCode::NOT_FOUND);
     let res = get(&state, "/api/municipalities/otawara/topics/t1").await;

@@ -45,6 +45,9 @@ pub struct Source {
 #[derive(Debug, Serialize)]
 pub struct TrendYear {
     pub fiscal_year: i32,
+    /// settlement: 決算 / budget: 当初予算（決算がまだ無い年度だけ。補正を含まないので決算より小さく出る）
+    pub kind: &'static str,
+    /// 予算の年度は、それ以前で最新の人口
     pub population: Option<i64>,
     /// 目的別歳出（千円）
     pub expenditure_purpose: BTreeMap<String, Option<i64>>,
@@ -122,7 +125,7 @@ pub struct Finances {
     pub fiscal_year: i32,
     pub settlement: Option<Settlement>,
     pub budget: Option<BudgetView>,
-    /// 決算の推移（目的別歳出）
+    /// 推移（目的別歳出。古い順）。決算の年度と、決算がまだ無く予算だけがある年度
     pub trend: Vec<TrendYear>,
 }
 
@@ -282,16 +285,38 @@ pub async fn finances(
     };
 
     let mut trend = Vec::new();
-    for &year in &settlement_years {
-        trend.push(TrendYear {
-            fiscal_year: year,
-            population: population(&state.pool, &municipality.id, year).await?,
-            expenditure_purpose: rows
-                .iter()
-                .filter(|r| r.fiscal_year == year && r.category == "expenditure_purpose")
-                .map(|r| (r.item_key.clone(), r.value))
-                .collect(),
-        });
+    for &year in &all {
+        if settlement_years.contains(&year) {
+            trend.push(TrendYear {
+                fiscal_year: year,
+                kind: "settlement",
+                population: population(&state.pool, &municipality.id, year).await?,
+                expenditure_purpose: rows
+                    .iter()
+                    .filter(|r| r.fiscal_year == year && r.category == "expenditure_purpose")
+                    .map(|r| (r.item_key.clone(), r.value))
+                    .collect(),
+            });
+        } else {
+            let items: Vec<(String, Option<i64>)> = sqlx::query_as(
+                "SELECT i.item_key, i.value FROM budget_items i JOIN budgets b ON b.id = i.budget_id
+                 WHERE b.municipality_id = $1 AND b.fiscal_year = $2 AND b.status = 'published'
+                   AND i.category = 'expenditure_purpose'
+                 ORDER BY i.position",
+            )
+            .bind(&municipality.id)
+            .bind(year)
+            .fetch_all(&state.pool)
+            .await?;
+            trend.push(TrendYear {
+                fiscal_year: year,
+                kind: "budget",
+                population: latest_population(&state.pool, &municipality.id, year)
+                    .await?
+                    .map(|(_, p)| p),
+                expenditure_purpose: items.into_iter().collect(),
+            });
+        }
     }
 
     Ok(Json(Finances {

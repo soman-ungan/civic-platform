@@ -149,7 +149,7 @@ civic-platform/
   - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗（Polis の優先度で重み付けした抽選）
   - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・`statements_by_group`・`group_composition`（グループごとの関わり方の構成）・関わり方ごとの集計（分析対象が5人未満なら insufficient。関わり方の集計は二次秘匿済み）
     - **そのトピックのすべての承認済み意見に投票するまでは `locked`（残り件数）を返す**。全体の傾向に投票が左右されないようにするため。意見が増えれば再びロックされる
-  - `GET /municipalities/{slug}/finances?year=` — まちのお金。年度ごとに `settlement`（決算カード）と `budget`（公開済みの当初予算。主な事業つき）。金額は千円、`per_capita` は円。年度を省くと最新（予算だけの年度を含む）。トピックの詳細の `finances` は、分野タグに対応する目的別歳出と、今年度の主な事業（5件まで）
+  - `GET /municipalities/{slug}/finances?year=` — まちのお金。年度ごとに `settlement`（決算カード）と `budget`（公開済みの当初予算。主な事業つき）。金額は千円、`per_capita` は円。年度を省くと最新（予算だけの年度を含む）。`trend` は決算の年度と、決算がまだ無く予算だけがある年度（`kind`: settlement / budget）。トピックの詳細の `finances` は、分野タグに対応する目的別歳出と、今年度の主な事業（5件まで）
   - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。投票を終えたトピックの分だけを返す（Cookie が無ければ空）
   - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`
   - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）。判定の結果 `status`（approved / rejected / flagged / pending）と、rejected のときは言い換えの提案 `suggestion` を返す

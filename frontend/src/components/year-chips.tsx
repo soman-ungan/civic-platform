@@ -5,20 +5,24 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 
-import type { FinanceYear } from "@/lib/types";
+import { financesHref } from "@/lib/finance-view";
+import type { FinanceKind, FinanceYear } from "@/lib/types";
 
 /**
  * 年度のボタン（1行。横にスクロールして選ぶ）。選んでいる年度が見えるように、表示したときに寄せる。
- * 横のスクロールをタブのスワイプと取り違えないように `data-swipe-ignore`
+ * 横のスクロールをタブのスワイプと取り違えないように `data-swipe-ignore`。
+ * 「決算／予算」の切り替えは、年度を変えても引き継ぐ（その年度に無ければ、ある方が出る）
  */
 export function YearChips({
   slug,
   years,
   selected,
+  view,
 }: {
   slug: string;
   years: FinanceYear[];
   selected: number;
+  view: FinanceKind;
 }) {
   const current = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
@@ -38,7 +42,7 @@ export function YearChips({
             <li key={y}>
               <Link
                 ref={active ? current : undefined}
-                href={`/${slug}/finances?year=${y}`}
+                href={financesHref(slug, y, view)}
                 scroll={false}
                 aria-current={active ? "page" : undefined}
                 className={`inline-flex min-h-9 items-center rounded-full border px-3 text-xs tabular-nums ${

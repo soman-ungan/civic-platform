@@ -2,12 +2,12 @@
 
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { OPEN_EVENT } from "@/components/info-tip";
 import { roughYen, shareText, thousandYen } from "@/lib/money";
 import { type Rect, squarify } from "@/lib/treemap";
 import type { BudgetProject } from "@/lib/types";
+import { useDismiss } from "@/lib/use-dismiss";
 
 /** 色を付ける分野の数。残りは「ほかの分野」にまとめる（dataviz: 色は8つまで、順番は固定） */
 const COLORED_FIELDS = 7;
@@ -100,7 +100,6 @@ export function BudgetTreemap({
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState<string | null>(null);
-  const id = useId();
 
   useEffect(() => {
     const el = ref.current;
@@ -113,22 +112,8 @@ export function BudgetTreemap({
   }, []);
 
   // 吹き出しは1つだけ。画面のどこかに触れると閉じる
-  useEffect(() => {
-    if (!active) return;
-    const close = (e: Event) => {
-      if (ref.current?.contains(e.target as Node)) return;
-      setActive(null);
-    };
-    const others = (e: Event) => {
-      if ((e as CustomEvent<string>).detail !== id) setActive(null);
-    };
-    document.addEventListener("pointerdown", close, true);
-    window.addEventListener(OPEN_EVENT, others);
-    return () => {
-      document.removeEventListener("pointerdown", close, true);
-      window.removeEventListener(OPEN_EVENT, others);
-    };
-  }, [active, id]);
+  const close = useCallback(() => setActive(null), []);
+  const announce = useDismiss(active !== null, close, ref);
 
   const perCapita = (amount: number) =>
     population ? (
@@ -359,11 +344,7 @@ export function BudgetTreemap({
                 aria-label={`${t.label} ${thousandYen(t.amount)}`}
                 aria-expanded={active === t.key}
                 onClick={() => {
-                  if (active !== t.key) {
-                    window.dispatchEvent(
-                      new CustomEvent(OPEN_EVENT, { detail: id }),
-                    );
-                  }
+                  if (active !== t.key) announce();
                   setActive(active === t.key ? null : t.key);
                 }}
                 className="absolute overflow-hidden rounded-[4px] p-1 text-left transition-opacity"

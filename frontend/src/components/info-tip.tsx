@@ -2,10 +2,9 @@
 
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 
-/** ほかの吹き出しを閉じる合図（同時に開くのは1つだけ） */
-export const OPEN_EVENT = "infotip-open";
+import { useDismiss } from "@/lib/use-dismiss";
 
 /**
  * ⓘ のボタンと、短い説明の吹き出し。タップで開き、画面のどこかに触れると閉じる
@@ -15,33 +14,15 @@ export function InfoTip({ label, note }: { label: string; note: string }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const ref = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: Event) => {
-      // ⓘ そのものに触れたときは、ボタンの onClick に任せる（閉じたあとに開き直さないため）
-      if (ref.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    };
-    const others = (e: Event) => {
-      if ((e as CustomEvent<string>).detail !== id) setOpen(false);
-    };
-    document.addEventListener("pointerdown", close, true);
-    window.addEventListener(OPEN_EVENT, others);
-    return () => {
-      document.removeEventListener("pointerdown", close, true);
-      window.removeEventListener(OPEN_EVENT, others);
-    };
-  }, [open, id]);
+  const close = useCallback(() => setOpen(false), []);
+  const announce = useDismiss(open, close, ref);
 
   function toggle(e: React.MouseEvent) {
     // 開閉できる欄の見出しの中に置いても、欄が開閉しないように
     e.preventDefault();
     e.stopPropagation();
-    setOpen((o) => {
-      if (!o) window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: id }));
-      return !o;
-    });
+    if (!open) announce();
+    setOpen(!open);
   }
 
   return (
