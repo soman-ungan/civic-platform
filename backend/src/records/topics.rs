@@ -246,22 +246,25 @@ pub async fn add_statement(
     body: &str,
 ) -> Result<String, EditError> {
     let body = check_body(body)?;
-    let exists: Option<String> = sqlx::query_scalar("SELECT id FROM topics WHERE id = $1")
+    let status: Option<String> = sqlx::query_scalar("SELECT status FROM topics WHERE id = $1")
         .bind(topic_id)
         .fetch_optional(pool)
         .await?;
-    if exists.is_none() {
+    let Some(status) = status else {
         return Err(EditError::NotFound(topic_id.to_owned()));
-    }
+    };
+    // 下書きに足すものは最初の意見。公開したあとに足すものは、最初の意見としては扱わない
+    let is_seed = status == Publication::Draft.as_str();
     let id = crate::shared::util::new_id();
     sqlx::query(
-        "INSERT INTO statements (id, topic_id, user_id, body, status, created_at)
-         VALUES ($1, $2, NULL, $3, 'approved', $4)",
+        "INSERT INTO statements (id, topic_id, user_id, body, status, created_at, is_seed)
+         VALUES ($1, $2, NULL, $3, 'approved', $4, $5)",
     )
     .bind(&id)
     .bind(topic_id)
     .bind(&body)
     .bind(crate::shared::util::now_iso())
+    .bind(is_seed)
     .execute(pool)
     .await?;
     Ok(id)

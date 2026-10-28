@@ -7,7 +7,7 @@ mod common;
 use std::sync::Arc;
 
 use backend::ingest::extraction::Extraction;
-use backend::ingest::minutes::{Input, Outcome, import, prepare};
+use backend::ingest::minutes::{ADDITION_NOTE, Input, Outcome, import, prepare};
 use backend::process::moderation::Moderation;
 use backend::shared::llm::{Fake, Llm};
 use common::{seed_fixture, test_pool};
@@ -162,8 +162,16 @@ async fn imports_checked_topics_as_drafts() {
     .unwrap() else {
         panic!("取り込めていない")
     };
-    // モデレーションで1件減り、2件になったので捨てられる
-    assert!(report.topics.is_empty(), "{:?}", report.notes);
+    // モデレーションで1件減り2件になったが、捨てずに残し、少ないことを運営者に知らせる
+    assert_eq!(report.topics.len(), 1, "{:?}", report.notes);
+    assert!(
+        report
+            .notes
+            .iter()
+            .any(|n| n.contains("意見が少ない（2件）")),
+        "{:?}",
+        report.notes
+    );
     assert!(report.notes.iter().any(|n| n.contains("無い引用")));
     assert!(report.notes.iter().any(|n| n.contains("氏名")));
     assert!(report.notes.iter().any(|n| n.contains("根拠の発言が無い")));
@@ -576,4 +584,97 @@ async fn manual_extraction_uses_the_same_checks_without_api() {
         .await
         .unwrap_err();
     assert!(err.to_string().contains("出力の形が合いません"), "{err}");
+}
+
+/// 同じ論点の既存のトピックへの印（same_as）。下書きにはまとめ、公開中には確認待ちで足す
+#[tokio::test]
+async fn adds_statements_to_existing_topics_with_the_same_issue() {
+    let (pool, llm, fake, moderation) = setup(true).await;
+    // t1 は公開中（seed_fixture）。下書きを1つ足す
+    sqlx::query(
+        "INSERT INTO topics (id, municipality_id, title, description, source_type, created_at, status)
+         VALUES ('td', '092100', '放課後の居場所をどう増やすか', '下書きの説明', 'assembly', '2026-10-27T00:00:00Z', 'draft')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    fake.push_json(json!({"topics": [
+        {
+            "title": "放課後の居場所（下書きと同じ論点）",
+            "description": "説明",
+            "sources": [{"utterance_no": 3, "quote": "来年度に定員を40人増やす方針です。"}],
+            "statements": [{"body": "市の施設の定員を増やすべきだ", "basis": [3]}],
+            "same_as": "td"
+        },
+        {
+            "title": "公開中のトピックと同じ論点",
+            "description": "説明",
+            "sources": [{"utterance_no": 4, "quote": "民間の事業者とも協議しています。"}],
+            "statements": [{"body": "民間の学童への補助を増やすべきだ", "basis": [4]}],
+            "same_as": "t1"
+        }
+    ]}));
+    fake.push_json(approve());
+    fake.push_json(approve());
+
+    let Outcome::Imported(report) = import(
+        &pool,
+        &Extraction::Api {
+            llm: &llm,
+            model: "claude-opus-5-5",
+        },
+        &moderation,
+        &input(),
+        false,
+        false,
+    )
+    .await
+    .unwrap() else {
+        panic!("取り込めていない")
+    };
+    // 新しいトピックは作らない
+    assert!(report.topics.is_empty(), "{:?}", report.notes);
+    assert_eq!(report.additions.len(), 2);
+
+    // AI に送った一覧には、この自治体の公開中・下書きのトピックだけが入る
+    let sent = fake.requests()[0].to_string();
+    assert!(sent.contains("[td]（下書き）"), "{sent}");
+    assert!(sent.contains("[t1]（公開中）"), "{sent}");
+    assert!(!sent.contains("[t2]"), "{sent}");
+
+    let rows: Vec<(String, String, bool, Option<String>)> = sqlx::query_as(
+        "SELECT topic_id, status, is_seed, moderation_note FROM statements
+         WHERE user_id IS NULL ORDER BY topic_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        rows,
+        [
+            // 公開中には、最初の意見ではなく確認待ちで
+            (
+                "t1".to_string(),
+                "flagged".to_string(),
+                false,
+                Some(ADDITION_NOTE.to_string())
+            ),
+            // 下書きには、最初の意見として
+            ("td".to_string(), "approved".to_string(), true, None),
+        ]
+    );
+    // 根拠の発言はどちらにも残る
+    let basis: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM statement_sources")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(basis, 2);
+    // 出典の引用は下書きにだけ足す（公開中の画面は運営者の確認を経ずに変えない）
+    let sources: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT topic_id, COUNT(*) FROM topic_sources GROUP BY topic_id ORDER BY topic_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(sources, [("td".to_string(), 1)]);
 }

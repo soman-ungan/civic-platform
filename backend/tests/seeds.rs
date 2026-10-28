@@ -81,9 +81,10 @@ async fn dev_seeds_apply_after_master_seeds() {
         assert!(title.starts_with("【サンプル】"), "{title}");
     }
 
-    // シード意見は投稿者なし・承認済み
+    // シード意見は投稿者なし・承認済み・最初の意見
     let not_seed: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM statements WHERE user_id IS NOT NULL OR status <> 'approved'",
+        "SELECT count(*) FROM statements
+         WHERE user_id IS NOT NULL OR status <> 'approved' OR NOT is_seed",
     )
     .fetch_one(&pool)
     .await

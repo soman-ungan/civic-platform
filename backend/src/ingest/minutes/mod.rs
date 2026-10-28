@@ -175,8 +175,38 @@ pub struct Report {
     pub utterances: usize,
     /// 下書きとして保存したトピック (id, タイトル)
     pub topics: Vec<(String, String)>,
-    /// 捨てたものとその理由
+    /// 同じ論点の既存のトピックに足した意見
+    pub additions: Vec<Addition>,
+    /// 捨てたもの・運営者に知らせることとその理由
     pub notes: Vec<String>,
+}
+
+/// 既存のトピックに足した意見（下書きなら最初の意見として、公開中なら確認待ちで）
+#[derive(Debug)]
+pub struct Addition {
+    pub topic_id: String,
+    pub title: String,
+    pub statements: usize,
+    /// 公開中のトピックか（確認待ちで足したので、moderate statement で採否を決める）
+    pub published: bool,
+}
+
+/// 公開中のトピックに足した議会の主張の、判定の理由（運営者が採否を決める）
+pub const ADDITION_NOTE: &str =
+    "議会の新しい主張（同じ論点の公開中のトピックに足す候補。運営者が採否を決める）";
+
+/// 同じ論点かを比べる、その自治体の公開中・下書きのトピック（古い順）
+pub async fn existing_topics(
+    pool: &SqlitePool,
+    municipality_id: &str,
+) -> Result<Vec<extract::ExistingTopic>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT id, status, title, description FROM topics
+         WHERE municipality_id = $1 AND status IN ('draft', 'published') ORDER BY created_at",
+    )
+    .bind(municipality_id)
+    .fetch_all(pool)
+    .await
 }
 
 /// AI に送る発言（議長の短い進行の発言は除く。発言の番号は変えない）
@@ -192,9 +222,15 @@ fn speeches(prepared: &Prepared) -> Vec<Utterance> {
 /// AI に渡すもの（API に送るものと同じ）。共同作業では、これを書き出して読んでもらう
 pub async fn prompt(pool: &SqlitePool, input: &Input) -> anyhow::Result<Prompt> {
     let prepared = prepare(pool, input).await?;
+    let existing = existing_topics(pool, &input.municipality_id).await?;
     Ok(Prompt {
         system: extract::SYSTEM_PROMPT.into(),
-        user: extract::build_input(&input.title, &input.held_on, &speeches(&prepared)),
+        user: extract::build_input(
+            &input.title,
+            &input.held_on,
+            &speeches(&prepared),
+            &existing,
+        ),
         schema: extract::schema(),
         attachment: None,
     })
@@ -208,7 +244,8 @@ pub async fn api_output(
     input: &Input,
 ) -> anyhow::Result<Value> {
     let prepared = prepare(pool, input).await?;
-    call_api(pool, llm, model, input, &speeches(&prepared)).await
+    let existing = existing_topics(pool, &input.municipality_id).await?;
+    call_api(pool, llm, model, input, &speeches(&prepared), &existing).await
 }
 
 async fn call_api(
@@ -217,12 +254,13 @@ async fn call_api(
     model: &str,
     input: &Input,
     speeches: &[Utterance],
+    existing: &[extract::ExistingTopic],
 ) -> anyhow::Result<Value> {
     let request = Request {
         purpose: Purpose::Extraction,
         model: model.to_owned(),
         system: extract::SYSTEM_PROMPT.into(),
-        user: extract::build_input(&input.title, &input.held_on, speeches),
+        user: extract::build_input(&input.title, &input.held_on, speeches, existing),
         schema: extract::schema(),
         effort: Effort::Medium,
         max_tokens: 32_000,
@@ -251,9 +289,12 @@ async fn raw_output(
     extraction: &Extraction<'_>,
     input: &Input,
     speeches: &[Utterance],
+    existing: &[extract::ExistingTopic],
 ) -> anyhow::Result<extract::RawOutput> {
     let value = match extraction {
-        Extraction::Api { llm, model } => call_api(pool, llm, model, input, speeches).await?,
+        Extraction::Api { llm, model } => {
+            call_api(pool, llm, model, input, speeches, existing).await?
+        }
         Extraction::Manual(value) | Extraction::Saved(value) => value.clone(),
     };
     serde_json::from_value(value).map_err(|e| {
@@ -269,8 +310,9 @@ pub async fn preview(
 ) -> anyhow::Result<(Vec<extract::CheckedTopic>, Vec<String>)> {
     let prepared = prepare(pool, input).await?;
     let speeches = speeches(&prepared);
-    let raw = raw_output(pool, extraction, input, &speeches).await?;
-    Ok(extract::check(raw, &speeches, &prepared.names))
+    let existing = existing_topics(pool, &input.municipality_id).await?;
+    let raw = raw_output(pool, extraction, input, &speeches, &existing).await?;
+    Ok(extract::check(raw, &speeches, &prepared.names, &existing))
 }
 
 /// 会議録を取り込み、トピック案を下書きとして保存する。
@@ -301,24 +343,35 @@ pub async fn import(
         return Ok(Outcome::NotTopical(prepared.agenda));
     }
     let speeches = speeches(&prepared);
+    let existing = existing_topics(pool, &input.municipality_id).await?;
 
-    let raw = raw_output(pool, extraction, input, &speeches).await?;
+    let raw = raw_output(pool, extraction, input, &speeches, &existing).await?;
     // 引用と意見の根拠は、AI に送った発言の中から選ばれていること
-    let (checked, mut notes) = extract::check(raw, &speeches, &prepared.names);
+    let (checked, mut notes) = extract::check(raw, &speeches, &prepared.names, &existing);
 
     // 最初の意見もモデレーションに通す。承認されたものと、判定できなかったもの（pending。
-    // 通常の投稿と同じく、あとで判定し直す）を残し、非公開・要確認になったものは捨てる
+    // 通常の投稿と同じく、あとで判定し直す）を残し、非公開・要確認になったものは捨てる。
+    // 公開中のトピックに足すものは、残したものをすべて確認待ち（flagged）にして、運営者が採否を決める
     let mut topics: Vec<(
         extract::CheckedTopic,
         Vec<(&extract::CheckedStatement, StatementStatus)>,
     )> = Vec::new();
     for topic in &checked {
+        let to_published = topic
+            .same_as
+            .as_ref()
+            .is_some_and(|t| t.status == "published");
         let mut kept = Vec::new();
         for statement in &topic.statements {
             let review = moderation.review(pool, &statement.body).await;
             match review.verdict {
                 Verdict::Approved | Verdict::Pending => {
-                    kept.push((statement, review.verdict.status()));
+                    let status = if to_published {
+                        StatementStatus::Flagged
+                    } else {
+                        review.verdict.status()
+                    };
+                    kept.push((statement, status));
                 }
                 _ => notes.push(format!(
                     "{}: モデレーションで {} になった意見を捨てた:「{}」",
@@ -328,13 +381,19 @@ pub async fn import(
                 )),
             }
         }
-        if kept.len() < extract::MIN_STATEMENTS {
+        if kept.is_empty() {
             notes.push(format!(
-                "モデレーションのあと意見が{}件未満なので捨てた: {}",
-                extract::MIN_STATEMENTS,
+                "モデレーションのあと意見が残らないので捨てた: {}",
                 topic.title
             ));
             continue;
+        }
+        if topic.same_as.is_none() && kept.len() < extract::MIN_STATEMENTS {
+            notes.push(format!(
+                "{}: モデレーションのあと意見が少ない（{}件）。立場が偏っていないか確かめる",
+                topic.title,
+                kept.len()
+            ));
         }
         if kept
             .iter()
@@ -348,7 +407,7 @@ pub async fn import(
         topics.push((topic.clone(), kept));
     }
 
-    // 保存（トピックは下書き）
+    // 保存（新しいトピックは下書き）
     let mut tx = pool.begin().await?;
     let document_id = match &prepared.existing_document {
         Some(id) => id.clone(),
@@ -378,32 +437,54 @@ pub async fn import(
         .await?;
     let by_no: HashMap<usize, &Utterance> = prepared.utterances.iter().map(|u| (u.no, u)).collect();
     let mut saved = Vec::new();
+    let mut additions = Vec::new();
     for (topic, statements) in &topics {
-        let topic_id = new_id();
         let now = now_iso();
-        sqlx::query(
-            "INSERT INTO topics (id, municipality_id, title, description, source_type, source_url, created_at, status)
-             VALUES ($1, $2, $3, $4, 'assembly', $5, $6, 'draft')",
-        )
-        .bind(&topic_id)
-        .bind(&input.municipality_id)
-        .bind(&topic.title)
-        .bind(&topic.description)
-        .bind(&input.url)
-        .bind(&now)
-        .execute(&mut *tx)
-        .await?;
+        // 同じ論点の既存のトピックがあれば、そこに足す（下書きなら最初の意見として、公開中なら確認待ちで）
+        let (topic_id, is_seed, add_sources) = match &topic.same_as {
+            Some(target) => {
+                let published = target.status == "published";
+                additions.push(Addition {
+                    topic_id: target.id.clone(),
+                    title: target.title.clone(),
+                    statements: statements.len(),
+                    published,
+                });
+                // 公開中の画面の出典は、運営者の確認を経ずに変えない
+                (target.id.clone(), !published, !published)
+            }
+            None => {
+                let topic_id = new_id();
+                sqlx::query(
+                    "INSERT INTO topics (id, municipality_id, title, description, source_type, source_url, created_at, status)
+                     VALUES ($1, $2, $3, $4, 'assembly', $5, $6, 'draft')",
+                )
+                .bind(&topic_id)
+                .bind(&input.municipality_id)
+                .bind(&topic.title)
+                .bind(&topic.description)
+                .bind(&input.url)
+                .bind(&now)
+                .execute(&mut *tx)
+                .await?;
+                saved.push((topic_id.clone(), topic.title.clone()));
+                (topic_id, true, true)
+            }
+        };
         for (statement, status) in statements {
             let statement_id = new_id();
+            let note = (!is_seed).then_some(ADDITION_NOTE);
             sqlx::query(
-                "INSERT INTO statements (id, topic_id, user_id, body, status, created_at)
-                 VALUES ($1, $2, NULL, $3, $4, $5)",
+                "INSERT INTO statements (id, topic_id, user_id, body, status, moderation_note, created_at, is_seed)
+                 VALUES ($1, $2, NULL, $3, $4, $5, $6, $7)",
             )
             .bind(&statement_id)
             .bind(&topic_id)
             .bind(&statement.body)
             .bind(status.as_str())
+            .bind(note)
             .bind(&now)
+            .bind(is_seed)
             .execute(&mut *tx)
             .await?;
             // 根拠の発言（運営者の確認用。API では返さない）
@@ -420,24 +501,32 @@ pub async fn import(
                 .await?;
             }
         }
-        for (position, source) in topic.sources.iter().enumerate() {
-            let u = by_no[&source.utterance_no];
-            sqlx::query(
-                "INSERT INTO topic_sources (id, topic_id, document_id, position, utterance_no, speaker_label, official_id, quote)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        if add_sources {
+            // 下書きにまとめるときは、前の出典のあとに並べる
+            let offset: i64 = sqlx::query_scalar(
+                "SELECT COALESCE(MAX(position) + 1, 0) FROM topic_sources WHERE topic_id = $1",
             )
-            .bind(new_id())
             .bind(&topic_id)
-            .bind(&document_id)
-            .bind(position as i64)
-            .bind(source.utterance_no as i64)
-            .bind(u.speaker_label())
-            .bind(prepared.officials.get(&source.utterance_no))
-            .bind(&source.quote)
-            .execute(&mut *tx)
+            .fetch_one(&mut *tx)
             .await?;
+            for (position, source) in topic.sources.iter().enumerate() {
+                let u = by_no[&source.utterance_no];
+                sqlx::query(
+                    "INSERT INTO topic_sources (id, topic_id, document_id, position, utterance_no, speaker_label, official_id, quote)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                )
+                .bind(new_id())
+                .bind(&topic_id)
+                .bind(&document_id)
+                .bind(offset + position as i64)
+                .bind(source.utterance_no as i64)
+                .bind(u.speaker_label())
+                .bind(prepared.officials.get(&source.utterance_no))
+                .bind(&source.quote)
+                .execute(&mut *tx)
+                .await?;
+            }
         }
-        saved.push((topic_id, topic.title.clone()));
     }
     tx.commit().await?;
 
@@ -445,6 +534,7 @@ pub async fn import(
         document_id,
         utterances: prepared.utterances.len(),
         topics: saved,
+        additions,
         notes,
     }))
 }

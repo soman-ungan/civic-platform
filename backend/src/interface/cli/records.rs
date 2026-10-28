@@ -372,10 +372,10 @@ pub async fn show(ctx: &Ctx, args: ShowArgs) -> anyhow::Result<()> {
                 s.status,
                 s.created_at,
                 s.topic_id,
-                if d.seed {
-                    "最初の意見"
-                } else {
-                    "市民の投稿"
+                match (d.seed, d.posted) {
+                    (true, _) => "最初の意見",
+                    (false, true) => "市民の投稿",
+                    (false, false) => "あとから足した議会の主張・運営者の意見",
                 }
             );
             println!("  {}", s.body);

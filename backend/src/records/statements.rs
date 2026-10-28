@@ -55,8 +55,10 @@ pub async fn list(
 #[derive(Debug)]
 pub struct Detail {
     pub statement: Statement,
-    /// 議会の発言から作った最初の意見か（でなければ市民の投稿）
+    /// 最初の意見か（議会の発言から作ったもの・下書きのときに運営者が足したもの）
     pub seed: bool,
+    /// 投稿者がいるか（市民の投稿か。いなければ、議会の主張か運営者が足したもの）
+    pub posted: bool,
     pub agree: i64,
     pub disagree: i64,
     pub pass: i64,
@@ -68,9 +70,11 @@ pub async fn load(pool: &SqlitePool, id: &str) -> Result<Option<Detail>, sqlx::E
         #[sqlx(flatten)]
         statement: Statement,
         seed: bool,
+        posted: bool,
     }
     let row: Option<Row> = sqlx::query_as(
-        "SELECT id, topic_id, status, body, moderation_note, created_at, user_id IS NULL AS seed
+        "SELECT id, topic_id, status, body, moderation_note, created_at, is_seed AS seed,
+                user_id IS NOT NULL AS posted
          FROM statements WHERE id = $1",
     )
     .bind(id)
@@ -89,6 +93,7 @@ pub async fn load(pool: &SqlitePool, id: &str) -> Result<Option<Detail>, sqlx::E
     Ok(Some(Detail {
         statement: row.statement,
         seed: row.seed,
+        posted: row.posted,
         agree: count(1),
         disagree: count(-1),
         pass: count(0),
