@@ -5,8 +5,8 @@
 mod common;
 
 use axum::http::StatusCode;
-use backend::drafts;
 use backend::process::analysis::store::run_all;
+use backend::records::topics;
 use backend::shared::status::Publication;
 use common::{request, seed_polarized, test_pool, test_state};
 use serde_json::json;
@@ -62,13 +62,13 @@ async fn draft_is_hidden_until_published() {
     .await;
     assert_eq!(post.status, StatusCode::NOT_FOUND);
 
-    assert_eq!(drafts::list(&pool).await.unwrap().len(), 1);
+    assert_eq!(topics::list(&pool).await.unwrap().len(), 1);
     assert!(
-        drafts::set_status(&pool, "t1", Publication::Published)
+        topics::set_status(&pool, "t1", Publication::Published)
             .await
             .unwrap()
     );
-    assert!(drafts::list(&pool).await.unwrap().is_empty());
+    assert!(topics::list(&pool).await.unwrap().is_empty());
 
     let detail = request(&state, "GET", T1, None, None).await;
     assert_eq!(detail.status, StatusCode::OK);
@@ -76,7 +76,7 @@ async fn draft_is_hidden_until_published() {
 
     // 保管すると、また見えなくなる
     assert!(
-        drafts::set_status(&pool, "t1", Publication::Archived)
+        topics::set_status(&pool, "t1", Publication::Archived)
             .await
             .unwrap()
     );
@@ -99,7 +99,7 @@ async fn operator_can_edit_topic_statements_and_tags() {
     .await
     .unwrap();
 
-    drafts::edit_topic(&pool, "t1", None, Some(" 短い説明 "))
+    topics::edit_topic(&pool, "t1", None, Some(" 短い説明 "))
         .await
         .unwrap();
     let (title, description): (String, String) =
@@ -112,39 +112,39 @@ async fn operator_can_edit_topic_statements_and_tags() {
         ("大田原のテスト", "短い説明")
     );
     assert!(
-        drafts::edit_topic(&pool, "missing", Some("x"), None)
+        topics::edit_topic(&pool, "missing", Some("x"), None)
             .await
             .is_err()
     );
 
     // 投票のある意見は直せない。投票の無い意見は直せる
     assert!(
-        drafts::edit_statement(&pool, "a0", "直した意見")
+        topics::edit_statement(&pool, "a0", "直した意見")
             .await
             .is_err()
     );
-    let sid = drafts::add_statement(&pool, "t1", "足した意見")
+    let sid = topics::add_statement(&pool, "t1", "足した意見")
         .await
         .unwrap();
-    drafts::edit_statement(&pool, &sid, "直した意見")
+    topics::edit_statement(&pool, &sid, "直した意見")
         .await
         .unwrap();
     assert!(
-        drafts::add_statement(&pool, "t1", &"あ".repeat(141))
+        topics::add_statement(&pool, "t1", &"あ".repeat(141))
             .await
             .is_err()
     );
 
     // 地区タグは、そのトピックの自治体の地区だけ。AI のタグは運営者のタグになる
-    drafts::set_tag(&pool, "t1", "district-092100-kurobane", true)
+    topics::set_tag(&pool, "t1", "district-092100-kurobane", true)
         .await
         .unwrap();
     assert!(
-        drafts::set_tag(&pool, "t1", "district-092134-shiobara", true)
+        topics::set_tag(&pool, "t1", "district-092134-shiobara", true)
             .await
             .is_err()
     );
-    drafts::set_tag(&pool, "t1", "field-koutsu", true)
+    topics::set_tag(&pool, "t1", "field-koutsu", true)
         .await
         .unwrap();
     // まだタグの無い地区でも、その自治体の地区なら付けられる（タグを作る）
@@ -152,14 +152,14 @@ async fn operator_can_edit_topic_statements_and_tags() {
         .execute(&pool)
         .await
         .unwrap();
-    drafts::set_tag(&pool, "t1", "district-092100-sakuyama", true)
+    topics::set_tag(&pool, "t1", "district-092100-sakuyama", true)
         .await
         .unwrap();
-    drafts::set_tag(&pool, "t1", "district-092100-sakuyama", false)
+    topics::set_tag(&pool, "t1", "district-092100-sakuyama", false)
         .await
         .unwrap();
     assert!(
-        drafts::set_tag(&pool, "t1", "district-092100-missing", true)
+        topics::set_tag(&pool, "t1", "district-092100-missing", true)
             .await
             .is_err()
     );
@@ -176,7 +176,7 @@ async fn operator_can_edit_topic_statements_and_tags() {
             ("field-koutsu".to_string(), "admin".to_string()),
         ]
     );
-    drafts::set_tag(&pool, "t1", "field-koutsu", false)
+    topics::set_tag(&pool, "t1", "field-koutsu", false)
         .await
         .unwrap();
     // 外したあと、AI が付け直さないようタグ付けは済みになる

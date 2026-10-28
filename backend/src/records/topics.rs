@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! トピックの下書きの確認と公開（docs/plans/2026-10-27-phase5a-minutes.md Step 4）。
+//! トピックの一覧・確認・手直し・公開（CLI の list / show / edit / publish / archive topic、
+//! add / edit / remove statement、add / remove tag。docs/plans/2026-10-27-phase5a-minutes.md Step 4）。
 //! 会議録から AI が作ったトピックは下書き（draft）で保存され、運営者が内容・出典・発言者を
 //! 確かめてから公開する。認証（フェーズ6）までは CLI から使う。
 
@@ -21,6 +22,26 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<DraftSummary>, sqlx::Error> {
     sqlx::query_as(
         "SELECT id, municipality_id, title, created_at FROM topics
          WHERE status = 'draft' ORDER BY created_at",
+    )
+    .fetch_all(pool)
+    .await
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct TopicSummary {
+    pub id: String,
+    pub created_at: String,
+    pub slug: String,
+    pub status: String,
+    pub title: String,
+}
+
+/// すべてのトピック（下書き・公開済み・取り下げ。自治体ごとに古い順）
+pub async fn list_all(pool: &SqlitePool) -> Result<Vec<TopicSummary>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT t.id, t.created_at, m.slug, t.status, t.title
+         FROM topics t JOIN municipalities m ON m.id = t.municipality_id
+         ORDER BY m.slug, t.created_at",
     )
     .fetch_all(pool)
     .await

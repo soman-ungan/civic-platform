@@ -353,7 +353,7 @@ async fn published_topic_shows_sources() {
         panic!("取り込めていない")
     };
     let topic_id = &report.topics[0].0;
-    backend::drafts::set_status(
+    backend::records::topics::set_status(
         &pool,
         topic_id,
         backend::shared::status::Publication::Published,

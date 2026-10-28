@@ -257,25 +257,6 @@ pub fn spawn_retry_worker(pool: SqlitePool, moderation: Moderation, interval: Du
 }
 
 /// 運営者の確認待ちの意見（flagged と pending）
-#[derive(Debug, sqlx::FromRow)]
-pub struct QueueItem {
-    pub id: String,
-    pub topic_id: String,
-    pub status: String,
-    pub body: String,
-    pub moderation_note: Option<String>,
-    pub created_at: String,
-}
-
-pub async fn queue(pool: &SqlitePool) -> Result<Vec<QueueItem>, sqlx::Error> {
-    sqlx::query_as(
-        "SELECT id, topic_id, status, body, moderation_note, created_at FROM statements
-         WHERE status IN ('flagged', 'pending') ORDER BY created_at",
-    )
-    .fetch_all(pool)
-    .await
-}
-
 /// 運営者の判断で公開・非公開を決める。対象が無ければ false
 pub async fn decide(
     pool: &SqlitePool,

@@ -107,7 +107,9 @@ async fn flagged_and_refusal_wait_for_operator() {
     assert_eq!(a.json["status"], "flagged");
     assert_eq!(b.json["status"], "flagged");
 
-    let queue = moderation::queue(&state.pool).await.unwrap();
+    let queue = backend::records::statements::queue(&state.pool)
+        .await
+        .unwrap();
     assert_eq!(queue.len(), 2);
     assert!(
         queue[1]
