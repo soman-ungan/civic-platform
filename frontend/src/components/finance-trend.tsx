@@ -3,18 +3,20 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { termNote } from "@/lib/finance-terms";
 import { fiscalYearLabel, roughYen, thousandYen } from "@/lib/money";
-import type { Finances } from "@/lib/types";
+import { financesQuery } from "@/lib/finance-view";
+import type { FinanceKind, Finances } from "@/lib/types";
 
 const WIDTH = 320;
 const HEIGHT = 190;
 const PAD_LEFT = 38;
 const PAD_RIGHT = 4;
 const PAD_TOP = 8;
-const PAD_BOTTOM = 20;
+/** 年度の目盛りと、予算の年度の「予算」の2行ぶん */
+const PAD_BOTTOM = 30;
 /** 系列の色は8色まで（dataviz）。最新の年度の上位7費目と「その他」 */
 const TOP_SERIES = 7;
 const OTHER = "その他";
@@ -39,19 +41,25 @@ function niceStep(max: number): number {
  * 歳出の推移（目的別の積み上げの縦棒）。横軸は年度、縦軸は金額（0 から）。
  * 1人あたり（円）と総額を切り替えられ、費目のチップで表示・非表示を切り替える（最初は全部 = 歳出の合計）。
  * 色は費目に付け、表示を切り替えても変えない。ヘッダーで選んだ年度をハイライトする。
- * 棒をタップすると、ヘッダーの年度もその年度に切り替える（URL の ?year= を変える。2つの年度の選び方を連動させる）
+ * 棒をタップすると、ヘッダーの年度もその年度に切り替える（URL の ?year= を変える。2つの年度の選び方を連動させる）。
+ * 決算がまだ無い年度は当初予算の棒を、同じ積み上げで薄く斜線にして出し、目盛りの下に「予算」と書く
  */
 export function FinanceTrend({
   trend,
   latestOrder,
   selectedYear,
+  view,
 }: {
   trend: Finances["trend"];
   /** 最新の年度の目的別歳出の費目（大きい順） */
   latestOrder: string[];
   /** ヘッダーで選んでいる年度 */
   selectedYear: number;
+  /** ヘッダーの「決算／予算」の切り替え（年度を変えても引き継ぐ） */
+  view: FinanceKind;
 }) {
+  // url(#…) で参照するので、useId の記号を除く
+  const hatch = `hatch${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const [mode, setMode] = useState<Mode>("per_capita");
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const router = useRouter();
@@ -68,7 +76,9 @@ export function FinanceTrend({
   function selectYear(year: number) {
     if (year === selectedYear) return;
     setPendingYear(year);
-    router.replace(`${pathname}?year=${year}`, { scroll: false });
+    router.replace(`${pathname}${financesQuery(year, view)}`, {
+      scroll: false,
+    });
   }
 
   const top = latestOrder.slice(0, TOP_SERIES);
@@ -94,6 +104,7 @@ export function FinanceTrend({
   const visible = series.filter((s) => !hidden.has(s.key));
   const stacks = years.map((t) => ({
     year: t.fiscal_year,
+    budget: t.kind === "budget",
     parts: visible.map((s) => ({ ...s, value: valueOf(t, s.key) })),
   }));
   const totals = stacks.map((s) => s.parts.reduce((a, p) => a + p.value, 0));
@@ -233,6 +244,23 @@ export function FinanceTrend({
             role="img"
             aria-label={`歳出の推移（${mode === "per_capita" ? "1人あたり" : "総額"}）`}
           >
+            <defs>
+              {/* 予算の棒に重ねる斜線（線の色は背景の色。下の色を薄く見せる） */}
+              <pattern
+                id={hatch}
+                width="4"
+                height="4"
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(45)"
+              >
+                <rect
+                  width="2"
+                  height="4"
+                  style={{ fill: "var(--background)" }}
+                  opacity={0.6}
+                />
+              </pattern>
+            </defs>
             {ticks.map((t) => (
               <g key={t}>
                 <line
@@ -284,20 +312,40 @@ export function FinanceTrend({
                     acc += p.value;
                     const h = y0 - y(acc);
                     return h - GAP > 0 ? (
-                      <rect
-                        key={p.key}
-                        x={x}
-                        y={y(acc) + GAP}
-                        width={barW}
-                        height={h - GAP}
-                        // SVG の属性には CSS の変数が効かないので、色は style で指定する
-                        style={{ fill: p.color }}
-                      />
+                      <g key={p.key}>
+                        <rect
+                          x={x}
+                          y={y(acc) + GAP}
+                          width={barW}
+                          height={h - GAP}
+                          // SVG の属性には CSS の変数が効かないので、色は style で指定する
+                          style={{ fill: p.color }}
+                        />
+                        {s.budget && (
+                          <rect
+                            x={x}
+                            y={y(acc) + GAP}
+                            width={barW}
+                            height={h - GAP}
+                            fill={`url(#${hatch})`}
+                          />
+                        )}
+                      </g>
                     ) : null;
                   })}
+                  {s.budget && (
+                    <text
+                      x={PAD_LEFT + band * i + band / 2}
+                      y={HEIGHT - 4}
+                      textAnchor="middle"
+                      className="fill-zinc-500 text-[8px]"
+                    >
+                      予算
+                    </text>
+                  )}
                   <text
                     x={PAD_LEFT + band * i + band / 2}
-                    y={HEIGHT - 6}
+                    y={HEIGHT - 16}
                     textAnchor="middle"
                     className={`text-[9px] ${
                       i === shownIndex
@@ -319,6 +367,9 @@ export function FinanceTrend({
             <p className="mb-1.5 flex justify-between text-sm">
               <span className="font-semibold">
                 {fiscalYearLabel(shown.year)}
+                <span className="ml-1.5 text-xs font-normal text-zinc-500">
+                  {shown.budget ? "当初予算" : "決算"}
+                </span>
               </span>
               <span className="tabular-nums">
                 {hidden.size > 0 ? "表示中の合計 " : "合計 "}
@@ -349,6 +400,8 @@ export function FinanceTrend({
             </ul>
             <p className="mt-1.5 text-zinc-500">
               棒をタップすると、その年度に切り替わります。
+              {stacks.some((st) => st.budget) &&
+                "斜線の棒は、決算がまだ無い年度の当初予算です。当初予算は年度の途中の補正予算を含まないため、決算より小さく出ます。"}
             </p>
           </div>
 
@@ -361,7 +414,10 @@ export function FinanceTrend({
                     key={s.year}
                     className="border-t border-zinc-100 dark:border-zinc-800"
                   >
-                    <td className="py-1">{fiscalYearLabel(s.year)}</td>
+                    <td className="py-1">
+                      {fiscalYearLabel(s.year)}
+                      {s.budget && "（当初予算）"}
+                    </td>
                     <td className="py-1 text-right">{format(totals[i])}</td>
                   </tr>
                 ))}

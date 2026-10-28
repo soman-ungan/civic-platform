@@ -84,6 +84,9 @@ export type FinanceSource = {
   excel_url: string | null;
 };
 
+/** 決算（総務省の決算カード）か、当初予算か */
+export type FinanceKind = "settlement" | "budget";
+
 export type FinanceYear = {
   fiscal_year: number;
   /** 決算（決算カード）があるか */
@@ -142,9 +145,12 @@ export type Finances = {
   fiscal_year: number;
   settlement: Settlement | null;
   budget: Budget | null;
-  /** 決算の推移（目的別歳出） */
+  /** 推移（目的別歳出。古い順）。決算の年度と、決算がまだ無く予算だけがある年度 */
   trend: {
     fiscal_year: number;
+    /** budget は当初予算（補正を含まないので、決算より小さく出る） */
+    kind: FinanceKind;
+    /** 予算の年度は、それ以前で最新の人口 */
     population: number | null;
     /** 目的別歳出（千円） */
     expenditure_purpose: Record<string, number | null>;
