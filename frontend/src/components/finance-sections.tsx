@@ -9,7 +9,7 @@ import { FinanceTrend } from "@/components/finance-trend";
 import { InfoTip } from "@/components/info-tip";
 import { termNote } from "@/lib/finance-terms";
 import { type FinanceView, KIND_LABEL } from "@/lib/finance-view";
-import { fiscalYearLabel, thousandYen } from "@/lib/money";
+import { type Unit, fiscalYearLabel, thousandYen } from "@/lib/money";
 import type { FinanceIndicator, Finances } from "@/lib/types";
 
 /** 決算がまだ無い年度の説明 */
@@ -25,6 +25,7 @@ const NO_BUDGET = "この年度の予算の概要は、まだ取り込んでい�
 export function financeSections(
   f: Finances,
   v: FinanceView,
+  unit: Unit,
 ): CarouselSection[] {
   const s = f.settlement;
   const b = f.budget;
@@ -58,6 +59,7 @@ export function financeSections(
             latestOrder={latestOrder}
             selectedYear={f.fiscal_year}
             view={v.kind}
+            unit={unit}
           />
         ) : (
           <Empty>推移は、2つ以上の年度の数字がそろうと出ます。</Empty>
@@ -68,14 +70,16 @@ export function financeSections(
       title: "何に使ったか",
       lead: `分野ごとの歳出（目的別・${kind}）。1人あたりの額と、全体に占める割合です。`,
       content: lacking(v.purpose) ?? (
-        <FinanceBars kind="purpose" items={v.purpose} donut />
+        <FinanceBars kind="purpose" items={v.purpose} unit={unit} donut />
       ),
     },
     {
       id: "nature",
       title: "お金の使い方で見る",
       lead: `同じ歳出を、使い方で分けたもの（性質別・${kind}）。行を開くと中身が出ます。`,
-      content: lacking(v.nature) ?? <FinanceNature items={v.nature} />,
+      content: lacking(v.nature) ?? (
+        <FinanceNature items={v.nature} unit={unit} />
+      ),
     },
     {
       id: "revenue",
@@ -88,7 +92,13 @@ export function financeSections(
         </>
       ),
       content: lacking(v.revenue) ?? (
-        <FinanceBars kind="revenue" items={v.revenue} limit={8} donut />
+        <FinanceBars
+          kind="revenue"
+          items={v.revenue}
+          unit={unit}
+          limit={8}
+          donut
+        />
       ),
     },
     {
@@ -107,6 +117,7 @@ export function financeSections(
           pdfUrl={b.source.url}
           total={b.total}
           population={b.population}
+          unit={unit}
         />
       ),
     },
@@ -122,6 +133,7 @@ export function financeSections(
         <BudgetComparison
           budget={b.expenditure_purpose}
           settlement={s.expenditure_purpose}
+          unit={unit}
         />
       ),
     },

@@ -9,7 +9,7 @@ import {
   OTHER_FIELDS,
   fieldGroups,
 } from "@/components/budget-treemap";
-import { roughYen, thousandYen } from "@/lib/money";
+import { type Unit, amountText, roughYen, thousandYen } from "@/lib/money";
 import type { BudgetProject } from "@/lib/types";
 
 /** 最初に出す事業の数。残りは「さらに表示」で出す */
@@ -26,12 +26,15 @@ export function BudgetProjects({
   pdfUrl,
   total,
   population,
+  unit,
 }: {
   projects: BudgetProject[];
   pdfUrl: string | null;
   /** 予算の全体（千円） */
   total: number;
   population: number | null;
+  /** 1人あたりか総額か（ヘッダーの切り替え）。もう一方は小さく添える */
+  unit: Unit;
 }) {
   const [filter, setFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -97,7 +100,7 @@ export function BudgetProjects({
                     {p.name}
                   </p>
                   <p className="mt-auto pt-2 text-sm tabular-nums">
-                    {thousandYen(p.amount)}
+                    {amountText(unit, p.amount, p.per_capita)}
                   </p>
                   <p className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
                     {p.tags[0] && (
@@ -198,10 +201,12 @@ export function BudgetProjects({
                 {p.name}
               </p>
               <p className="shrink-0 text-right text-sm tabular-nums">
-                {thousandYen(p.amount)}
+                {amountText(unit, p.amount, p.per_capita)}
                 {p.per_capita !== null && (
                   <span className="block text-xs text-zinc-500">
-                    1人 {roughYen(p.per_capita)}
+                    {unit === "total"
+                      ? `1人 ${roughYen(p.per_capita)}`
+                      : thousandYen(p.amount)}
                   </span>
                 )}
               </p>

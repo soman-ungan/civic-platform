@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { thousandYen } from "@/lib/money";
+import { type Unit, amountText } from "@/lib/money";
 import type { FinanceAmount } from "@/lib/types";
 
 /**
@@ -10,15 +10,24 @@ import type { FinanceAmount } from "@/lib/types";
 export function BudgetComparison({
   budget,
   settlement,
+  unit,
 }: {
   budget: FinanceAmount[];
   settlement: FinanceAmount[];
+  /** 1人あたりか総額か（ヘッダーの切り替え。1人あたりは、それぞれの人口で割った額） */
+  unit: Unit;
 }) {
   const keys = [
     ...new Set([...budget, ...settlement].map((i) => i.key)),
   ].filter((k) => k !== "予備費");
+  const find = (items: FinanceAmount[], key: string) =>
+    items.find((i) => i.key === key);
   const value = (items: FinanceAmount[], key: string) =>
-    items.find((i) => i.key === key)?.value ?? 0;
+    find(items, key)?.value ?? 0;
+  const text = (items: FinanceAmount[], key: string) => {
+    const item = find(items, key);
+    return amountText(unit, item?.value ?? 0, item?.per_capita ?? 0);
+  };
   const rows = keys
     .map((key) => ({
       key,
@@ -56,7 +65,7 @@ export function BudgetComparison({
               <div className="flex items-baseline justify-between gap-2 text-sm">
                 <span className="font-medium">{r.key}</span>
                 <span className="text-xs tabular-nums text-zinc-600 dark:text-zinc-400">
-                  {thousandYen(r.budget)} → {thousandYen(r.settlement)}
+                  {text(budget, r.key)} → {text(settlement, r.key)}
                   {diff !== null && (
                     <span className="ml-1.5">
                       （{diff >= 0 ? "+" : ""}

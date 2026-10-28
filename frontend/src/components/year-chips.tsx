@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 
 import { financesHref } from "@/lib/finance-view";
+import type { Unit } from "@/lib/money";
 import type { FinanceKind, FinanceYear } from "@/lib/types";
 
 /**
@@ -18,11 +19,13 @@ export function YearChips({
   years,
   selected,
   view,
+  unit,
 }: {
   slug: string;
   years: FinanceYear[];
   selected: number;
   view: FinanceKind;
+  unit: Unit;
 }) {
   const current = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
@@ -42,7 +45,7 @@ export function YearChips({
             <li key={y}>
               <Link
                 ref={active ? current : undefined}
-                href={financesHref(slug, y, view)}
+                href={financesHref(slug, y, view, unit)}
                 scroll={false}
                 aria-current={active ? "page" : undefined}
                 className={`inline-flex min-h-9 items-center rounded-full border px-3 text-xs tabular-nums ${
