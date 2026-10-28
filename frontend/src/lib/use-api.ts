@@ -2,22 +2,33 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "./api-client";
 
 /**
  * Client Component で GET の結果を持つ。`path` か `refreshKey` が変わると読み込み直し、
  * 画面を離れたあと（や、次の読み込みが始まったあと）に届いた古い応答は捨てる。
- * 失敗しても前のデータは残し、`error` を立てる
+ * 失敗しても前のデータは残し、`error` を立てる。
+ * `initial` はサーバー側で取ってきた最初のデータ（HTML に最初から入るので、JS を待たずに表示できる）。
+ * あれば最初の読み込みはしない
  */
-export function useApi<T>(path: string, refreshKey?: unknown) {
+export function useApi<T>(
+  path: string,
+  refreshKey?: unknown,
+  initial?: T | null,
+) {
   const [state, setState] = useState<{ data: T | null; error: boolean }>({
-    data: null,
+    data: initial ?? null,
     error: false,
   });
+  const skipFirst = useRef(initial != null);
 
   useEffect(() => {
+    if (skipFirst.current) {
+      skipFirst.current = false;
+      return;
+    }
     let ignore = false;
     apiFetch<T>(path)
       .then((data) => {

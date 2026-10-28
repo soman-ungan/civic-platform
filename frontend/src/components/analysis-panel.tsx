@@ -21,17 +21,24 @@ export function AnalysisPanel({
   slug,
   topicId,
   refreshKey,
+  initial,
 }: {
   slug: string;
   topicId: string;
   /** 値が変わると読み込み直す（すべての意見に投票し終えたときなど） */
   refreshKey: number;
+  /** サーバー側で取ってきた最初の分析 */
+  initial?: AnalysisView | null;
 }) {
   const {
     data: view,
     error,
     reload: load,
-  } = useApi<AnalysisView>(`${topicApi(slug, topicId)}/analysis`, refreshKey);
+  } = useApi<AnalysisView>(
+    `${topicApi(slug, topicId)}/analysis`,
+    refreshKey,
+    initial,
+  );
   const [reloading, setReloading] = useState(false);
 
   async function reload() {
