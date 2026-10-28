@@ -9,6 +9,10 @@ import {
   OTHER_FIELDS,
   fieldGroups,
 } from "@/components/budget-treemap";
+import { ChipButton } from "@/components/ui/chip";
+import { ScrollRow } from "@/components/ui/scroll-row";
+import { BADGE_AMBER, BUTTON_SECONDARY } from "@/components/ui/styles";
+import { FLAG_LABEL } from "@/lib/budget-fields";
 import { type Unit, amountText, roughYen, thousandYen } from "@/lib/money";
 import type { BudgetProject } from "@/lib/types";
 
@@ -93,8 +97,10 @@ export function BudgetProjects({
                   key={`${p.name}-${p.page}`}
                   className="flex w-52 shrink-0 snap-start flex-col rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800"
                 >
-                  <span className="self-start rounded bg-amber-100 px-1.5 text-xs font-medium text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
-                    {p.flag === "new" ? "新規" : "拡充"}
+                  <span
+                    className={`self-start rounded px-1.5 text-xs font-medium ${BADGE_AMBER}`}
+                  >
+                    {p.flag && FLAG_LABEL[p.flag]}
                   </span>
                   <p className="mt-1.5 line-clamp-3 text-sm leading-5 font-medium">
                     {p.name}
@@ -141,52 +147,43 @@ export function BudgetProjects({
       >
         事業の一覧
       </h3>
-      <nav
-        aria-label="分野で絞り込む"
-        data-swipe-ignore
-        // 一覧を読み進めても分野を選び直せるように、欄の見出しの下に固定する
-        className="sticky top-[var(--carousel-header,0px)] z-[5] -mx-4 mb-3 overflow-x-auto bg-[var(--background)] px-4 py-1.5 [scrollbar-width:none]"
+      {/* 一覧を読み進めても分野を選び直せるように、欄の見出しの下に固定する */}
+      <ScrollRow
+        label="分野で絞り込む"
+        className="sticky top-[var(--carousel-header,0px)] z-[5] mb-3 bg-[var(--background)] py-1.5"
       >
-        <ul className="flex w-max gap-1.5">
-          {chips.map(([id, label]) => (
-            <li key={id ?? "all"}>
-              <button
-                type="button"
-                aria-pressed={filter === id}
-                onClick={() => {
-                  choose(id);
-                  // 固定されたチップで選び直したとき、短くなった一覧の先頭に戻る（見出しがチップのすぐ上にあれば動かさない）
-                  const el = listTop.current;
-                  const nav = el?.nextElementSibling;
-                  if (
-                    el &&
-                    nav &&
-                    el.getBoundingClientRect().top <
-                      nav.getBoundingClientRect().top - el.offsetHeight - 16
-                  ) {
-                    el.scrollIntoView({ block: "start" });
-                  }
-                }}
-                className={`inline-flex min-h-9 items-center rounded-full border px-3 text-xs whitespace-nowrap ${
-                  filter === id
-                    ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                    : "border-zinc-300 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
-                }`}
-              >
-                {colorOf.has(id ?? "") && (
-                  <span
-                    aria-hidden
-                    className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm"
-                    style={{ background: colorOf.get(id ?? "") }}
-                  />
-                )}
-                {id !== null && id !== NEW_OR_EXPANDED && "#"}
-                {label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
+        {chips.map(([id, label]) => (
+          <li key={id ?? "all"}>
+            <ChipButton
+              active={filter === id}
+              onClick={() => {
+                choose(id);
+                // 固定されたチップで選び直したとき、短くなった一覧の先頭に戻る（見出しがチップのすぐ上にあれば動かさない）
+                const el = listTop.current;
+                const nav = el?.nextElementSibling;
+                if (
+                  el &&
+                  nav &&
+                  el.getBoundingClientRect().top <
+                    nav.getBoundingClientRect().top - el.offsetHeight - 16
+                ) {
+                  el.scrollIntoView({ block: "start" });
+                }
+              }}
+            >
+              {colorOf.has(id ?? "") && (
+                <span
+                  aria-hidden
+                  className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm"
+                  style={{ background: colorOf.get(id ?? "") }}
+                />
+              )}
+              {id !== null && id !== NEW_OR_EXPANDED && "#"}
+              {label}
+            </ChipButton>
+          </li>
+        ))}
+      </ScrollRow>
 
       <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
         {shown.map((p) => (
@@ -194,8 +191,10 @@ export function BudgetProjects({
             <div className="flex items-baseline justify-between gap-3">
               <p className="text-sm leading-6">
                 {p.flag && (
-                  <span className="mr-1.5 inline-block rounded bg-amber-100 px-1.5 text-xs font-medium text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
-                    {p.flag === "new" ? "新規" : "拡充"}
+                  <span
+                    className={`mr-1.5 inline-block rounded px-1.5 text-xs font-medium ${BADGE_AMBER}`}
+                  >
+                    {FLAG_LABEL[p.flag]}
                   </span>
                 )}
                 {p.name}
@@ -236,7 +235,7 @@ export function BudgetProjects({
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="mt-2 h-10 w-full rounded-full border border-zinc-300 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+          className={`mt-2 h-10 w-full text-sm text-zinc-700 dark:text-zinc-300 ${BUTTON_SECONDARY}`}
         >
           さらに表示（残り{visible.length - shown.length}件）
         </button>

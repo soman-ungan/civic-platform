@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 
+import { BADGE_AMBER } from "@/components/ui/styles";
+import { FLAG_LABEL } from "@/lib/budget-fields";
 import {
   SOURCE_NOTE,
   fiscalYearLabel,
@@ -75,8 +77,10 @@ export function TopicFinances({
               >
                 <span>
                   {p.flag && (
-                    <span className="mr-1 inline-block rounded bg-amber-100 px-1 text-xs text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
-                      {p.flag === "new" ? "新規" : "拡充"}
+                    <span
+                      className={`mr-1 inline-block rounded px-1 text-xs ${BADGE_AMBER}`}
+                    >
+                      {FLAG_LABEL[p.flag]}
                     </span>
                   )}
                   {budget.source.url ? (

@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { FLAG_LABEL } from "@/lib/budget-fields";
 import { roughYen, shareText, thousandYen } from "@/lib/money";
 import { type Rect, squarify } from "@/lib/treemap";
 import type { BudgetProject } from "@/lib/types";
@@ -242,7 +243,7 @@ export function BudgetTreemap({
           <span className="block font-semibold">
             {p.flag && (
               <span className="mr-1 font-normal text-amber-300 dark:text-amber-700">
-                {p.flag === "new" ? "新規" : "拡充"}
+                {FLAG_LABEL[p.flag]}
               </span>
             )}
             {p.name}

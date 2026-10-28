@@ -8,6 +8,7 @@ import { GroupCompositionChart } from "@/components/group-composition";
 import { GroupTable } from "@/components/group-table";
 import { OpinionMap } from "@/components/opinion-map";
 import { ResidencyDotPlot } from "@/components/residency-dot-plot";
+import { BUTTON_SECONDARY, ERROR_TEXT } from "@/components/ui/styles";
 import { topicApi } from "@/lib/api-paths";
 import { useApi } from "@/lib/use-api";
 import type { AnalysisView } from "@/lib/types";
@@ -53,16 +54,14 @@ export function AnalysisPanel({
             type="button"
             onClick={() => void reload()}
             disabled={reloading}
-            className="h-9 rounded-full border border-zinc-300 px-3 text-xs disabled:opacity-50 dark:border-zinc-700"
+            className={`h-9 px-3 text-xs ${BUTTON_SECONDARY}`}
           >
             {reloading ? "更新中…" : "最新の分析を見る"}
           </button>
         )}
       </div>
 
-      {error && (
-        <p className="text-sm text-rose-600">分析を読み込めませんでした。</p>
-      )}
+      {error && <p className={ERROR_TEXT}>分析を読み込めませんでした。</p>}
       {!error && view === null && (
         <div
           aria-hidden

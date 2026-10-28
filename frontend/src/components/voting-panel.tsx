@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { RelationSheet } from "@/components/relation-sheet";
 import { StatementForm } from "@/components/statement-form";
+import { BUTTON_SECONDARY, ERROR_TEXT } from "@/components/ui/styles";
 import { ApiError, apiFetch, errorMessage } from "@/lib/api-client";
 import { topicApi } from "@/lib/api-paths";
 import { useApi } from "@/lib/use-api";
@@ -112,7 +113,7 @@ export function VotingPanel({
         <button
           type="button"
           onClick={() => void load()}
-          className="mt-3 h-11 rounded-full border border-zinc-300 px-5 text-sm dark:border-zinc-700"
+          className={`mt-3 h-11 px-5 text-sm ${BUTTON_SECONDARY}`}
         >
           再読み込み
         </button>
@@ -160,9 +161,7 @@ export function VotingPanel({
             </blockquote>
           </div>
 
-          {voteError && (
-            <p className="mt-3 text-sm text-rose-600">{voteError}</p>
-          )}
+          {voteError && <p className={`mt-3 ${ERROR_TEXT}`}>{voteError}</p>}
 
           {/* 親指で押しやすいよう、画面下部に固定する */}
           <div className="sticky bottom-0 -mx-4 mt-4 bg-background/95 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">

@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 
+import { BUTTON_PRIMARY } from "@/components/ui/styles";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { MAX_STATEMENT_CHARS, countChars } from "@/lib/labels";
 import type { PostedStatement } from "@/lib/types";
@@ -138,7 +139,7 @@ export function StatementForm({
               <button
                 type="submit"
                 disabled={count === 0 || tooLong || sending}
-                className="h-11 rounded-full bg-zinc-900 px-5 text-sm font-medium text-white disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+                className={`h-11 px-5 text-sm ${BUTTON_PRIMARY}`}
               >
                 {sending ? "確認中…" : "投稿する"}
               </button>

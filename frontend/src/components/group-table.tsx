@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { BADGE_AMBER } from "@/components/ui/styles";
 import { GROUP_COLORS, percent } from "@/lib/labels";
 import type { GroupView, RepfulFor, StatementByGroup } from "@/lib/types";
 
@@ -152,7 +153,9 @@ export function GroupTable({
                     className={`sticky left-0 z-10 w-40 min-w-40 bg-background px-3 py-2 align-top font-normal leading-5 ${cellBorder(rowIndex, 0, false)}`}
                   >
                     {isConsensus && (
-                      <span className="mb-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
+                      <span
+                        className={`mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${BADGE_AMBER}`}
+                      >
                         <span aria-hidden>🤝 </span>合意点
                       </span>
                     )}
