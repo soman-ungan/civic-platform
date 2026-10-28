@@ -458,7 +458,7 @@ pub async fn topic_analysis(
     let p = progress::progress(&state.pool, &topic_id, user_id.as_deref()).await?;
     if !p.analysis_unlocked() {
         return Ok(Json(AnalysisView::Locked {
-            remaining: p.total - p.voted,
+            remaining: p.analysis_remaining(),
             total: p.total,
         }));
     }

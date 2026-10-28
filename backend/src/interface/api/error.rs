@@ -18,6 +18,9 @@ pub enum ApiError {
     /// ログインが要る（401）。例: パスキーを登録しないまま投稿した
     #[error("{message}")]
     Unauthorized { code: &'static str, message: String },
+    /// まだできない（403）。例: 分析を見られるまで投票しないまま投稿した
+    #[error("{message}")]
+    Forbidden { code: &'static str, message: String },
     /// 状態の衝突（409）。例: 居住地属性が未登録のまま投票した
     #[error("{message}")]
     Conflict { code: &'static str, message: String },
@@ -46,6 +49,13 @@ impl ApiError {
         }
     }
 
+    pub fn forbidden(code: &'static str, message: impl Into<String>) -> Self {
+        Self::Forbidden {
+            code,
+            message: message.into(),
+        }
+    }
+
     pub fn conflict(code: &'static str, message: impl Into<String>) -> Self {
         Self::Conflict {
             code,
@@ -60,6 +70,7 @@ impl IntoResponse for ApiError {
             Self::NotFound => (StatusCode::NOT_FOUND, "not_found", self.to_string()),
             Self::Validation { code, message } => (StatusCode::UNPROCESSABLE_ENTITY, code, message),
             Self::Unauthorized { code, message } => (StatusCode::UNAUTHORIZED, code, message),
+            Self::Forbidden { code, message } => (StatusCode::FORBIDDEN, code, message),
             Self::Conflict { code, message } => (StatusCode::CONFLICT, code, message),
             Self::InvalidRequest { status, message } => (status, "invalid_request", message),
             Self::Database(err) => {

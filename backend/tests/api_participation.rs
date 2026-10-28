@@ -266,7 +266,7 @@ async fn next_statement_for_new_visitor() {
     assert_eq!(json["needs_relation"], true);
     assert_eq!(
         json["progress"],
-        json!({ "voted": 0, "total": 3, "analysis_unlocked": false })
+        json!({ "voted": 0, "total": 3, "analysis_unlocked": false, "analysis_remaining": 3 })
     );
     let id = json["statement"]["id"].as_str().unwrap();
     assert!(
@@ -297,7 +297,7 @@ async fn next_statement_skips_voted_and_ends_with_null() {
     assert_eq!(json["statement"], Value::Null);
     assert_eq!(
         json["progress"],
-        json!({ "voted": 3, "total": 3, "analysis_unlocked": true })
+        json!({ "voted": 3, "total": 3, "analysis_unlocked": true, "analysis_remaining": 0 })
     );
 }
 
@@ -361,7 +361,7 @@ async fn posted_statement_is_auto_approved_and_appears_in_cards() {
         vote(&state, Some(&cookie), id, 1).await;
     }
 
-    let account = common::registered_account(&pool, &state).await;
+    let account = common::account_ready_to_post(&pool, &state, "t1").await;
     let res = post(&state, Some(&account), "  公園をもっと増やしてほしい  ").await;
     assert_eq!(res.status, StatusCode::CREATED);
     assert_eq!(res.json["status"], "approved");
@@ -385,16 +385,15 @@ async fn posted_statement_is_auto_approved_and_appears_in_cards() {
 #[tokio::test]
 async fn statement_length_is_counted_in_characters() {
     let (pool, state) = setup().await;
-    let account = common::registered_account(&pool, &state).await;
     // 絵文字は UTF-8 で 4 バイトだが 1 文字として数える（DB の length() と一致）
-    assert_eq!(
-        post(&state, Some(&account), &"😀".repeat(140)).await.status,
-        StatusCode::CREATED
-    );
-    assert_eq!(
-        post(&state, Some(&account), &"あ".repeat(140)).await.status,
-        StatusCode::CREATED
-    );
+    for body in ["😀".repeat(140), "あ".repeat(140)] {
+        let account = common::account_ready_to_post(&pool, &state, "t1").await;
+        assert_eq!(
+            post(&state, Some(&account), &body).await.status,
+            StatusCode::CREATED
+        );
+    }
+    let account = common::account_ready_to_post(&pool, &state, "t1").await;
 
     let too_long = post(&state, Some(&account), &"😀".repeat(141)).await;
     assert_eq!(too_long.status, StatusCode::UNPROCESSABLE_ENTITY);

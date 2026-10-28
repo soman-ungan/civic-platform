@@ -220,9 +220,11 @@ async fn registering_keeps_votes_and_allows_posting() {
     common::assert_no_key(&res.json, "id");
     common::assert_no_key(&me(&state, Some(&cookie)).await, "user_id");
 
-    // 投票はそのまま引き継がれ、投稿できるようになる
+    // 投票はそのまま引き継がれ、分析を見られるまで投票すると投稿できる
     let account = only_registered_user(&pool).await;
     assert_eq!(votes_of(&pool, &account).await, [("a1".to_string(), 1)]);
+    assert_eq!(post_statement(&state, &cookie).await, StatusCode::FORBIDDEN);
+    vote(&state, &cookie, "a2", -1).await;
     assert_eq!(post_statement(&state, &cookie).await, StatusCode::CREATED);
     // 保存したのは公開鍵などのパスキーと日時だけ
     let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM passkeys WHERE user_id = $1")

@@ -11,7 +11,7 @@ use crate::interface::api::AppState;
 use crate::interface::api::error::ApiError;
 use crate::interface::api::participant::MaybeParticipant;
 use crate::interface::api::{finances, municipalities};
-use crate::process::progress::{self, Participation, Progress};
+use crate::process::progress::{self, Participation};
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Tag {
@@ -127,11 +127,7 @@ async fn tags_by_topic(
 
 fn into_topic(row: TopicRow, tags: Vec<Tag>, voted_count: i64) -> Topic {
     Topic {
-        participation: Progress {
-            voted: voted_count,
-            total: row.statement_count,
-        }
-        .participation(),
+        participation: Participation::of(voted_count, row.statement_count),
         voted_count,
         id: row.id,
         title: row.title,

@@ -14,8 +14,7 @@ use crate::interface::api::municipalities;
 use crate::interface::api::participant::{MaybeParticipant, Participant};
 use crate::process::analysis::store::{self, Stored};
 use crate::process::moderation::{self, Verdict};
-use crate::process::progress::{self, Progress, RESIDENCY_TYPES, has_relation};
-use crate::records::accounts;
+use crate::process::progress::{self, PostPermission, Progress, RESIDENCY_TYPES, has_relation};
 use crate::shared::status::StatementStatus;
 use crate::shared::util::{new_id, now_iso};
 
@@ -81,6 +80,9 @@ pub async fn put_relation(
 pub struct StatementCard {
     pub id: String,
     pub body: String,
+    /// 最初の意見か（先に出すため。API では返さない）
+    #[serde(skip)]
+    pub is_seed: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -90,6 +92,8 @@ pub struct NextStatement {
     pub progress: Progress,
     /// この自治体の居住地属性が未登録なら true（投票前に聞く）
     pub needs_relation: bool,
+    /// 意見を投稿できるか（ルールは `progress::post_permission`。投票のたびに変わるので、ここで返す）
+    pub posting: PostPermission,
 }
 
 /// GET /api/municipalities/{slug}/topics/{topic_id}/next-statement
@@ -107,7 +111,7 @@ pub async fn next_statement(
 
     // 候補: 承認済みで、まだ投票していない意見
     let candidates: Vec<StatementCard> = sqlx::query_as(
-        "SELECT s.id, s.body FROM statements s
+        "SELECT s.id, s.body, s.is_seed FROM statements s
          WHERE s.topic_id = $1 AND s.status = 'approved'
            AND NOT EXISTS (
                SELECT 1 FROM votes v WHERE v.statement_id = s.id AND v.user_id = $2)
@@ -117,6 +121,14 @@ pub async fn next_statement(
     .bind(&user_id)
     .fetch_all(&state.pool)
     .await?;
+
+    // 投票していない最初の意見があれば、その中から選ぶ。分析を見られる条件（最初の意見すべて）に
+    // 先に届くようにするため（Polis 本家は分けない。docs/polis-math.md）
+    let candidates = if candidates.iter().any(|c| c.is_seed) {
+        candidates.into_iter().filter(|c| c.is_seed).collect()
+    } else {
+        candidates
+    };
 
     // Polis の comment-priorities で重みを付けて1件選ぶ（分析が無ければ一様）
     let priorities = match store::load(&state.pool, &topic_id).await? {
@@ -131,11 +143,13 @@ pub async fn next_statement(
         .map(|i| candidates.into_iter().nth(i).expect("範囲内"));
 
     let needs_relation = !has_relation(&state.pool, &user_id, &municipality.id).await?;
+    let posting = progress::post_permission(&state.pool, &topic_id, Some(&user_id)).await?;
 
     Ok(Json(NextStatement {
         statement,
         progress,
         needs_relation,
+        posting,
     }))
 }
 
@@ -273,16 +287,28 @@ pub async fn post_statement(
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
     super::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
 
-    // 投稿にはパスキーの登録が要る（ADR 0006。投票は匿名のままでよい）
-    let registered = match &existing {
-        Some(id) => accounts::status(&state.pool, id).await?.registered,
-        None => false,
-    };
-    if !registered {
-        return Err(ApiError::unauthorized(
-            "registration_required",
-            "意見を投稿するには、パスキーの登録が要ります",
-        ));
+    // 投稿にはパスキーの登録が要り（ADR 0006。投票は匿名のままでよい）、
+    // 分析を見られるまで投票してから、1トピック1件まで（ADR 0005。ルールは progress::post_permission）
+    match progress::post_permission(&state.pool, &topic_id, existing.as_deref()).await? {
+        PostPermission::Allowed => {}
+        PostPermission::RegistrationRequired => {
+            return Err(ApiError::unauthorized(
+                "registration_required",
+                "意見を投稿するには、パスキーの登録が要ります",
+            ));
+        }
+        PostPermission::VotesRequired { remaining } => {
+            return Err(ApiError::forbidden(
+                "votes_required",
+                format!("ほかの人の意見にあと{remaining}件投票すると、意見を投稿できます"),
+            ));
+        }
+        PostPermission::LimitReached => {
+            return Err(ApiError::conflict(
+                "statement_limit",
+                "このトピックには、もう意見を投稿しています（1トピック1件まで）",
+            ));
+        }
     }
     let participant = Participant::ensure(&state, existing).await?;
 
