@@ -440,6 +440,19 @@ async fn import_minutes(ctx: &Ctx, args: ImportArgs) -> anyhow::Result<()> {
             for (id, title) in &report.topics {
                 println!("  {id}  {title}");
             }
+            for a in &report.additions {
+                println!(
+                    "既存の「{}」（{}）に意見を {} 件足しました{}",
+                    a.title,
+                    a.topic_id,
+                    a.statements,
+                    if a.published {
+                        "（確認待ち。list statement --topic で見て moderate statement --id <id> --approve | --reject）"
+                    } else {
+                        "（下書きの最初の意見として）"
+                    }
+                );
+            }
             if !report.notes.is_empty() {
                 println!("捨てたもの:");
                 for note in &report.notes {
@@ -588,6 +601,23 @@ async fn print_minutes_preview(
     println!("検査を通ったトピック案 {} 件", topics.len());
     for t in &topics {
         println!("\n## {}\n{}", t.title, t.description);
+        if let Some(same) = &t.same_as {
+            println!(
+                "  → 既存の{}「{}」（{}）と同じ論点。新しいトピックにせず、意見を{}",
+                if same.status == "draft" {
+                    "下書き"
+                } else {
+                    "公開中のトピック"
+                },
+                same.title,
+                same.id,
+                if same.status == "draft" {
+                    "最初の意見として足す"
+                } else {
+                    "確認待ち（flagged）で足す"
+                }
+            );
+        }
         for s in &t.sources {
             println!("  出典（発言 {}）:「{}」", s.utterance_no, s.quote);
         }
