@@ -6,6 +6,7 @@ const DEFAULT_DATABASE_URL: &str = "sqlite://../data/civic.db?mode=rwc";
 const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8080";
 const DEFAULT_SEEDS_DIR: &str = "../data/seeds";
 const DEFAULT_DEV_SEEDS_DIR: &str = "../data/dev-seeds";
+const DEFAULT_PRIVATE_DIR: &str = "../data/private";
 const DEFAULT_MODERATION_MODEL: &str = "claude-sonnet-5-5";
 const DEFAULT_TAGGING_MODEL: &str = "claude-sonnet-5-5";
 const DEFAULT_LLM_DAILY_BUDGET_USD: f64 = 1.0;
@@ -18,6 +19,8 @@ pub struct Config {
     pub seeds_dir: String,
     /// 開発用サンプルデータ（`seed --dev` のときだけ使う）
     pub dev_seeds_dir: String,
+    /// 原本の置き場（git の管理外）。`fetch` は `<ここ>/fetched/` に置く
+    pub private_dir: String,
     pub session_secret: String,
     pub cookie_secure: bool,
     /// 分析の再計算の間隔（秒）。0 なら定期実行しない
@@ -49,6 +52,7 @@ impl Config {
             seeds_dir: env::var("SEEDS_DIR").unwrap_or_else(|_| DEFAULT_SEEDS_DIR.into()),
             dev_seeds_dir: env::var("DEV_SEEDS_DIR")
                 .unwrap_or_else(|_| DEFAULT_DEV_SEEDS_DIR.into()),
+            private_dir: env::var("PRIVATE_DIR").unwrap_or_else(|_| DEFAULT_PRIVATE_DIR.into()),
             session_secret,
             cookie_secure: env::var("COOKIE_SECURE").is_ok_and(|v| v == "true"),
             analysis_interval_secs: env::var("ANALYSIS_INTERVAL_SECS")

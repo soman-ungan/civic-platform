@@ -19,7 +19,7 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::extraction::{Extraction, Prompt};
-use crate::llm::{Effort, Purpose, Request};
+use crate::llm::{Effort, Llm, Purpose, Request};
 use crate::status::Publication;
 use crate::util::{new_id, now_iso};
 
@@ -379,7 +379,30 @@ pub async fn prompt(pool: &SqlitePool, fiscal_year: i32) -> Result<Prompt, sqlx:
     })
 }
 
-/// PDF を AI で読み（または共同作業の出力を受け取り）、確かめる（保存はしない）
+/// API で PDF を読み、そのままの出力（JSON）を返す（`extract budget`。保存はしない）
+pub async fn api_output(
+    pool: &SqlitePool,
+    llm: &Llm,
+    model: &str,
+    input: &Input,
+) -> anyhow::Result<Value> {
+    let prompt = prompt(pool, input.fiscal_year).await?;
+    let request = Request {
+        purpose: Purpose::Extraction,
+        model: model.to_owned(),
+        system: prompt.system,
+        user: prompt.user,
+        schema: prompt.schema,
+        effort: Effort::Medium,
+        max_tokens: 32_000,
+        pdf: Some(input.pdf.clone()),
+    };
+    let value = llm.structured(pool, &request).await?;
+    tracing::debug!(output = %value, "budget extraction output");
+    Ok(value)
+}
+
+/// PDF を AI で読み（または保存してある出力を受け取り）、確かめる（保存はしない）
 pub async fn extract(
     pool: &SqlitePool,
     extraction: &Extraction<'_>,
@@ -388,26 +411,11 @@ pub async fn extract(
     let pages = pdftext::page_texts(&input.pdf)?;
     let (tags, _) = field_tags(pool).await?;
     let value = match extraction {
-        Extraction::Api { llm, model } => {
-            let prompt = prompt(pool, input.fiscal_year).await?;
-            let request = Request {
-                purpose: Purpose::Extraction,
-                model: (*model).to_owned(),
-                system: prompt.system,
-                user: prompt.user,
-                schema: prompt.schema,
-                effort: Effort::Medium,
-                max_tokens: 32_000,
-                pdf: Some(input.pdf.clone()),
-            };
-            let value = llm.structured(pool, &request).await?;
-            tracing::debug!(output = %value, "budget extraction output");
-            value
-        }
-        Extraction::Manual(value) => value.clone(),
+        Extraction::Api { llm, model } => api_output(pool, llm, model, input).await?,
+        Extraction::Manual(value) | Extraction::Saved(value) => value.clone(),
     };
     let raw: Raw = serde_json::from_value(value).map_err(|e| {
-        anyhow::anyhow!("出力の形が合いません（extraction prompt の「出力の形」）: {e}")
+        anyhow::anyhow!("出力の形が合いません（extract budget --manual の「出力の形」）: {e}")
     })?;
     Ok(check(raw, &pages, &tags))
 }

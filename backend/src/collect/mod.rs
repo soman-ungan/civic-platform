@@ -5,11 +5,15 @@
 //! 収集は「エージェント」にせず、`collector_sources` の設定に従う決まった手順のコードにする。
 //! 自治体・サイトごとの違いはアダプタ（`Collector` の実装）と `config` に閉じ込める。
 //! 取得はすべて `fetch::Fetcher` を通す（robots.txt・間隔・条件付き取得・大きさの上限）。
+//!
+//! 取得（`fetch`）は原本を置き場（`store`）に置くところまで。読み取りと保存は、決算カードは
+//! `settlement_card::import`、予算の概要は `budget`（AI で読むので `extract` を挟む）が行う。
 
 pub mod fetch;
 pub mod link_list;
 pub mod robots;
 pub mod settlement_card;
+pub mod store;
 
 use std::time::Duration;
 
@@ -18,6 +22,7 @@ use serde_json::Value;
 use sqlx::SqlitePool;
 
 use fetch::Fetcher;
+use store::Store;
 
 /// `min_interval_secs` の既定（1サイトあたりの接続の間隔）
 const DEFAULT_MIN_INTERVAL_SECS: u64 = 5;
@@ -29,6 +34,8 @@ const TERMS_RECHECK_DAYS: i64 = 365;
 pub struct Source {
     pub id: String,
     pub municipality_id: String,
+    /// 自治体の URL の名前（置き場のディレクトリに使う）
+    pub slug: String,
     pub kind: String,
     pub adapter: String,
     pub base_url: String,
@@ -45,39 +52,42 @@ impl Source {
     }
 }
 
-/// 収集の実行の条件
+/// 取得の条件
 #[derive(Debug, Clone, Default)]
 pub struct Options {
-    /// 取得と読み取りだけをして、DB に保存しない
+    /// 取得して確かめるだけで、置き場に置かない（取得の記録も残さない）
     pub dry_run: bool,
     /// この年度だけを処理する
     pub fiscal_year: Option<i32>,
 }
 
-/// 収集の結果（CLI に出す）
+/// 取得・取り込みの結果（CLI に出す）
 #[derive(Debug, Default)]
 pub struct Report {
     pub lines: Vec<String>,
     pub warnings: Vec<String>,
 }
 
-/// 収集のアダプタ。`collector_sources.adapter` の名前で選ぶ
+/// 取得のアダプタ。`collector_sources.adapter` の名前で選ぶ。
+/// 変わった原本だけを置き場に置く（変わっていなければ置かない）
 // CLI から順に呼ぶだけで、別のタスクに渡さないので Send は要らない
 #[allow(async_fn_in_trait)]
 pub trait Collector {
-    async fn collect(
+    async fn fetch(
         &self,
         pool: &SqlitePool,
         fetcher: &Fetcher,
         source: &Source,
         options: &Options,
+        store: &Store,
     ) -> anyhow::Result<Report>;
 }
 
 pub async fn sources(pool: &SqlitePool) -> Result<Vec<Source>, sqlx::Error> {
     sqlx::query_as(
-        "SELECT id, municipality_id, kind, adapter, base_url, config, is_enabled, last_crawled_at
-         FROM collector_sources ORDER BY municipality_id, kind, id",
+        "SELECT s.id, s.municipality_id, m.slug, s.kind, s.adapter, s.base_url, s.config, s.is_enabled, s.last_crawled_at
+         FROM collector_sources s JOIN municipalities m ON m.id = s.municipality_id
+         ORDER BY s.municipality_id, s.kind, s.id",
     )
     .fetch_all(pool)
     .await
@@ -111,22 +121,14 @@ fn min_interval(config: &Value) -> Duration {
     )
 }
 
-/// 資料を AI で読むアダプタに渡す、LLM の口と抽出のモデル
-#[derive(Clone, Copy)]
-pub struct Ai<'a> {
-    pub llm: &'a crate::llm::Llm,
-    pub model: &'a str,
-}
-
-/// 1つの収集先を処理する。無効な収集先・規約の確認の記録が無い収集先は動かさない。
-/// `contact` は運営者の連絡先（`COLLECTOR_CONTACT`。User-Agent に入れる）。
-/// `ai` は資料を AI で読むアダプタ（予算の概要など）に要る。無ければ、そのアダプタは止める
-pub async fn run_source(
+/// 1つの収集先から取得する。無効な収集先・規約の確認の記録が無い収集先は動かさない。
+/// `contact` は運営者の連絡先（`COLLECTOR_CONTACT`。User-Agent に入れる）
+pub async fn fetch_source(
     pool: &SqlitePool,
     source: &Source,
     contact: &str,
     options: &Options,
-    ai: Option<Ai<'_>>,
+    store: &Store,
 ) -> anyhow::Result<Report> {
     if !source.is_enabled {
         anyhow::bail!("収集先 {} は無効です（is_enabled = false）", source.id);
@@ -139,22 +141,13 @@ pub async fn run_source(
     let mut report = match source.adapter.as_str() {
         "soumu_settlement_card" => {
             settlement_card::SettlementCard
-                .collect(pool, &fetcher, source, options)
+                .fetch(pool, &fetcher, source, options, store)
                 .await?
         }
         "html_link_list" if source.kind == "budget" => {
-            let Some(ai) = ai else {
-                anyhow::bail!(
-                    "収集先 {}: 予算の概要を読むには ANTHROPIC_API_KEY が要ります",
-                    source.id
-                );
-            };
-            link_list::BudgetOverview {
-                llm: ai.llm,
-                model: ai.model,
-            }
-            .collect(pool, &fetcher, source, options)
-            .await?
+            link_list::BudgetOverview
+                .fetch(pool, &fetcher, source, options, store)
+                .await?
         }
         other => anyhow::bail!(
             "収集先 {}: 自動で取得できないアダプタです: {other}",

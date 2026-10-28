@@ -12,11 +12,12 @@ pub mod parse;
 use std::collections::{BTreeSet, HashMap};
 
 use regex::Regex;
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::extraction::{Extraction, Prompt};
-use crate::llm::{Effort, Purpose, Request};
+use crate::llm::{Effort, Llm, Purpose, Request};
 use crate::moderation::{Moderation, Verdict};
 use crate::status::StatementStatus;
 use crate::util::{new_id, now_iso};
@@ -199,44 +200,64 @@ pub async fn prompt(pool: &SqlitePool, input: &Input) -> anyhow::Result<Prompt> 
     })
 }
 
-/// AI の出力を得る（API を呼ぶか、共同作業の出力をそのまま使う）
+/// API を呼んでトピック案を作り、そのままの出力（JSON）を返す（`extract minutes`。保存はしない）
+pub async fn api_output(
+    pool: &SqlitePool,
+    llm: &Llm,
+    model: &str,
+    input: &Input,
+) -> anyhow::Result<Value> {
+    let prepared = prepare(pool, input).await?;
+    call_api(pool, llm, model, input, &speeches(&prepared)).await
+}
+
+async fn call_api(
+    pool: &SqlitePool,
+    llm: &Llm,
+    model: &str,
+    input: &Input,
+    speeches: &[Utterance],
+) -> anyhow::Result<Value> {
+    let request = Request {
+        purpose: Purpose::Extraction,
+        model: model.to_owned(),
+        system: extract::SYSTEM_PROMPT.into(),
+        user: extract::build_input(&input.title, &input.held_on, speeches),
+        schema: extract::schema(),
+        effort: Effort::Medium,
+        max_tokens: 32_000,
+        pdf: None,
+    };
+    // まれに、中身の無いトピックだけが返ることがある（タイトルが空）。そのときは1回だけやり直す
+    let mut attempt = 0;
+    loop {
+        let value = llm.structured(pool, &request).await?;
+        // 指示文を直すときの確認用（RUST_LOG=backend=debug で出る）
+        tracing::debug!(output = %value, "extraction output");
+        let raw: extract::RawOutput = serde_json::from_value(value.clone())?;
+        let degenerate =
+            !raw.topics.is_empty() && raw.topics.iter().all(|t| t.title.trim().is_empty());
+        if !degenerate || attempt == 1 {
+            break Ok(value);
+        }
+        tracing::warn!("extraction returned only empty topics; retrying once");
+        attempt += 1;
+    }
+}
+
+/// AI の出力を得る（API を呼ぶか、保存してある出力をそのまま使う）
 async fn raw_output(
     pool: &SqlitePool,
     extraction: &Extraction<'_>,
     input: &Input,
     speeches: &[Utterance],
 ) -> anyhow::Result<extract::RawOutput> {
-    Ok(match extraction {
-        Extraction::Api { llm, model } => {
-            let request = Request {
-                purpose: Purpose::Extraction,
-                model: (*model).to_owned(),
-                system: extract::SYSTEM_PROMPT.into(),
-                user: extract::build_input(&input.title, &input.held_on, speeches),
-                schema: extract::schema(),
-                effort: Effort::Medium,
-                max_tokens: 32_000,
-                pdf: None,
-            };
-            // まれに、中身の無いトピックだけが返ることがある（タイトルが空）。そのときは1回だけやり直す
-            let mut attempt = 0;
-            loop {
-                let value = llm.structured(pool, &request).await?;
-                // 指示文を直すときの確認用（RUST_LOG=backend=debug で出る）
-                tracing::debug!(output = %value, "extraction output");
-                let raw: extract::RawOutput = serde_json::from_value(value)?;
-                let degenerate =
-                    !raw.topics.is_empty() && raw.topics.iter().all(|t| t.title.trim().is_empty());
-                if !degenerate || attempt == 1 {
-                    break raw;
-                }
-                tracing::warn!("extraction returned only empty topics; retrying once");
-                attempt += 1;
-            }
-        }
-        Extraction::Manual(value) => serde_json::from_value(value.clone()).map_err(|e| {
-            anyhow::anyhow!("出力の形が合いません（extraction prompt の「出力の形」）: {e}")
-        })?,
+    let value = match extraction {
+        Extraction::Api { llm, model } => call_api(pool, llm, model, input, speeches).await?,
+        Extraction::Manual(value) | Extraction::Saved(value) => value.clone(),
+    };
+    serde_json::from_value(value).map_err(|e| {
+        anyhow::anyhow!("出力の形が合いません（extract minutes --manual の「出力の形」）: {e}")
     })
 }
 

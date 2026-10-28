@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! 決算カードの収集の流れ全体（一覧 → 年度のページ → Excel → 保存）。
+//! 決算カードの取得と取り込みの流れ全体（一覧 → 年度のページ → Excel → 置き場 → 保存 → 原本を消す）。
 //! 実物のページと Excel（data/private/soumu/）を手元のサーバーから返して確かめる
 
 mod common;
@@ -8,7 +8,8 @@ mod common;
 use axum::Router;
 use axum::http::header;
 use axum::routing::get;
-use backend::collect::{self, Options};
+use backend::collect::store::Store;
+use backend::collect::{self, Options, settlement_card};
 
 fn private(name: &str) -> Option<Vec<u8>> {
     std::fs::read(format!("../data/private/soumu/{name}")).ok()
@@ -50,6 +51,26 @@ async fn add_source(pool: &sqlx::SqlitePool, id: &str, municipality_id: &str, ba
     .unwrap();
 }
 
+/// テストごとの置き場
+fn temp_store(name: &str) -> (std::path::PathBuf, Store) {
+    let dir =
+        std::env::temp_dir().join(format!("civic-collect-{name}-{}", backend::util::new_id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let store = Store::new(&dir);
+    (dir, store)
+}
+
+async fn fetch(
+    pool: &sqlx::SqlitePool,
+    id: &str,
+    options: &Options,
+    store: &Store,
+) -> collect::Report {
+    collect::fetch_source(pool, &source(pool, id).await, "test", options, store)
+        .await
+        .unwrap()
+}
+
 async fn source(pool: &sqlx::SqlitePool, id: &str) -> collect::Source {
     collect::sources(pool)
         .await
@@ -79,21 +100,33 @@ async fn collects_real_card_into_db() {
         fiscal_year: Some(2023),
     };
 
-    let report = collect::run_source(
-        &pool,
-        &source(&pool, "otawara").await,
-        "test",
-        &options,
-        None,
-    )
-    .await
-    .unwrap();
+    let (dir, store) = temp_store("real");
+
+    let report = fetch(&pool, "otawara", &options, &store).await;
     assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+    assert!(
+        report.lines[0].contains("取得しました"),
+        "{:?}",
+        report.lines
+    );
+    // 取得しただけでは、DB に入らない
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM settlement_items")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 0);
+    assert_eq!(store.originals("otawara", "settlement").unwrap().len(), 1);
+
+    let report = settlement_card::import(&pool, &store, "otawara", None, false, false)
+        .await
+        .unwrap();
     assert!(
         report.lines[0].contains("保存しました"),
         "{:?}",
         report.lines
     );
+    // 取り込みが済んだ原本は消える
+    assert!(store.originals("otawara", "settlement").unwrap().is_empty());
 
     let total: i64 = sqlx::query_scalar(
         "SELECT SUM(value) FROM settlement_items
@@ -111,32 +144,20 @@ async fn collects_real_card_into_db() {
     .unwrap();
     assert_eq!(population, 68873);
 
-    // 2回目は変化なし
-    let report = collect::run_source(
-        &pool,
-        &source(&pool, "otawara").await,
-        "test",
-        &options,
-        None,
-    )
-    .await
-    .unwrap();
+    // 2回目は変化なし。置き場には何も置かれない
+    let report = fetch(&pool, "otawara", &options, &store).await;
     assert!(
         report.lines[0].contains("変わっていません"),
         "{:?}",
         report.lines
     );
+    assert!(store.originals("otawara", "settlement").unwrap().is_empty());
 
     // 同じ県の Excel でも、別の自治体の収集先はそれぞれ取り込み、取り違えない
-    collect::run_source(
-        &pool,
-        &source(&pool, "nasushiobara").await,
-        "test",
-        &options,
-        None,
-    )
-    .await
-    .unwrap();
+    fetch(&pool, "nasushiobara", &options, &store).await;
+    settlement_card::import(&pool, &store, "nasushiobara", None, false, false)
+        .await
+        .unwrap();
     let names: Vec<(String, i64)> = sqlx::query_as(
         "SELECT municipality_id, COUNT(*) FROM settlement_items GROUP BY municipality_id ORDER BY municipality_id",
     )
@@ -152,6 +173,7 @@ async fn collects_real_card_into_db() {
     .await
     .unwrap();
     assert_ne!(other_total, total);
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 #[tokio::test]
@@ -165,14 +187,16 @@ async fn sources_without_terms_record_do_not_run() {
     .execute(&pool)
     .await
     .unwrap();
-    let err = collect::run_source(
+    let (dir, store) = temp_store("terms");
+    let err = collect::fetch_source(
         &pool,
         &source(&pool, "s").await,
         "test",
         &Options::default(),
-        None,
+        &store,
     )
     .await
     .unwrap_err();
+    std::fs::remove_dir_all(dir).unwrap();
     assert!(err.to_string().contains("利用規約"), "{err}");
 }

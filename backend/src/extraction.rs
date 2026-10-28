@@ -2,7 +2,8 @@
 
 //! AI に資料を読ませる作業（会議録からトピック案、予算の概要の書き写し）の、出力の出どころ。
 //! API で呼ぶか、運営者が Claude Code などとの共同作業で作った JSON を渡す（manual）。
-//! どちらでも、出力は同じ検査（`minutes::extract::check`・`budget::check`）を通る
+//! CLI では `extract` が API を呼んで JSON に書き、`import` がその JSON を読む（`Saved`）。
+//! どれでも、出力は同じ検査（`minutes::extract::check`・`budget::check`）を通る
 //! （docs/plans/2026-10-28-manual-extraction.md）
 
 use std::path::Path;
@@ -17,24 +18,37 @@ pub enum Extraction<'a> {
     Api { llm: &'a Llm, model: &'a str },
     /// 共同作業で作った出力（`Prompt` の形に従う JSON）
     Manual(Value),
+    /// `extract` が API で作って保存した出力（作り方は api として残す）
+    Saved(Value),
 }
 
 impl Extraction<'_> {
     /// `documents.extraction` に残す値
     pub fn method(&self) -> &'static str {
         match self {
-            Self::Api { .. } => "api",
+            Self::Api { .. } | Self::Saved(_) => "api",
             Self::Manual(_) => "manual",
         }
     }
 
-    /// 共同作業で作った JSON のファイルを読む
-    pub fn manual_from_file(path: &Path) -> anyhow::Result<Extraction<'static>> {
+    /// 保存してある出力（JSON のファイル）を読む。`method` は作り方（api / manual。原本の記録の `extraction`）
+    pub fn from_file(path: &Path, method: &str) -> anyhow::Result<Extraction<'static>> {
         let text = std::fs::read_to_string(path)
             .map_err(|e| anyhow::anyhow!("{} を読めません: {e}", path.display()))?;
         let value = serde_json::from_str(&text)
             .map_err(|e| anyhow::anyhow!("{} が JSON ではありません: {e}", path.display()))?;
-        Ok(Extraction::Manual(value))
+        Ok(match method {
+            "api" => Extraction::Saved(value),
+            _ => Extraction::Manual(value),
+        })
+    }
+
+    /// 出力の値（API を呼ぶものは無い）
+    pub fn saved_value(&self) -> Option<&Value> {
+        match self {
+            Self::Api { .. } => None,
+            Self::Manual(value) | Self::Saved(value) => Some(value),
+        }
     }
 }
 
