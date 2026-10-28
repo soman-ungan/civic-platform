@@ -2,14 +2,14 @@
 
 - 状態: 案（ユーザーの確認を待っている）
 - 日付: 2026-10-27
-- 関連: `docs/adr/0003-llm-operations.md`、`backend/src/tagging.rs`、`data/seeds/020_field_tags.sql`
+- 関連: `docs/adr/0003-llm-operations.md`、`backend/src/process/tagging.rs`、`data/seeds/020_field_tags.sql`
 
 タグは、トピックを**探しやすくする**ためのもの。全国の「#子育て・教育」のように、自治体をまたいで同じ分野の話題を見つけられるようにする。タグはトピックの評価や立場を表すものではない。
 
 基準の置き場所は次のとおり。
 
 - **各分野の定義**: `data/seeds/020_field_tags.sql` の `description`（この文書の「分野の定義」と同じ内容）。自動タグ付けの指示文に、そのまま入る
-- **共通のルールと境界の決め方**: この文書と、`backend/src/tagging.rs` の指示文
+- **共通のルールと境界の決め方**: この文書と、`backend/src/process/tagging.rs` の指示文
 
 どちらかを変えたら、もう一方も直す。変えたら評価（`cargo run -- eval tagging`）で確かめる。
 

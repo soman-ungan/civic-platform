@@ -21,13 +21,13 @@ Licensed under the GNU Affero General Public License, version 3.
 各ファイルの先頭に、移植元と著作権表示を記載しています。移植の方針と Polis との違いは
 docs/polis-math.md を参照してください。
 
-  backend/src/analysis/stats.rs         <- math/src/polismath/math/stats.clj
-  backend/src/analysis/matrix.rs        <- math/src/polismath/math/named_matrix.clj
-  backend/src/analysis/pca.rs           <- math/src/polismath/math/pca.clj
-  backend/src/analysis/clusters.rs      <- math/src/polismath/math/clusters.clj
-  backend/src/analysis/repness.rs       <- math/src/polismath/math/repness.clj
-  backend/src/analysis/conversation.rs  <- math/src/polismath/math/conversation.clj
-  backend/src/routes/participation.rs   <- server/src/nextComment.ts（selectProbabilistically のみ）
+  backend/src/process/analysis/stats.rs         <- math/src/polismath/math/stats.clj
+  backend/src/process/analysis/matrix.rs        <- math/src/polismath/math/named_matrix.clj
+  backend/src/process/analysis/pca.rs           <- math/src/polismath/math/pca.clj
+  backend/src/process/analysis/clusters.rs      <- math/src/polismath/math/clusters.clj
+  backend/src/process/analysis/repness.rs       <- math/src/polismath/math/repness.clj
+  backend/src/process/analysis/conversation.rs  <- math/src/polismath/math/conversation.clj
+  backend/src/interface/api/participation.rs    <- server/src/nextComment.ts（selectProbabilistically のみ）
 
 ------------------------------------------------------------------------
 第三者のデータ

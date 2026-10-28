@@ -123,7 +123,7 @@ documents
 
 ## 総務省の決算カード（フェーズ5b で実装）
 
-`soumu_settlement_card` アダプタ（`backend/src/collect/settlement_card.rs`）。全市町村で同じ設定で動く。
+`soumu_settlement_card` アダプタ（`backend/src/ingest/collect/settlement_card.rs`）。全市町村で同じ設定で動く。
 
 - 規約: 総務省ホームページの「著作権について」（https://www.soumu.go.jp/menu_kyotsuu/policy/tyosaku.html）で、公共データ利用規約（第1.0版）に準拠。出典の記載と、加工したときはその旨の記載が条件（国が作ったように見せない）。画面では「出典：総務省「市町村決算カード」を加工して作成」と、年度のページへのリンクを出す
 - robots.txt: `ia_archiver` 以外は制限なし（2026-10-27 確認）
@@ -139,7 +139,7 @@ documents
 
 ## 当初予算の概要（フェーズ5c で実装）
 
-`html_link_list` アダプタ（`backend/src/collect/link_list.rs`）と、AI による抽出（`backend/src/budget/`）。
+`html_link_list` アダプタ（`backend/src/ingest/collect/link_list.rs`）と、AI による抽出（`backend/src/ingest/budget/`）。
 
 - **何を見せるか**（ユーザーと決定。2026-10-27）: 今年度の予算の全体（款別・性質別・歳入・1人あたり）、予算と決算の比較、主な事業（名前・金額・新規/拡充・分野タグ）
 - **著作権**（法的な助言ではない）: 数字・事業の名前・政策の名前・「どの事業がどの政策か」は事実なので使う。説明の文章・図・レイアウトは市の著作物（15条の職務著作）なので使わず、原本の PDF のそのページへリンクする。政策の体系をそのままの並びで再現するのは、編集著作物（12条）のおそれがあるので避け、画面の並べ方（金額の順・分野タグ）はこちらで決める。PDF からの抽出は 30条の4 の範囲

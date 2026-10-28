@@ -69,3 +69,8 @@ src/
 - frontend は触らない
 
 ## 実装時の変更点
+- **`records/sources.rs` は作らなかった**: 収集先の読み出しは `ingest::collect::sources` があり（`fetch` も使う）、CLI の `list source`・`show source` もそれを使う。同じものを2か所に置かないため
+- **確認待ちの意見の一覧（`moderation::queue`）は `records::statements::queue` に移した**（一覧は段階2のため）。型も `QueueItem` から `records::statements::Statement` に
+- **`progress::ensure_topic` は `progress::topic_open`（bool）にし、404 にする `ensure_topic` は `interface/api/mod.rs` に置いた**（呼び出しの3か所は、パスだけが変わる）
+- **途中で見つけた不具合**: `show statement` が投票の列の名前を間違えていた（`value` → `vote_value`）。前の PR のブランチ（`refactor/cli-verbs`）で直し、テストを足してから、このブランチをその上に載せ替えた
+- **前と後の比べ**: 使い捨ての DB（`seed --dev` と R8 予算、API キーは空）で、CLI の出力 15 個と API の応答 18 個（自治体・トピックの一覧と詳細・タグでの絞り込み・まちのお金・分析・合意点・関わり方の登録・投稿・投票。参加者がすべてに投票したあとの分も）を取り、整理の前後で同じことを確かめた（計算した時刻・新しい ID・投票の順番（次の意見の抽選）を除く）
