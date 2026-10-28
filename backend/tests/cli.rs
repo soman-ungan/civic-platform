@@ -161,8 +161,25 @@ async fn records_and_moderation_use_the_same_verbs() {
     assert!(out.contains("市民の投稿") && !out.contains("u1"), "{out}");
 
     // 地区のタグは、選んだ自治体のものだけ
+    // まだ使われていない地区も、付けられるタグとして出す（付けると、そのとき作られる）
     let (_, out) = env.run(&["list", "tag", "-m", "otawara"]).await;
     assert!(out.contains("[分野]"), "{out}");
+    assert!(
+        out.contains("district-092100-kurobane  [地区]  黒羽"),
+        "{out}"
+    );
+    assert!(!out.contains("092134-shiobara"), "{out}");
+    let (code, out) = env
+        .run(&[
+            "add",
+            "tag",
+            "--topic",
+            "t1",
+            "--id",
+            "district-092100-kurobane",
+        ])
+        .await;
+    assert_eq!(code, 0, "{out}");
 }
 
 const R8_PDF: &str = "../data/private/budget/R8yosangaiyou.pdf";

@@ -13,30 +13,31 @@ pub struct Tag {
     pub name: String,
 }
 
-/// 分野のタグと地区のタグ。`municipality_id` があれば、地区はその自治体のものだけ
+/// 分野のタグと地区のタグ。`municipality_id` があれば、地区はその自治体のものだけ。
+/// 地区のタグは、初めて付けるときに地区の一覧から作られる（`records::topics::set_tag`）ので、
+/// まだ使われていない地区も `districts` から出す（id は `district-<地区 ID>`）
 pub async fn list(
     pool: &SqlitePool,
     municipality_id: Option<&str>,
 ) -> Result<Vec<Tag>, sqlx::Error> {
-    #[derive(sqlx::FromRow)]
-    struct Row {
-        #[sqlx(flatten)]
-        tag: Tag,
-        municipality_id: Option<String>,
-    }
-    let rows: Vec<Row> = sqlx::query_as(
-        "SELECT t.id, t.kind, t.name, d.municipality_id
-         FROM tags t LEFT JOIN districts d ON d.id = t.district_id
-         ORDER BY t.kind DESC, d.municipality_id, t.id",
+    let mut tags: Vec<Tag> =
+        sqlx::query_as("SELECT id, kind, name FROM tags WHERE kind = 'field' ORDER BY id")
+            .fetch_all(pool)
+            .await?;
+    let districts: Vec<(String, String, String)> = sqlx::query_as(
+        "SELECT id, municipality_id, name FROM districts ORDER BY municipality_id, id",
     )
     .fetch_all(pool)
     .await?;
-    Ok(rows
-        .into_iter()
-        .filter(|r| match (municipality_id, &r.municipality_id) {
-            (Some(want), Some(m)) => want == m,
-            _ => true,
-        })
-        .map(|r| r.tag)
-        .collect())
+    tags.extend(
+        districts
+            .into_iter()
+            .filter(|(_, m, _)| municipality_id.is_none_or(|want| want == m))
+            .map(|(id, _, name)| Tag {
+                id: format!("district-{id}"),
+                kind: "district".into(),
+                name,
+            }),
+    );
+    Ok(tags)
 }
