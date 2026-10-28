@@ -8,13 +8,13 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use crate::AppState;
 use crate::analysis::store::{self, Stored};
-use crate::error::{ApiError, ApiJson};
+use crate::interface::api::AppState;
+use crate::interface::api::error::{ApiError, ApiJson};
+use crate::interface::api::municipalities;
+use crate::interface::api::participant::{MaybeParticipant, Participant};
 use crate::moderation::{self, Verdict};
-use crate::participant::{MaybeParticipant, Participant};
 use crate::progress::{self, Progress, RESIDENCY_TYPES, has_relation};
-use crate::routes::municipalities;
 use crate::shared::status::StatementStatus;
 use crate::shared::util::{new_id, now_iso};
 

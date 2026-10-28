@@ -3,8 +3,8 @@
 //! 段階2: DB を見る・直す（list / show / edit / add / remove / publish / archive）。
 //! 下書きは API のどこにも出ない。運営者がここで確かめてから公開する（ADR 0004）
 
-use backend::shared::status::Publication;
-use backend::{budget, collect, drafts, moderation};
+use crate::shared::status::Publication;
+use crate::{budget, collect, drafts, moderation};
 use clap::{Args, ValueEnum};
 
 use super::{Ctx, municipality_id, required, skip};

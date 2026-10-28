@@ -4,7 +4,7 @@ mod common;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use backend::app;
+use backend::interface::api::app;
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -52,5 +52,5 @@ async fn unknown_api_route_returns_json_404() {
 #[tokio::test]
 async fn short_session_secret_is_rejected() {
     let pool = common::test_pool().await;
-    assert!(backend::AppState::new(pool, "too-short", false).is_err());
+    assert!(backend::interface::api::AppState::new(pool, "too-short", false).is_err());
 }

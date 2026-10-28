@@ -10,7 +10,7 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use sqlx::SqlitePool;
 
-use crate::error::ApiError;
+use crate::interface::api::error::ApiError;
 
 /// このまちとの関わり方（ADR 0002。市民を分けてよいのは、これだけ）
 pub const RESIDENCY_TYPES: [&str; 4] = ["resident", "neighbor", "commuter", "related"];

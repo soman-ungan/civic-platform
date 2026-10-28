@@ -9,8 +9,8 @@ use axum::http::request::Parts;
 use axum::response::{IntoResponseParts, ResponseParts};
 use axum_extra::extract::cookie::{Cookie, SameSite, SignedCookieJar};
 
-use crate::AppState;
-use crate::error::ApiError;
+use crate::interface::api::AppState;
+use crate::interface::api::error::ApiError;
 use crate::shared::util::{new_id, now_iso};
 
 pub const COOKIE_NAME: &str = "cp_uid";

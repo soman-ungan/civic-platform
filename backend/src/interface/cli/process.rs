@@ -3,7 +3,7 @@
 //! 段階3: DB の中身を判定・計算する（moderate / classify / analyze）。
 //! どれも API サーバーが裏で自動で動かしている処理と同じ。コマンドは、それを今すぐ動かすためにある
 
-use backend::{analysis, moderation, tagging};
+use crate::{analysis, moderation, tagging};
 use clap::{Args, ValueEnum};
 
 use super::{Ctx, skip};

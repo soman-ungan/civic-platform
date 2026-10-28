@@ -7,11 +7,11 @@ use axum::extract::{Path, Query, State};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-use crate::AppState;
-use crate::error::ApiError;
-use crate::participant::MaybeParticipant;
+use crate::interface::api::AppState;
+use crate::interface::api::error::ApiError;
+use crate::interface::api::participant::MaybeParticipant;
+use crate::interface::api::{finances, municipalities};
 use crate::progress::{self, Participation, Progress};
-use crate::routes::{finances, municipalities};
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Tag {

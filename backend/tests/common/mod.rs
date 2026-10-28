@@ -2,7 +2,7 @@
 
 use std::str::FromStr;
 
-use backend::AppState;
+use backend::interface::api::AppState;
 use backend::shared::db::MIGRATOR;
 use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
@@ -105,7 +105,10 @@ pub async fn request(
     }
     .unwrap();
 
-    let res = backend::app(state.clone()).oneshot(req).await.unwrap();
+    let res = backend::interface::api::app(state.clone())
+        .oneshot(req)
+        .await
+        .unwrap();
     let status = res.status();
     let cookie = res
         .headers()
@@ -210,10 +213,10 @@ pub async fn insert_vote(pool: &SqlitePool, uid: &str, sid: &str, value: i64, at
 pub fn cookie_for(state: &AppState, user_id: &str) -> String {
     let mut jar = cookie::CookieJar::new();
     jar.signed_mut(&state.cookie_key).add(cookie::Cookie::new(
-        backend::participant::COOKIE_NAME,
+        backend::interface::api::participant::COOKIE_NAME,
         user_id.to_owned(),
     ));
-    jar.get(backend::participant::COOKIE_NAME)
+    jar.get(backend::interface::api::participant::COOKIE_NAME)
         .unwrap()
         .encoded()
         .to_string()

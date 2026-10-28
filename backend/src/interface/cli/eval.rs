@@ -4,9 +4,9 @@
 
 use std::path::PathBuf;
 
-use backend::eval;
-use backend::moderation::Moderation;
-use backend::tagging::Tagger;
+use crate::eval;
+use crate::moderation::Moderation;
+use crate::tagging::Tagger;
 use clap::{Args, Subcommand};
 
 use super::Ctx;

@@ -3,7 +3,7 @@
 use axum::{Json, extract::State, http::StatusCode};
 use serde_json::{Value, json};
 
-use crate::AppState;
+use crate::interface::api::AppState;
 
 /// GET /api/health — DB への疎通まで含めて確認する。
 pub async fn health(State(state): State<AppState>) -> (StatusCode, Json<Value>) {

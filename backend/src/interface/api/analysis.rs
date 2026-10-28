@@ -9,14 +9,14 @@ use axum::extract::{Path, State};
 use serde::Serialize;
 use sqlx::SqlitePool;
 
-use crate::AppState;
 use crate::analysis::conversation::{self, ConvResult, ConvState};
 use crate::analysis::repness::RepfulFor;
 use crate::analysis::store::{self, Stored};
-use crate::error::ApiError;
-use crate::participant::MaybeParticipant;
+use crate::interface::api::AppState;
+use crate::interface::api::error::ApiError;
+use crate::interface::api::municipalities;
+use crate::interface::api::participant::MaybeParticipant;
 use crate::progress::{self, RESIDENCY_TYPES};
-use crate::routes::municipalities;
 
 /// グループを表示する最小の参加者数（分析に含まれる人数）。
 /// 少人数ではグループの集計が個人の投票そのものになるため（Polis にはない、このプロジェクトの判断）

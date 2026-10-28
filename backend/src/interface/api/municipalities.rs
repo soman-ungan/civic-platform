@@ -5,8 +5,8 @@ use axum::extract::{Path, State};
 use serde::Serialize;
 use sqlx::SqlitePool;
 
-use crate::AppState;
-use crate::error::ApiError;
+use crate::interface::api::AppState;
+use crate::interface::api::error::ApiError;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Municipality {

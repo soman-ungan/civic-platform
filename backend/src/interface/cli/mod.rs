@@ -17,13 +17,13 @@ mod records;
 
 use std::path::Path;
 
-use backend::collect::store::Store;
-use backend::moderation::Moderation;
-use backend::seed;
-use backend::shared::config::Config;
-use backend::shared::llm::Llm;
-use backend::shared::llm::client::AnthropicClient;
-use backend::tagging::Tagger;
+use crate::collect::store::Store;
+use crate::moderation::Moderation;
+use crate::seed;
+use crate::shared::config::Config;
+use crate::shared::llm::Llm;
+use crate::shared::llm::client::AnthropicClient;
+use crate::tagging::Tagger;
 use clap::{Parser, Subcommand};
 use sqlx::SqlitePool;
 
