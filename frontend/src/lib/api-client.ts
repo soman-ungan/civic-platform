@@ -23,5 +23,9 @@ export async function apiFetch<T>(
   if (!res.ok) {
     throw await toApiError(res);
   }
+  // 本文の無い応答（204。ログアウトなど）
+  if (res.status === 204) {
+    return undefined as T;
+  }
   return (await res.json()) as T;
 }

@@ -4,12 +4,18 @@
 
 import { useState } from "react";
 
+import { PasskeyPrompt } from "@/components/passkey-prompt";
 import { BUTTON_PRIMARY } from "@/components/ui/styles";
-import { apiFetch, errorMessage } from "@/lib/api-client";
+import { ApiError, apiFetch, errorMessage } from "@/lib/api-client";
+import { AUTH_API } from "@/lib/api-paths";
 import { MAX_STATEMENT_CHARS, countChars } from "@/lib/statement";
-import type { PostedStatement } from "@/lib/types";
+import type { Me, PostedStatement } from "@/lib/types";
+import { useApi } from "@/lib/use-api";
 
-/** 「自分の意見を追加」。返信やコメントではなく、投票カードに並ぶ新しい意見として投稿する */
+/**
+ * 「自分の意見を追加」。返信やコメントではなく、投票カードに並ぶ新しい意見として投稿する。
+ * 投稿にはパスキーの登録が要る（ADR 0006）。未登録なら、先に登録の案内を出す
+ */
 export function StatementForm({
   endpoint,
   onPosted,
@@ -18,6 +24,9 @@ export function StatementForm({
   onPosted: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  // パスキーの登録の案内を出しているか
+  const [needsPasskey, setNeedsPasskey] = useState(false);
+  const { data: me, reload: reloadMe } = useApi<Me>(AUTH_API.me);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState<{
@@ -62,6 +71,10 @@ export function StatementForm({
         });
       }
     } catch (e) {
+      if (e instanceof ApiError && e.code === "registration_required") {
+        setNeedsPasskey(true);
+        return;
+      }
       setMessage({
         kind: "error",
         text: errorMessage(e, "投稿に失敗しました"),
@@ -82,13 +95,26 @@ export function StatementForm({
         </p>
       )}
 
-      {!open ? (
+      {needsPasskey ? (
+        <PasskeyPrompt
+          onDone={async () => {
+            await reloadMe();
+            setNeedsPasskey(false);
+            setOpen(true);
+          }}
+          onCancel={() => setNeedsPasskey(false)}
+        />
+      ) : !open ? (
         <>
           <button
             type="button"
             onClick={() => {
-              setOpen(true);
               setMessage(null);
+              if (me?.registered) {
+                setOpen(true);
+              } else {
+                setNeedsPasskey(true);
+              }
             }}
             className="h-12 w-full rounded-full border border-dashed border-zinc-400 text-sm text-zinc-700 dark:border-zinc-600 dark:text-zinc-300"
           >

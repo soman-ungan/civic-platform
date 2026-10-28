@@ -50,3 +50,9 @@
 - 本番のドメインでの設定（フェーズ7）
 
 ## 実装時の変更点
+- **登録の指示を書き換えた**: webauthn-rs 0.5.5 の `start_passkey_registration` は「端末の側に持つ形」（discoverable credential）を求めないので、ブラウザに渡す JSON の `residentKey` を `required` にした（名前を入力しないログインのため）。型（`ResidentKeyRequirement`）は prelude に無いので、依存を足さずに JSON で書き換えた
+- **ログインは `start_discoverable_authentication`**（`conditional-ui` 機能）。途中の状態を DB に置くため `danger-allow-state-serialisation` 機能も使う
+- **テストのソフトウェアのパスキーは discoverable credential を作れない**ので、テストの中だけ登録の指示を外し、ログインでは登録したパスキーを指定して利用者の ID を応答に入れる（`tests/auth.rs` の冒頭に理由）
+- **運営者の招待**は `operator_invites`（トークンのハッシュ・期限・使った日時）。リンクの先は `/operator/join`
+- **frontend**: `@simplewebauthn/browser` 14.0.0（MIT）。投稿フォームで未登録ならパスキーの案内（`passkey-prompt.tsx`）、フッターに「パスキーでログイン」「ログアウト」（`account-links.tsx`）、`/operator/join`。`apiFetch` は 204 の応答も受け取れるようにした
+- **実際のブラウザでの確認**: この環境にブラウザが無いため、ユーザーに手元のブラウザで確かめてもらう

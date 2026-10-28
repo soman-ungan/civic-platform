@@ -143,6 +143,7 @@ civic-platform/
     - 公人の名簿は `data/seeds/030_officials_<団体コード>_<slug>.sql`
   - 収集（`docs/design/collection.md`。User-Agent に入れる連絡先 `COLLECTOR_CONTACT` が `fetch` に必須）
     - `cargo run -- list source` — 収集先・規約の確認日・最後の取得
+  - 運営者（ADR 0006）: `add operator`（1回だけ使える招待のリンクを出す。リンクの先 `/operator/join` でパスキーを登録したアカウントが運営者になる）/ `list operator` / `remove operator --id <id>`。画面からは運営者を増やせない
     - `cargo run -- fetch settlement|budget [-m <slug>] [-y <n>] [--source <id>] [--dry-run]` — 有効な収集先から原本を取得する。取得はすべて `collect::fetch::Fetcher` を通す（robots.txt・間隔・条件付き取得）。規約の確認の記録（`terms_url`・`terms_checked_at`）が無い収集先は動かない
     - 決算カード: `fetch settlement` → `import settlement`（`settlement_items` と `municipality_stats`。AI を使わない。下書きを持たず、取り込んだら公開）
   - 予算（当初予算の概要の PDF。`docs/plans/2026-10-27-phase5c-budget.md`。**poppler-utils（`pdftotext`）が要る**）
@@ -169,7 +170,9 @@ civic-platform/
   - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。投票を終えたトピックの分だけを返す（Cookie が無ければ空）
   - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`
   - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）。判定の結果 `status`（approved / rejected / flagged / pending）と、rejected のときは言い換えの提案 `suggestion` を返す
-  - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別（認証はフェーズ6）。CI は `.github/workflows/ci.yml`
+  - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別。**読む・投票はログインなし、投稿はパスキーの登録が要る**（ADR 0006。未登録なら 401 `registration_required`）。CI は `.github/workflows/ci.yml`
+  - `GET /auth/me`（`registered`・`operator`。利用者の ID は返さない）/ `POST /auth/register/start`→`finish`（今の参加者にパスキーを付ける。投票はそのまま）/ `POST /auth/login/start`→`finish`（名前を入力しないパスキー。その端末の匿名の投票をアカウントに移す）/ `POST /auth/logout`
+  - パスキーは webauthn-rs（`backend/src/interface/api/auth.rs`）、アカウントの処理は `backend/src/records/accounts.rs`。保存するのは公開鍵・ID・日時だけ。設定は `WEBAUTHN_RP_ID`・`WEBAUTHN_ORIGIN`（既定は localhost）。テストはソフトウェアのパスキー（`tests/auth.rs`）
 - 自治体の追加: `data/seeds/010_municipality_<団体コード>_<slug>.sql` を1ファイル追加し、`cargo run -- seed`
   - 書式は `010_municipality_092100_otawara.sql` に倣う。全 INSERT に `ON CONFLICT DO NOTHING` を付ける
   - 地区 ID は `<団体コード>-<ローマ字>`
@@ -183,6 +186,6 @@ civic-platform/
 4. AI: モデレーション、自動タグ付け（分野は共通語彙、地区はその自治体の districts から選択）
 5. 収集: `Collector` trait と大田原市用アダプタ、決算カード共通パーサー（robots.txt と利用規約を確認してから）
    - 収集バッチは backend のサブコマンドとして作る（本番での定期実行はリリース準備で整える）
-6. 認証: SNS ログイン（Google / Apple / LINE）→ 後に SMS 認証
+6. 認証（ADR 0006。パスキーだけで始め、SNS ログインは使わない）: 6a 認証の土台（パスキー・運営者）→ 6b 参加の決まり（投稿の上限・分析を開く条件・似た意見の案内）→ 6c 管理画面（下書きのトピック・確認待ちの意見・市民からの提案）→ 6d 市民からのトピックの提案 → 6e 1人を見分ける目印（乱用が見えたら。SNS か SMS を1回だけ確かめ、鍵付きのハッシュだけを持つ）
 7. リリース準備: 全機能がそろってから、デプロイ先の選定・契約、Dockerfile / 本番用 compose / Caddy / バックアップ、ドメイン、リポジトリの Public 化、本番公開をまとめて行う（`docs/adr/0001-docker-adoption.md` の改訂を参照）
 8. 展開: 自治体選択 UI の有効化、近隣自治体の追加、自治体追加手順のドキュメント化
