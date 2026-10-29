@@ -192,7 +192,7 @@ export function StatementForm({
       ) : posting.status === "votes_required" ? (
         <PostingNote>
           あと{posting.remaining}
-          件投票すると、自分の意見を投稿できます。先に出ている意見を読んでから書くと、同じ意見が重なりにくくなります。
+          件投票すると、「みんなの意見」が見られ、自分の意見も投稿できます。
         </PostingNote>
       ) : posting.status === "limit_reached" ? (
         <PostingNote>

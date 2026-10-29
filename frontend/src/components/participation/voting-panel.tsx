@@ -203,11 +203,20 @@ export function VotingPanel({
         </div>
       )}
 
-      <StatementForm
-        topicBase={base}
-        posting={data.posting}
-        onChanged={() => void load()}
-      />
+      {/* 分析が開くまでは、投票のボタンの下を少しだけ見せて切る（スクロールはボタンのすぐ下で止まり、端末の弾む動きで戻る） */}
+      <div
+        className={
+          progress.analysis_unlocked
+            ? undefined
+            : "max-h-24 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_50%,transparent)]"
+        }
+      >
+        <StatementForm
+          topicBase={base}
+          posting={data.posting}
+          onChanged={() => void load()}
+        />
+      </div>
 
       {loginVote !== null && (
         <LoginSheet
