@@ -89,7 +89,14 @@ async fn register(
     cookie: Option<&str>,
     operator_token: Option<&str>,
 ) -> (TestResponse, Option<String>) {
-    let started = request(state, "POST", "/api/auth/register/start", cookie, None).await;
+    let started = request(
+        state,
+        "POST",
+        "/api/auth/register/start",
+        cookie,
+        operator_token.map(|t| json!({"operator_token": t})),
+    )
+    .await;
     assert_eq!(started.status, StatusCode::OK, "{:?}", started.json);
     let cookie = started.cookie.clone().or(cookie.map(str::to_owned));
     let mut options = started.json["options"].clone();
@@ -97,10 +104,11 @@ async fn register(
         options["publicKey"]["authenticatorSelection"]["residentKey"],
         "required"
     );
-    // パスキーの表示名に個人の情報を入れない（作った日だけ）
+    // パスキーの表示名に個人の情報を入れない（運営者の印と作った日だけ）
     let name = options["publicKey"]["user"]["name"].as_str().unwrap();
     assert!(
-        name.starts_with("civic-platform（") && name.ends_with(" 作成）"),
+        (name.starts_with("civic-platform（") || name.starts_with("civic-platform 運営者（"))
+            && name.ends_with(" 作成）"),
         "{name}"
     );
     options["publicKey"]["authenticatorSelection"]["requireResidentKey"] = false.into();
@@ -376,4 +384,56 @@ async fn logout_clears_the_cookie() {
     let cleared = res.cookie.unwrap();
     assert!(cleared.ends_with('='), "{cleared}");
     assert_eq!(me(&state, None).await["registered"], false);
+}
+
+/// パスキーの登録を始め、端末に付く表示名を返す
+async fn passkey_name(
+    state: &AppState,
+    cookie: Option<&str>,
+    body: Option<serde_json::Value>,
+) -> String {
+    let started = request(state, "POST", "/api/auth/register/start", cookie, body).await;
+    assert_eq!(started.status, StatusCode::OK, "{:?}", started.json);
+    started.json["options"]["publicKey"]["user"]["name"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+#[tokio::test]
+async fn operator_passkeys_are_marked_in_their_name() {
+    let (pool, state) = setup().await;
+    let token = accounts::create_operator_invite(&pool).await.unwrap();
+
+    // 参加者のパスキーには印を付けない（本文を省いても、空でも同じ）
+    assert!(!passkey_name(&state, None, None).await.contains("運営者"));
+    assert!(
+        !passkey_name(&state, None, Some(json!({})))
+            .await
+            .contains("運営者")
+    );
+    // 使えない招待では付けない
+    let name = passkey_name(&state, None, Some(json!({"operator_token": "wrong"}))).await;
+    assert!(!name.contains("運営者"), "{name}");
+    // 招待から登録するときは付ける
+    let name = passkey_name(&state, None, Some(json!({"operator_token": token}))).await;
+    assert!(name.starts_with("civic-platform 運営者（"), "{name}");
+
+    // 運営者になったあと、ほかの端末にパスキーを足すときも付ける
+    let mut device = Device::new();
+    let (res, cookie) = register(&state, &mut device, None, Some(&token)).await;
+    assert_eq!(res.json["operator"], true);
+    let name = passkey_name(&state, cookie.as_deref(), None).await;
+    assert!(name.starts_with("civic-platform 運営者（"), "{name}");
+
+    // JSON として読めない本文は断る
+    let res = request(
+        &state,
+        "POST",
+        "/api/auth/register/start",
+        None,
+        Some(json!("x")),
+    )
+    .await;
+    assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
 }

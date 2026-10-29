@@ -2,7 +2,7 @@
 
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{FromRequest, Request};
+use axum::extract::{FromRequest, OptionalFromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
@@ -112,10 +112,30 @@ where
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         match Json::<T>::from_request(req, state).await {
             Ok(Json(value)) => Ok(Self(value)),
-            Err(rejection) => Err(ApiError::InvalidRequest {
-                status: rejection.status(),
-                message: rejection.body_text(),
-            }),
+            Err(rejection) => Err(rejection_error(rejection)),
         }
+    }
+}
+
+/// 本文を省ける JSON（`Option<ApiJson<T>>`）。Content-Type が JSON でなければ None
+impl<S, T> OptionalFromRequest<S> for ApiJson<T>
+where
+    Json<T>: OptionalFromRequest<S, Rejection = JsonRejection>,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request(req: Request, state: &S) -> Result<Option<Self>, Self::Rejection> {
+        match <Json<T> as OptionalFromRequest<S>>::from_request(req, state).await {
+            Ok(value) => Ok(value.map(|Json(v)| Self(v))),
+            Err(rejection) => Err(rejection_error(rejection)),
+        }
+    }
+}
+
+fn rejection_error(rejection: JsonRejection) -> ApiError {
+    ApiError::InvalidRequest {
+        status: rejection.status(),
+        message: rejection.body_text(),
     }
 }
