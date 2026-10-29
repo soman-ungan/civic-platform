@@ -140,10 +140,13 @@ pub struct BasisDocument {
     pub url: Option<String>,
 }
 
-/// 自治体の確認待ち（flagged）と判定待ち（pending）の意見（古い順）
+/// 自治体の確認待ち（flagged）と判定待ち（pending）の意見（古い順）。
+/// `after`（前に読んだ最後の ID）の次から `limit` 件（採否で一覧から抜けても読み飛ばさないよう、ID で続ける）
 pub async fn queue_in(
     pool: &SqlitePool,
     municipality_id: &str,
+    after: Option<&str>,
+    limit: i64,
 ) -> Result<Vec<QueueItem>, sqlx::Error> {
     let mut items: Vec<QueueItem> = sqlx::query_as(
         "SELECT s.id, s.topic_id, s.status, s.body, s.moderation_note, s.created_at,
@@ -151,9 +154,14 @@ pub async fn queue_in(
                 s.is_seed AS seed, s.user_id IS NOT NULL AS posted
          FROM statements s JOIN topics t ON t.id = s.topic_id
          WHERE t.municipality_id = $1 AND s.status IN ('flagged', 'pending')
-         ORDER BY s.created_at, s.id",
+           AND (CAST($2 AS TEXT) IS NULL
+                OR s.created_at > (SELECT created_at FROM statements WHERE id = $2)
+                OR (s.created_at = (SELECT created_at FROM statements WHERE id = $2) AND s.id > $2))
+         ORDER BY s.created_at, s.id LIMIT $3",
     )
     .bind(municipality_id)
+    .bind(after)
+    .bind(limit)
     .fetch_all(pool)
     .await?;
     #[derive(sqlx::FromRow)]

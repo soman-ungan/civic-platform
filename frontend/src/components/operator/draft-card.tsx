@@ -21,6 +21,7 @@ import type {
 import { STATEMENT_STATUS_LABELS, formatDateTime } from "@/lib/operator";
 import { MAX_STATEMENT_CHARS, countChars } from "@/lib/statement";
 
+import { STICKY_CARD_HEAD } from "./sticky";
 import { useAction } from "./use-action";
 
 const INPUT =
@@ -174,11 +175,14 @@ function TitleEditor({
 
   if (!editing) {
     return (
-      <div className="mt-1">
-        <h2 className="text-base font-semibold">{topic.title}</h2>
-        <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
-          {topic.description}
-        </p>
+      <>
+        {/* 出典・意見・タグと照らしながら読めるよう、カードの終わりまでタブの下に貼り付ける */}
+        <div className={`mt-1 ${STICKY_CARD_HEAD}`}>
+          <h2 className="text-base font-semibold">{topic.title}</h2>
+          <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
+            {topic.description}
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => {
@@ -190,7 +194,7 @@ function TitleEditor({
         >
           タイトル・説明を直す
         </button>
-      </div>
+      </>
     );
   }
 

@@ -27,22 +27,32 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<DraftSummary>, sqlx::Error> {
     .await
 }
 
-/// 自治体のトピックの ID（状態で絞る。下書きは古い順、ほかは新しい順）。管理画面の一覧に使う
+/// 自治体のトピックの ID（状態で絞る。下書きは古い順、ほかは新しい順）。管理画面の一覧に使う。
+/// `after`（前に読んだ最後の ID）の次から `limit` 件。公開などで一覧から抜けても読み飛ばさないよう、件数ではなく ID で続ける
 pub async fn ids_in(
     pool: &SqlitePool,
     municipality_id: &str,
     status: Publication,
+    after: Option<&str>,
+    limit: i64,
 ) -> Result<Vec<String>, sqlx::Error> {
-    let order = if status == Publication::Draft {
-        "created_at, id"
+    let (cmp, order) = if status == Publication::Draft {
+        (">", "created_at, id")
     } else {
-        "created_at DESC, id DESC"
+        ("<", "created_at DESC, id DESC")
     };
+    // PostgreSQL では型の決まらないパラメーターを IS NULL にできないため CAST する
     sqlx::query_scalar(&format!(
-        "SELECT id FROM topics WHERE municipality_id = $1 AND status = $2 ORDER BY {order}"
+        "SELECT id FROM topics WHERE municipality_id = $1 AND status = $2
+           AND (CAST($3 AS TEXT) IS NULL
+                OR created_at {cmp} (SELECT created_at FROM topics WHERE id = $3)
+                OR (created_at = (SELECT created_at FROM topics WHERE id = $3) AND id {cmp} $3))
+         ORDER BY {order} LIMIT $4"
     ))
     .bind(municipality_id)
     .bind(status.as_str())
+    .bind(after)
+    .bind(limit)
     .fetch_all(pool)
     .await
 }

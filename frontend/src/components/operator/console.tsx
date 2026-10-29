@@ -8,6 +8,7 @@ import { OPERATOR_TABS, type OperatorTab, operatorHref } from "@/lib/operator";
 import { Drafts } from "./drafts";
 import { Published } from "./published";
 import { Queue } from "./queue";
+import { STICKY_TABS } from "./sticky";
 
 /** 管理画面の枠: 自治体の切り替え（2つ以上のとき）とタブ */
 export function OperatorConsole({
@@ -21,7 +22,7 @@ export function OperatorConsole({
 }) {
   const slug = municipality.slug;
   return (
-    <div className="mx-auto w-full max-w-md px-4 py-4">
+    <div className="mx-auto w-full max-w-md px-4 pt-4 pb-8">
       <h1 className="text-lg font-semibold">管理画面</h1>
       {municipalities.length > 1 ? (
         <nav aria-label="自治体" className="mt-2 flex flex-wrap gap-2">
@@ -38,7 +39,7 @@ export function OperatorConsole({
       ) : (
         <p className="text-sm text-zinc-500">{municipality.name}</p>
       )}
-      <div className="mt-3 text-sm">
+      <div className={`mt-1 text-sm ${STICKY_TABS}`}>
         <SegmentedSwitch
           label="管理する内容"
           current={tab}

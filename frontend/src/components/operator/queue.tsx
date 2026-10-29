@@ -5,6 +5,7 @@
 import { useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadMore } from "@/components/ui/load-more";
 import {
   BADGE_AMBER,
   BUTTON_PRIMARY,
@@ -14,7 +15,7 @@ import {
 import { apiFetch } from "@/lib/api/client";
 import { operatorApi, operatorStatementApi } from "@/lib/api/paths";
 import type { QueueStatement } from "@/lib/api/types/operator";
-import { useApi } from "@/lib/api/use-api";
+import { usePaged } from "@/lib/api/use-paged";
 import {
   QUEUE_KIND_LABELS,
   STATEMENT_STATUS_LABELS,
@@ -24,19 +25,20 @@ import {
 import { useAction } from "./use-action";
 
 /**
- * 確認待ち（flagged）と判定待ち（pending）の意見（古い順）。公開するか非公開にする。
+ * 確認待ち（flagged）と判定待ち（pending）の意見（古い順。スクロールで続きを読む）。公開するか非公開にする。
  * 判定の基準は ADR 0007（主張や政治的な立場では判断しない）。投稿者が誰かは出ない
  */
 export function Queue({ slug }: { slug: string }) {
-  const queue = useApi<QueueStatement[]>(`${operatorApi(slug)}/statements`);
+  const queue = usePaged<QueueStatement>(`${operatorApi(slug)}/statements`);
 
-  if (queue.error && !queue.data) {
-    return <p className={ERROR_TEXT}>読み込めませんでした</p>;
+  if (!queue.loaded) {
+    return queue.error ? (
+      <p className={ERROR_TEXT}>読み込めませんでした</p>
+    ) : (
+      <p className="text-sm text-zinc-500">読み込み中…</p>
+    );
   }
-  if (!queue.data) {
-    return <p className="text-sm text-zinc-500">読み込み中…</p>;
-  }
-  if (queue.data.length === 0) {
+  if (queue.done && queue.items.length === 0) {
     return <EmptyState>確認待ちの意見はありません</EmptyState>;
   }
   return (
@@ -46,7 +48,7 @@ export function Queue({ slug }: { slug: string }) {
         0007）
       </p>
       <ul className="flex flex-col gap-4">
-        {queue.data.map((item) => (
+        {queue.items.map((item) => (
           <li key={item.id}>
             <QueueCard
               slug={slug}
@@ -54,16 +56,21 @@ export function Queue({ slug }: { slug: string }) {
               onDone={(status) =>
                 queue.update((list) =>
                   status === "pending" || status === "flagged"
-                    ? (list ?? []).map((s) =>
-                        s.id === item.id ? { ...s, status } : s,
-                      )
-                    : (list ?? []).filter((s) => s.id !== item.id),
+                    ? list.map((s) => (s.id === item.id ? { ...s, status } : s))
+                    : list.filter((s) => s.id !== item.id),
                 )
               }
             />
           </li>
         ))}
       </ul>
+      <LoadMore
+        count={queue.items.length}
+        done={queue.done}
+        loading={queue.loading}
+        error={queue.error}
+        onLoad={queue.loadMore}
+      />
     </>
   );
 }

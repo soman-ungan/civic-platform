@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadMore } from "@/components/ui/load-more";
 import {
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
@@ -14,45 +15,55 @@ import {
 import { apiFetch } from "@/lib/api/client";
 import { operatorApi, operatorTopicApi } from "@/lib/api/paths";
 import type { OperatorTopic } from "@/lib/api/types/operator";
-import { useApi } from "@/lib/api/use-api";
+import { usePaged } from "@/lib/api/use-paged";
 import { deadlineLabel } from "@/lib/labels";
 import { endOfDateInput, formatDateTime, toDateInput } from "@/lib/operator";
 
 import { useAction } from "./use-action";
 
-/** 公開中のトピック（新しい順）: 期限の変更・すぐ締め切る・取り下げ（ADR 0005） */
+/** 公開中のトピック（新しい順。スクロールで続きを読む）: 期限の変更・すぐ締め切る・取り下げ（ADR 0005） */
 export function Published({ slug }: { slug: string }) {
-  const topics = useApi<OperatorTopic[]>(
+  const topics = usePaged<OperatorTopic>(
     `${operatorApi(slug)}/topics?status=published`,
   );
 
-  if (topics.error && !topics.data) {
-    return <p className={ERROR_TEXT}>読み込めませんでした</p>;
+  if (!topics.loaded) {
+    return topics.error ? (
+      <p className={ERROR_TEXT}>読み込めませんでした</p>
+    ) : (
+      <p className="text-sm text-zinc-500">読み込み中…</p>
+    );
   }
-  if (!topics.data) {
-    return <p className="text-sm text-zinc-500">読み込み中…</p>;
-  }
-  if (topics.data.length === 0) {
+  if (topics.done && topics.items.length === 0) {
     return <EmptyState>公開中のトピックはありません</EmptyState>;
   }
   return (
-    <ul className="flex flex-col gap-4">
-      {topics.data.map((topic) => (
-        <li key={topic.id}>
-          <PublishedCard
-            slug={slug}
-            topic={topic}
-            onChange={(next) =>
-              topics.update((list) =>
-                next.status === "published"
-                  ? (list ?? []).map((t) => (t.id === next.id ? next : t))
-                  : (list ?? []).filter((t) => t.id !== next.id),
-              )
-            }
-          />
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="flex flex-col gap-4">
+        {topics.items.map((topic) => (
+          <li key={topic.id}>
+            <PublishedCard
+              slug={slug}
+              topic={topic}
+              onChange={(next) =>
+                topics.update((list) =>
+                  next.status === "published"
+                    ? list.map((t) => (t.id === next.id ? next : t))
+                    : list.filter((t) => t.id !== next.id),
+                )
+              }
+            />
+          </li>
+        ))}
+      </ul>
+      <LoadMore
+        count={topics.items.length}
+        done={topics.done}
+        loading={topics.loading}
+        error={topics.error}
+        onLoad={topics.loadMore}
+      />
+    </>
   );
 }
 

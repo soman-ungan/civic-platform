@@ -175,8 +175,9 @@ civic-platform/
   - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別。**読む・投票はログインなし、投稿はパスキーの登録が要る**（ADR 0006。未登録なら 401 `registration_required`）。CI は `.github/workflows/ci.yml`
   - `GET /auth/me`（`registered`・`operator`。利用者の ID は返さない）/ `POST /auth/register/start`→`finish`（今の参加者にパスキーを付ける。投票はそのまま。運営者の招待のトークンを start にも渡すと、パスキーの名前に「運営者」と入る）/ `POST /auth/login/start`→`finish`（名前を入力しないパスキー。その端末の匿名の投票をアカウントに移す）/ `POST /auth/logout`
   - 運営者の API（`/api/operator/...`。`backend/src/interface/api/operator.rs`）: 運営者でなければすべて 404。パスの自治体のトピック・意見だけを操作できる。中身は CLI と同じ `records`・`process` の関数。投稿者の ID は運営者にも返さない
-    - `GET /operator/municipalities`（準備中の自治体も）・`GET .../{slug}/tags`・`GET .../{slug}/topics?status=draft|published|archived`・`GET|PATCH .../topics/{id}`・`POST .../topics/{id}/publish|archive`・`PUT .../topics/{id}/closes-at`（`{closes_at?}`。省くと今。公開中だけ）・`POST .../topics/{id}/statements`・`PUT|DELETE .../topics/{id}/tags/{tag_id}`
-    - `GET .../{slug}/statements`（flagged・pending）・`PATCH .../statements/{id}`・`POST .../statements/{id}/approve|reject|retry`（retry は pending を1件 AI でやり直す。キーが無ければ 409）
+    - `GET /operator/municipalities`（準備中の自治体も）・`GET .../{slug}/tags`・`GET .../{slug}/topics?status=draft|published|archived&after=&limit=`・`GET|PATCH .../topics/{id}`・`POST .../topics/{id}/publish|archive`・`PUT .../topics/{id}/closes-at`（`{closes_at?}`。省くと今。公開中だけ）・`POST .../topics/{id}/statements`・`PUT|DELETE .../topics/{id}/tags/{tag_id}`
+    - `GET .../{slug}/statements?after=&limit=`（flagged・pending）・`PATCH .../statements/{id}`・`POST .../statements/{id}/approve|reject|retry`（retry は pending を1件 AI でやり直す。キーが無ければ 409）
+    - 一覧は `{items, next}` で分けて返す（`next` を `after` に渡して続きを読む。件数ではなく ID で続けるので、公開・採否で一覧から抜けても読み飛ばさない）。画面は無限スクロール（`frontend/src/lib/api/use-paged.ts`・`components/ui/load-more.tsx`）
     - 画面は `/operator`（`?m=<slug>&tab=drafts|queue|published`。`frontend/src/components/operator/`）。運営者にはフッターにリンクが出る
   - パスキーは webauthn-rs（`backend/src/interface/api/auth.rs`）、アカウントの処理は `backend/src/records/accounts.rs`。保存するのは公開鍵・ID・日時だけ。設定は `WEBAUTHN_RP_ID`・`WEBAUTHN_ORIGIN`（既定は localhost）。テストはソフトウェアのパスキー（`tests/auth.rs`）
     - 画面の流れ（投票の前の「ログインして投票しますか」・端末の印・アカウントが2つになる限界）は `docs/plans/2026-10-28-phase6a-passkeys.md` の「ログインの流れ」。選択肢の部品は `frontend/src/components/auth/passkey-choices.tsx`

@@ -8,7 +8,7 @@
 //! - 投稿者が誰かは、運営者にも返さない（市民の投稿か、議会の主張・運営者の意見かだけ）
 
 use axum::Json;
-use axum::extract::{FromRequestParts, Path, State};
+use axum::extract::{FromRequestParts, Path, Query, State};
 use axum::http::StatusCode;
 use axum::http::request::Parts;
 use serde::{Deserialize, Serialize};
@@ -196,6 +196,46 @@ impl From<statements::QueueItem> for QueueStatement {
     }
 }
 
+// ===== 分けて読む =====
+
+/// 1回に返すトピックの数（出典・意見・タグを含むので少なめ）
+const TOPICS_PER_PAGE: i64 = 10;
+/// 1回に返す確認待ちの意見の数
+const QUEUE_PER_PAGE: i64 = 20;
+/// `limit` の上限
+const MAX_PER_PAGE: i64 = 50;
+
+/// 一覧の続きの指定。`after` は前に返した `next`
+#[derive(Debug, Default, Deserialize)]
+pub struct PageQuery {
+    pub after: Option<String>,
+    pub limit: Option<i64>,
+}
+
+impl PageQuery {
+    fn limit(&self, default: i64) -> i64 {
+        self.limit.unwrap_or(default).clamp(1, MAX_PER_PAGE)
+    }
+}
+
+/// 一覧の一部。`next` があれば `?after=<next>` で続きを読む
+#[derive(Debug, Serialize)]
+pub struct Page<T> {
+    pub items: Vec<T>,
+    pub next: Option<String>,
+}
+
+impl<T> Page<T> {
+    fn new(items: Vec<T>, more: bool, id: impl Fn(&T) -> &String) -> Self {
+        let next = if more {
+            items.last().map(|item| id(item).clone())
+        } else {
+            None
+        };
+        Self { items, next }
+    }
+}
+
 // ===== 自治体・対象の確かめ =====
 
 /// 自治体のトピックを読む。別の自治体のもの・無いものは 404
@@ -273,6 +313,9 @@ pub struct TopicsQuery {
     /// draft（既定）/ published / archived
     #[serde(default)]
     pub status: Option<String>,
+    // `PageQuery` を flatten すると、クエリの文字列から数（limit）を読めないため、ここにも書く
+    pub after: Option<String>,
+    pub limit: Option<i64>,
 }
 
 fn publication(status: Option<&str>) -> Result<Publication, ApiError> {
@@ -287,22 +330,39 @@ fn publication(status: Option<&str>) -> Result<Publication, ApiError> {
     }
 }
 
-/// GET /api/operator/municipalities/{slug}/topics?status= — 下書きは古い順、ほかは新しい順
+/// GET /api/operator/municipalities/{slug}/topics?status=&after=&limit= — 下書きは古い順、ほかは新しい順
 pub async fn list_topics(
     _: Operator,
     State(state): State<AppState>,
     Path(slug): Path<String>,
-    axum::extract::Query(query): axum::extract::Query<TopicsQuery>,
-) -> Result<Json<Vec<OperatorTopic>>, ApiError> {
+    Query(query): Query<TopicsQuery>,
+) -> Result<Json<Page<OperatorTopic>>, ApiError> {
     let municipality = municipalities::resolve_any(&state.pool, &slug).await?;
     let status = publication(query.status.as_deref())?;
-    let mut out = Vec::new();
-    for id in topics::ids_in(&state.pool, &municipality.id, status).await? {
-        if let Some(detail) = topics::show(&state.pool, &id).await? {
-            out.push(detail.into());
+    let page = PageQuery {
+        after: query.after,
+        limit: query.limit,
+    };
+    let limit = page.limit(TOPICS_PER_PAGE);
+    let ids = topics::ids_in(
+        &state.pool,
+        &municipality.id,
+        status,
+        page.after.as_deref(),
+        limit + 1,
+    )
+    .await?;
+    let mut items = Vec::new();
+    for id in ids.iter().take(limit as usize) {
+        if let Some(detail) = topics::show(&state.pool, id).await? {
+            items.push(detail.into());
         }
     }
-    Ok(Json(out))
+    Ok(Json(Page::new(
+        items,
+        ids.len() as i64 > limit,
+        |t: &OperatorTopic| &t.id,
+    )))
 }
 
 /// GET /api/operator/municipalities/{slug}/topics/{topic_id}
@@ -464,15 +524,28 @@ async fn set_tag(
 
 // ===== 意見 =====
 
-/// GET /api/operator/municipalities/{slug}/statements — 確認待ち（flagged）と判定待ち（pending）
+/// GET /api/operator/municipalities/{slug}/statements?after=&limit= — 確認待ち（flagged）と判定待ち（pending）
 pub async fn queue(
     _: Operator,
     State(state): State<AppState>,
     Path(slug): Path<String>,
-) -> Result<Json<Vec<QueueStatement>>, ApiError> {
+    Query(page): Query<PageQuery>,
+) -> Result<Json<Page<QueueStatement>>, ApiError> {
     let municipality = municipalities::resolve_any(&state.pool, &slug).await?;
-    let items = statements::queue_in(&state.pool, &municipality.id).await?;
-    Ok(Json(items.into_iter().map(Into::into).collect()))
+    let limit = page.limit(QUEUE_PER_PAGE);
+    let mut items: Vec<QueueStatement> = statements::queue_in(
+        &state.pool,
+        &municipality.id,
+        page.after.as_deref(),
+        limit + 1,
+    )
+    .await?
+    .into_iter()
+    .map(Into::into)
+    .collect();
+    let more = items.len() as i64 > limit;
+    items.truncate(limit as usize);
+    Ok(Json(Page::new(items, more, |s: &QueueStatement| &s.id)))
 }
 
 /// PATCH .../statements/{statement_id} — 本文を直す（投票がある意見は直せない）

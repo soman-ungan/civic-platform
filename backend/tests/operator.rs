@@ -77,8 +77,7 @@ async fn drafts_are_listed_and_published_per_municipality() {
 
     let res = request(&state, "GET", &format!("{OTAWARA}/topics"), Some(&op), None).await;
     assert_eq!(res.status, StatusCode::OK);
-    let ids: Vec<&str> = res
-        .json
+    let ids: Vec<&str> = res.json["items"]
         .as_array()
         .unwrap()
         .iter()
@@ -136,7 +135,7 @@ async fn drafts_are_listed_and_published_per_municipality() {
         None,
     )
     .await;
-    assert_eq!(res.json.as_array().unwrap().len(), 1);
+    assert_eq!(res.json["items"].as_array().unwrap().len(), 1);
     let res = request(
         &state,
         "GET",
@@ -328,7 +327,7 @@ async fn queue_hides_who_posted() {
         None,
     )
     .await;
-    let items = res.json.as_array().unwrap();
+    let items = res.json["items"].as_array().unwrap();
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["id"], "s1");
     assert_eq!(items[0]["kind"], "citizen");
@@ -362,7 +361,7 @@ async fn queue_hides_who_posted() {
         None,
     )
     .await;
-    assert_eq!(res.json.as_array().unwrap().len(), 0);
+    assert_eq!(res.json["items"].as_array().unwrap().len(), 0);
 
     // キーが無い環境では、AI でのやり直しはできない（pending を勝手に承認しない）
     let res = request(
@@ -384,4 +383,89 @@ async fn queue_hides_who_posted() {
     )
     .await;
     assert_eq!(res.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn lists_are_read_in_pages_without_skipping() {
+    let pool = test_pool().await;
+    setup(&pool).await;
+    // 下書きを5件（t1 と、同じ日時の d1〜d4）
+    for i in 1..=4 {
+        sqlx::query(
+            "INSERT INTO topics (id, municipality_id, title, source_type, created_at, status)
+             VALUES ($1, '092100', $2, 'assembly', '2026-10-26T00:00:00Z', 'draft')",
+        )
+        .bind(format!("d{i}"))
+        .bind(format!("下書き{i}"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let state = test_state(pool);
+    let op = cookie_for(&state, "u1");
+    let page = |after: Option<String>| {
+        let state = state.clone();
+        let op = op.clone();
+        async move {
+            let after = after.map(|a| format!("&after={a}")).unwrap_or_default();
+            request(
+                &state,
+                "GET",
+                &format!("{OTAWARA}/topics?limit=2{after}"),
+                Some(&op),
+                None,
+            )
+            .await
+            .json
+        }
+    };
+
+    let first = page(None).await;
+    let ids: Vec<String> = first["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(ids, ["d1", "d2"]);
+    assert_eq!(first["next"], "d2");
+
+    // 読んだものを公開して一覧から抜けても、続きは読み飛ばさない
+    request(
+        &state,
+        "POST",
+        &format!("{OTAWARA}/topics/d1/publish"),
+        Some(&op),
+        None,
+    )
+    .await;
+    let second = page(Some("d2".into())).await;
+    let ids: Vec<&str> = second["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["d3", "d4"]);
+    let third = page(second["next"].as_str().map(str::to_owned)).await;
+    let ids: Vec<&str> = third["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["t1"]);
+    assert!(third["next"].is_null());
+
+    // 公開中は新しい順（d1 だけ）
+    let res = request(
+        &state,
+        "GET",
+        &format!("{OTAWARA}/topics?status=published&limit=1"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert_eq!(res.json["items"][0]["id"], "d1");
+    assert!(res.json["next"].is_null());
 }
