@@ -2,7 +2,6 @@
 
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { errorMessage } from "@/lib/api/client";
@@ -42,14 +41,6 @@ export function AccountLinks() {
     <span className="flex items-center gap-2">
       {error && <span className="text-rose-600">{error}</span>}
       {me.registered && <span>ログイン中</span>}
-      {me.operator && (
-        <Link
-          href="/operator"
-          className="underline underline-offset-2 hover:text-zinc-800 dark:hover:text-zinc-200"
-        >
-          管理画面
-        </Link>
-      )}
       <button
         type="button"
         disabled={busy}

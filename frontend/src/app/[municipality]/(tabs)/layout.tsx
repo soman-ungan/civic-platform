@@ -3,6 +3,7 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { OperatorLink } from "@/components/auth/operator-link";
 import { SwipeNav } from "@/components/layout/swipe-nav";
 import { TabNav, TabNavFallback } from "@/components/layout/tab-nav";
 import { municipalityApi } from "@/lib/api/paths";
@@ -21,9 +22,12 @@ export default function TabsLayout({
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto w-full max-w-md px-4 pt-3">
-          <Suspense fallback={<NameSkeleton />}>
-            <MunicipalityName params={params} />
-          </Suspense>
+          <div className="flex items-start justify-between gap-4">
+            <Suspense fallback={<NameSkeleton />}>
+              <MunicipalityName params={params} />
+            </Suspense>
+            <OperatorLink />
+          </div>
           <Suspense fallback={<TabNavFallback />}>
             <TabNav />
           </Suspense>

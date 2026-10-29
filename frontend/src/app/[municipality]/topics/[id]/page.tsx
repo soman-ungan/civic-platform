@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { OperatorLink } from "@/components/auth/operator-link";
 import { TopicInteraction } from "@/components/topics/interaction";
 import { TopicFinances } from "@/components/topics/finances";
 import { TopicSources } from "@/components/topics/sources";
@@ -55,12 +56,15 @@ async function TopicView({
     <>
       <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto w-full max-w-md px-4 pb-3">
-          <Link
-            href={`/${municipality.slug}`}
-            className="inline-flex h-10 items-center text-sm text-zinc-600 dark:text-zinc-400"
-          >
-            ← {municipality.name}のトピック
-          </Link>
+          <div className="flex items-center justify-between gap-4">
+            <Link
+              href={`/${municipality.slug}`}
+              className="inline-flex h-10 items-center text-sm text-zinc-600 dark:text-zinc-400"
+            >
+              ← {municipality.name}のトピック
+            </Link>
+            <OperatorLink />
+          </div>
           <p className="mb-0.5 text-xs text-zinc-500">
             {SOURCE_LABELS[topic.source_type]}
             {deadline && ` ・ ${deadline}`}

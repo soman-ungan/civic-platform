@@ -178,7 +178,7 @@ civic-platform/
     - `GET /operator/municipalities`（準備中の自治体も）・`GET .../{slug}/tags`・`GET .../{slug}/topics?status=draft|published|archived&after=&limit=`・`GET|PATCH .../topics/{id}`・`POST .../topics/{id}/publish|archive`・`PUT .../topics/{id}/closes-at`（`{closes_at?}`。省くと今。公開中だけ）・`POST .../topics/{id}/statements`・`PUT|DELETE .../topics/{id}/tags/{tag_id}`
     - `GET .../{slug}/statements?after=&limit=`（flagged・pending）・`PATCH .../statements/{id}`・`POST .../statements/{id}/approve|reject|retry`（retry は pending を1件 AI でやり直す。キーが無ければ 409）
     - 一覧は `{items, next}` で分けて返す（`next` を `after` に渡して続きを読む。件数ではなく ID で続けるので、公開・採否で一覧から抜けても読み飛ばさない）。画面は無限スクロール（`frontend/src/lib/api/use-paged.ts`・`components/ui/load-more.tsx`）
-    - 画面は `/operator`（`?m=<slug>&tab=drafts|queue|published`。`frontend/src/components/operator/`）。運営者にはフッターにリンクが出る
+    - 画面は `/operator`（`?m=<slug>&tab=drafts|queue|published`。`frontend/src/components/operator/`）。運営者にはヘッダー（自治体のトップ・トピックの詳細）に「管理画面」のリンクが出る（`components/auth/operator-link.tsx`）。管理画面からは「通常の画面へ」で `/` に戻る
   - パスキーは webauthn-rs（`backend/src/interface/api/auth.rs`）、アカウントの処理は `backend/src/records/accounts.rs`。保存するのは公開鍵・ID・日時だけ。設定は `WEBAUTHN_RP_ID`・`WEBAUTHN_ORIGIN`（既定は localhost）。テストはソフトウェアのパスキー（`tests/auth.rs`）
     - 画面の流れ（投票の前の「ログインして投票しますか」・端末の印・アカウントが2つになる限界）は `docs/plans/2026-10-28-phase6a-passkeys.md` の「ログインの流れ」。選択肢の部品は `frontend/src/components/auth/passkey-choices.tsx`
 - 自治体の追加: `data/seeds/010_municipality_<団体コード>_<slug>.sql` を1ファイル追加し、`cargo run -- seed`
