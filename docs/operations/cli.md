@@ -3,7 +3,7 @@
 backend（Rust）は、API サーバーとしてだけでなく、運営のためのコマンドとしても使います。
 自治体のデータの投入、会議録・予算の取り込み、AI の判定の確認などは、すべてこのコマンドで行います。
 下書きのトピックの確認と公開、確認待ちの意見の採否、公開中のトピックの期限は、管理画面（`/operator`。運営者のパスキーでログインした端末）でも行えます。中身はこのコマンドと同じ処理です。トピックの期限の変更は管理画面だけでできます。
-資料がどのコマンドで DB のどこに入るかの全体は、[docs/data-flow.md](data-flow.md) にあります。
+資料がどのコマンドで DB のどこに入るかの全体は、[operations/data-flow.md](data-flow.md) にあります。
 
 - 開発中は `backend/` で `cargo run -- <コマンド>` として実行します
 - ビルドしたものは `./backend <コマンド>`（`cargo build --release` なら `target/release/backend`）でも同じです
@@ -330,6 +330,8 @@ cargo run -- eval tagging    [--model <id>] [--limit <n>] [--file <path>]
 `evals/moderation.jsonl` / `evals/tagging.jsonl` の例で、AI の判定の精度を測ります。**実際の API を呼ぶので費用がかかります。** モデルを変えるときや、指示文を直したときに使います。
 
 ## よくある流れ
+
+資料が DB のどこに入るかの図は [operations/data-flow.md](data-flow.md#資料ごとの流れ) にあります。
 
 ### 自治体を追加する
 

@@ -26,7 +26,7 @@
 civic-platform/
 ├── backend/              Rust / axum / sqlx（API サーバー＋運営のコマンド）
 │   ├── src/shared/       システム内で共通に使うもの（config・db・status（意見と公開の状態の型。DB の CHECK と同じ値）・util・llm）
-│   ├── src/interface/    外とのやりとり。api/（HTTP API: 自治体・トピック・投票・分析・まちのお金）と cli/（運営のコマンド。clap。<動詞> <対象>。docs/cli.md）
+│   ├── src/interface/    外とのやりとり。api/（HTTP API: 自治体・トピック・投票・分析・まちのお金）と cli/（運営のコマンド。clap。<動詞> <対象>。docs/operations/cli.md）
 │   ├── src/ingest/       段階1 資料を DB に入れる（collect: 取得と置き場・決算カード、budget、minutes、extraction）
 │   ├── src/records/      段階2 DB を見る・直す（topics・budget・settlement・minutes・statements・tags）
 │   ├── src/process/      段階3 判定・計算（moderation・tagging・analysis（Polis の数理）・progress（参加のルール。ルールはここだけで変える））
@@ -114,7 +114,7 @@ civic-platform/
   - 自治体の取り違えを防ぐため、テスト用 seed には最低2自治体を入れる。
 
 ## よく使うコマンド（整備され次第更新する）
-- 運営のコマンドの全体（利用する人向け）は `docs/cli.md`、資料・コマンド・DB のデータの流れは `docs/data-flow.md`。コマンドやテーブルを足したり変えたりしたら、そちらも直す
+- 運営のコマンドの全体（利用する人向け）は `docs/operations/cli.md`、資料・コマンド・DB のデータの流れは `docs/operations/data-flow.md`。コマンドやテーブルを足したり変えたりしたら、そちらも直す
 - 初回: `cp .env.example .env`（`.env` はルートに1つ。backend / sqlx-cli は親ディレクトリを遡って読み、frontend は `next.config.ts` でルートの `.env` を読む）
   - `.env.example` に変数が増えたら手元の `.env` にも追記する（`NEXT_PUBLIC_SOURCE_URL` が無いと本番ビルドが失敗する）
   - `SESSION_SECRET`（参加者 Cookie の署名鍵）は必須。`openssl rand -hex 32` で作る。未設定・32 バイト未満なら backend は起動しない

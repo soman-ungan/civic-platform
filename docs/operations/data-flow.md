@@ -1,7 +1,7 @@
 # データの流れ（サーバー管理者向け）
 
 資料（決算カード・予算の概要・会議録）がどこから来て、どのコマンドで、DB のどこに入り、画面に出るまでを1枚にまとめたものです。
-コマンドの使い方の詳細は [docs/cli.md](cli.md)、収集の方針は [docs/design/collection.md](design/collection.md) にあります。
+コマンドの使い方の詳細は [operations/cli.md](cli.md)、収集の方針は [design/collection.md](../design/collection.md) にあります。
 
 ## 全体の図
 
@@ -68,7 +68,7 @@ flowchart LR
 ```
 
 **ポイント**
-- **コマンドは `<動詞> <対象>` の形で、段階ごとに分かれています**（[docs/cli.md](cli.md)）。資料は3種類とも `fetch` → `extract` → `import` の同じ流れを通り、その資料に要らない処理（決算カードの `extract`、会議録の `fetch`）は何もせずに通ります
+- **コマンドは `<動詞> <対象>` の形で、段階ごとに分かれています**（[operations/cli.md](cli.md)）。資料は3種類とも `fetch` → `extract` → `import` の同じ流れを通り、その資料に要らない処理（決算カードの `extract`、会議録の `fetch`）は何もせずに通ります
 - **下書き（draft）は API のどこにも出ません。** 画面に出るのは、運営者が `publish` したものだけです（決算カードは AI を使わない決まった形の表なので、取り込んだらそのまま公開されます）
 - **AI を呼ぶのは `extract` だけです。** Claude API（費用がかかる）か、管理者と Claude Code の共同作業（`--manual`。費用なし）。どちらの出力も `import` で同じ検査を通ります
 - **原本は DB に入れません。** DB には数字・事業の名前・短い引用・出典（URL・ハッシュ）だけが入ります。`fetch` で取った原本は `import` が済んだら消えます
@@ -84,6 +84,8 @@ flowchart LR
 | `.env` | API キー、署名の鍵、連絡先 | **管理しない** | サーバーにだけ置く |
 
 ## 資料ごとの流れ
+
+ここでは、資料が何を通ってどこに入るかを示します。実際に打つコマンドの手順は [operations/cli.md の「よくある流れ」](cli.md#よくある流れ) にあります。
 
 | | 決算カード | 当初予算の概要 | 会議録 |
 |---|---|---|---|
@@ -242,10 +244,10 @@ stateDiagram-v2
 | 時期 | 作業 |
 |---|---|
 | 2〜3月 | 当初予算の概要が出たら、予算を取り込む（`/import-budget`）→ `publish budget` |
-| 定例会（3・6・9・12月）の会議録が公開されたら | 1日分ずつ取り込む（`/import-minutes`）→ 下書きを確かめて `publish topic` |
+| 定例会（3・6・9・12月）の会議録が公開されたら | 1日分ずつ取り込む（`/import-minutes`）→ 管理画面（`/operator`）の「下書き」で確かめて公開 |
 | 決算カードの公表のあと | `fetch settlement -m <slug>` → `import settlement -m <slug>` |
 | 選挙のあと | `data/seeds/030_officials_*.sql` を直して `seed` |
-| いつでも | `list statement`（人が確かめる意見）、`list source`（規約の確認から1年を過ぎると警告） |
+| いつでも | 管理画面の「確認待ち」（人が確かめる意見）、「公開中」（期限の近いトピック）。`list source`（規約の確認から1年を過ぎると警告） |
 
 ## 困ったとき
 
