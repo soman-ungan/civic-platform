@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { useRef } from "react";
+
 import { BADGE_AMBER } from "@/components/ui/styles";
 import { GROUP_COLORS, percent } from "@/lib/labels";
 import type {
@@ -8,7 +10,7 @@ import type {
   StatementByGroup,
 } from "@/lib/api/types/analysis";
 
-import { STICKY_PANEL_HEADING } from "./sticky";
+import { STICKY_PANEL_HEADING, STICKY_TABLE_HEAD } from "./sticky";
 
 /** 自分のグループの列を囲む枠線の色（凡例の色見本用） */
 const MY_BORDER = "border-sky-500 dark:border-sky-400";
@@ -37,6 +39,10 @@ const HIGHLIGHT: Record<RepfulFor, string> = {
  * Polis が代表意見に選んだセルは、賛成向きなら緑、反対向きなら赤で塗る。
  * スマホでは横にスクロールでき、意見の列は左端に固定する。自分のグループの列は青い枠で囲む。
  * 合意点の行は先頭にまとめ、そのかたまりを金色の枠で囲む。
+ *
+ * 縦のスクロールはページだけにし、見出しの行は表を見ている間ページの上に固定する。
+ * 横スクロールの枠の中ではページに対して固定できないので、見出しの行は枠の外の別の表にし、
+ * 本文の横スクロールに合わせて動かす（2つの表の列の幅は colgroup でそろえる）
  */
 export function GroupTable({
   groups,
@@ -66,6 +72,7 @@ export function GroupTable({
     ...consensusRows,
     ...rows.filter((r) => !consensusSet.has(r.statement_id)),
   ];
+  const headRef = useRef<HTMLDivElement>(null);
   const blockEnd = consensusRows.length - 1; // 合意点のかたまりの最後の行（無ければ -1）
   const lastCol = groups.length; // 0 = 意見の列
 
@@ -97,107 +104,143 @@ export function GroupTable({
   }
   // 見出しの下の灰色の線は、金色の枠の上端と二重にならないよう、合意点があるときは引かない
   const headerLine = blockEnd >= 0 ? "" : ROW_LINE;
+  // 2つの表を同じ幅にする（枠より狭ければ、どちらも枠いっぱいに広げる）
+  const tableClass =
+    "table-fixed min-w-full border-separate border-spacing-0 text-left text-xs";
+  const tableWidth = { width: `${10 + 6 * groups.length}rem` };
+  const cols = (
+    <colgroup>
+      <col className="w-40" />
+      {groups.map((g) => (
+        <col key={g.id} className="w-24" />
+      ))}
+    </colgroup>
+  );
 
   return (
     <div>
       <h3 className={`mb-1 ${STICKY_PANEL_HEADING}`}>グループごとの特徴</h3>
-      <p className="mb-2 text-xs text-zinc-500">
-        表は縦にも横にもスクロールできます。
-      </p>
-      {/* 枠の中で縦横にスクロールする。見出しの行は上に、意見の列は左に固定する。
-          枠は画面の7割まで（表の端まで行けばページのスクロールに移れ、凡例まで進めるように） */}
-      <div className="max-h-[70dvh] overflow-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
-        <table className="w-max min-w-full border-separate border-spacing-0 text-left text-xs">
-          <thead>
-            <tr>
-              <th
-                scope="col"
-                className={`sticky top-0 left-0 z-30 w-40 min-w-40 bg-background px-3 py-2 font-normal text-zinc-500 ${headerLine}`}
-              >
-                意見
-              </th>
-              {groups.map((g, i) => {
-                const mine = g.id === myGroupId;
-                return (
-                  <th
-                    key={g.id}
-                    scope="col"
-                    className={`sticky top-0 z-20 w-24 min-w-24 bg-background px-2 py-2 text-center align-bottom ${
-                      mine
-                        ? // 青い枠は列の外側だけ
-                          `${MY_SIDES} ${MY_TOP} ${headerLine}`
-                        : headerLine
-                    }`}
-                  >
-                    {mine && (
-                      <span className="mb-1 inline-block rounded-full bg-sky-600 px-2 py-0.5 text-[10px] font-bold text-white">
-                        あなた
+      <p className="mb-2 text-xs text-zinc-500">表は横にスクロールできます。</p>
+      <div>
+        {/* 見出しの行（画面の読み上げは、本文の表の見出しを使う） */}
+        <div
+          ref={headRef}
+          aria-hidden
+          className={`${STICKY_TABLE_HEAD} overflow-hidden rounded-t-xl border-x border-t border-zinc-200 bg-background dark:border-zinc-800`}
+        >
+          <table className={tableClass} style={tableWidth}>
+            {cols}
+            <thead>
+              <tr>
+                <th
+                  className={`sticky left-0 z-10 bg-background px-3 py-2 font-normal text-zinc-500 ${headerLine}`}
+                >
+                  意見
+                </th>
+                {groups.map((g, i) => {
+                  const mine = g.id === myGroupId;
+                  return (
+                    <th
+                      key={g.id}
+                      className={`px-2 py-2 text-center align-bottom ${
+                        mine
+                          ? // 青い枠は列の外側だけ
+                            `${MY_SIDES} ${MY_TOP} ${headerLine}`
+                          : headerLine
+                      }`}
+                    >
+                      {mine && (
+                        <span className="mb-1 inline-block rounded-full bg-sky-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                          あなた
+                        </span>
+                      )}
+                      <span className="flex items-center justify-center gap-1 font-semibold">
+                        <span
+                          className="inline-block size-2.5 rounded-full"
+                          style={{
+                            backgroundColor:
+                              GROUP_COLORS[i % GROUP_COLORS.length],
+                          }}
+                        />
+                        {g.label}
                       </span>
-                    )}
-                    <span className="flex items-center justify-center gap-1 font-semibold">
-                      <span
-                        aria-hidden
-                        className="inline-block size-2.5 rounded-full"
-                        style={{
-                          backgroundColor:
-                            GROUP_COLORS[i % GROUP_COLORS.length],
-                        }}
-                      />
-                      {g.label}
-                    </span>
-                    <span className="block font-normal text-zinc-500">
-                      {g.size}人
-                    </span>
+                      <span className="block font-normal text-zinc-500">
+                        {g.size}人
+                      </span>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+          </table>
+        </div>
+        <div
+          className="overflow-x-auto rounded-b-xl border-x border-b border-zinc-200 dark:border-zinc-800"
+          onScroll={(e) => {
+            if (headRef.current) {
+              headRef.current.scrollLeft = e.currentTarget.scrollLeft;
+            }
+          }}
+        >
+          <table className={tableClass} style={tableWidth}>
+            {cols}
+            <thead className="sr-only">
+              <tr>
+                <th scope="col">意見</th>
+                {groups.map((g) => (
+                  <th key={g.id} scope="col">
+                    {g.id === myGroupId && "あなたのグループ "}
+                    {g.label}（{g.size}人）
                   </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ordered.map((row, rowIndex) => {
+                const isConsensus = rowIndex <= blockEnd;
+                return (
+                  <tr key={row.statement_id}>
+                    <th
+                      scope="row"
+                      className={`sticky left-0 z-10 bg-background px-3 py-2 align-top font-normal leading-5 ${cellBorder(rowIndex, 0, false)}`}
+                    >
+                      {isConsensus && (
+                        <span
+                          className={`mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${BADGE_AMBER}`}
+                        >
+                          <span aria-hidden>🤝 </span>合意点
+                        </span>
+                      )}
+                      <span className="block">{row.body}</span>
+                    </th>
+                    {row.groups.map((cell, i) => {
+                      const mine = cell.group_id === myGroupId;
+                      const rep = representative
+                        .get(cell.group_id)
+                        ?.get(row.statement_id);
+                      const border = cellBorder(rowIndex, i + 1, mine);
+                      return (
+                        <td
+                          key={cell.group_id}
+                          className={`px-2 py-2 text-center align-top ${border} ${
+                            rep ? HIGHLIGHT[rep] : ""
+                          }`}
+                        >
+                          <VoteCell
+                            agree={cell.agree}
+                            disagree={cell.disagree}
+                            seen={cell.seen}
+                            representative={rep ?? null}
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
                 );
               })}
-            </tr>
-          </thead>
-          <tbody>
-            {ordered.map((row, rowIndex) => {
-              const isConsensus = rowIndex <= blockEnd;
-              return (
-                <tr key={row.statement_id}>
-                  <th
-                    scope="row"
-                    className={`sticky left-0 z-10 w-40 min-w-40 bg-background px-3 py-2 align-top font-normal leading-5 ${cellBorder(rowIndex, 0, false)}`}
-                  >
-                    {isConsensus && (
-                      <span
-                        className={`mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${BADGE_AMBER}`}
-                      >
-                        <span aria-hidden>🤝 </span>合意点
-                      </span>
-                    )}
-                    <span className="block">{row.body}</span>
-                  </th>
-                  {row.groups.map((cell, i) => {
-                    const mine = cell.group_id === myGroupId;
-                    const rep = representative
-                      .get(cell.group_id)
-                      ?.get(row.statement_id);
-                    const border = cellBorder(rowIndex, i + 1, mine);
-                    return (
-                      <td
-                        key={cell.group_id}
-                        className={`px-2 py-2 text-center align-top ${border} ${
-                          rep ? HIGHLIGHT[rep] : ""
-                        }`}
-                      >
-                        <VoteCell
-                          agree={cell.agree}
-                          disagree={cell.disagree}
-                          seen={cell.seen}
-                          representative={rep ?? null}
-                        />
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
       {/* 凡例 */}
       <div className="mt-2 flex flex-col gap-1 text-xs leading-5 text-zinc-500">

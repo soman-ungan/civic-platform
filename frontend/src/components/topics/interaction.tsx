@@ -59,7 +59,8 @@ export function TopicInteraction({
             {intro}
           </div>
         )}
-        {context}
+        {/* サーバー側で作った要素は、並びの中に直に置くと key の警告が出るので、単独の子として包む */}
+        {context && <div>{context}</div>}
         <VotingPanel
           slug={slug}
           topicId={topicId}
