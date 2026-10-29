@@ -14,9 +14,7 @@ use crate::interface::api::municipalities;
 use crate::interface::api::participant::{MaybeParticipant, Participant};
 use crate::process::analysis::store::{self, Stored};
 use crate::process::moderation::{self, Verdict};
-use crate::process::progress::{self, Progress, RESIDENCY_TYPES, has_relation};
-use crate::records::accounts;
-use crate::shared::status::StatementStatus;
+use crate::process::progress::{self, PostPermission, Progress, RESIDENCY_TYPES, has_relation};
 use crate::shared::util::{new_id, now_iso};
 
 /// 意見の最大文字数（DB の CHECK と同じ。文字数は Unicode のコードポイント単位）
@@ -81,6 +79,9 @@ pub async fn put_relation(
 pub struct StatementCard {
     pub id: String,
     pub body: String,
+    /// 最初の意見か（先に出すため。API では返さない）
+    #[serde(skip)]
+    pub is_seed: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -90,6 +91,8 @@ pub struct NextStatement {
     pub progress: Progress,
     /// この自治体の居住地属性が未登録なら true（投票前に聞く）
     pub needs_relation: bool,
+    /// 意見を投稿できるか（ルールは `progress::post_permission`。投票のたびに変わるので、ここで返す）
+    pub posting: PostPermission,
 }
 
 /// GET /api/municipalities/{slug}/topics/{topic_id}/next-statement
@@ -107,7 +110,7 @@ pub async fn next_statement(
 
     // 候補: 承認済みで、まだ投票していない意見
     let candidates: Vec<StatementCard> = sqlx::query_as(
-        "SELECT s.id, s.body FROM statements s
+        "SELECT s.id, s.body, s.is_seed FROM statements s
          WHERE s.topic_id = $1 AND s.status = 'approved'
            AND NOT EXISTS (
                SELECT 1 FROM votes v WHERE v.statement_id = s.id AND v.user_id = $2)
@@ -117,6 +120,14 @@ pub async fn next_statement(
     .bind(&user_id)
     .fetch_all(&state.pool)
     .await?;
+
+    // 投票していない最初の意見があれば、その中から選ぶ。分析を見られる条件（最初の意見すべて）に
+    // 先に届くようにするため（Polis 本家は分けない。docs/polis-math.md）
+    let candidates = if candidates.iter().any(|c| c.is_seed) {
+        candidates.into_iter().filter(|c| c.is_seed).collect()
+    } else {
+        candidates
+    };
 
     // Polis の comment-priorities で重みを付けて1件選ぶ（分析が無ければ一様）
     let priorities = match store::load(&state.pool, &topic_id).await? {
@@ -131,11 +142,13 @@ pub async fn next_statement(
         .map(|i| candidates.into_iter().nth(i).expect("範囲内"));
 
     let needs_relation = !has_relation(&state.pool, &user_id, &municipality.id).await?;
+    let posting = progress::post_permission(&state.pool, &topic_id, Some(&user_id)).await?;
 
     Ok(Json(NextStatement {
         statement,
         progress,
         needs_relation,
+        posting,
     }))
 }
 
@@ -207,11 +220,11 @@ pub async fn vote(
         return Err(relation_required());
     }
 
-    sqlx::query(
+    // 票はあとから変えられない（1人1票。分析を見てから票を合わせ直すことを防ぐ。Polis の画面も戻れない）
+    let inserted = sqlx::query(
         "INSERT INTO votes (id, user_id, statement_id, vote_value, created_at)
          VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (user_id, statement_id) DO UPDATE
-            SET vote_value = excluded.vote_value, created_at = excluded.created_at",
+         ON CONFLICT (user_id, statement_id) DO NOTHING",
     )
     .bind(new_id())
     .bind(&user_id)
@@ -219,7 +232,14 @@ pub async fn vote(
     .bind(input.value)
     .bind(now_iso())
     .execute(&state.pool)
-    .await?;
+    .await?
+    .rows_affected();
+    if inserted == 0 {
+        return Err(ApiError::conflict(
+            "already_voted",
+            "この意見には、もう投票しています",
+        ));
+    }
 
     Ok(Json(Vote {
         statement_id,
@@ -236,11 +256,29 @@ pub struct StatementInput {
 
 #[derive(Debug, Serialize)]
 pub struct PostedStatement {
-    pub id: String,
-    pub status: StatementStatus,
-    /// 却下されたときの書き直しの提案（フェーズ4の AI モデレーションで使う）
+    /// 保存した意見の ID。重複（`duplicate`）のときは保存しないので無い
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// approved / rejected / flagged / pending、または duplicate（同じ意見がすでにある。ADR 0005）
+    pub status: &'static str,
+    /// 非公開の理由の種類（harm / person / official_name / not_votable。ADR 0007）。理由の文は返さない
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rejection: Option<&'static str>,
+    /// 非公開のときの書き直しの提案
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suggestion: Option<String>,
+    /// 重複のとき、案内する既存の意見（その場で投票してもらう）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub similar: Option<SimilarStatement>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SimilarStatement {
+    pub id: String,
+    pub body: String,
+    /// この参加者の票（1 / -1 / 0）。まだ投票していなければ無い（画面は投票のボタンを出す）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub your_vote: Option<i64>,
 }
 
 /// 前後の空白を除き、1〜140 文字であることを確かめる
@@ -273,16 +311,28 @@ pub async fn post_statement(
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
     super::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
 
-    // 投稿にはパスキーの登録が要る（ADR 0006。投票は匿名のままでよい）
-    let registered = match &existing {
-        Some(id) => accounts::status(&state.pool, id).await?.registered,
-        None => false,
-    };
-    if !registered {
-        return Err(ApiError::unauthorized(
-            "registration_required",
-            "意見を投稿するには、パスキーの登録が要ります",
-        ));
+    // 投稿にはパスキーの登録が要り（ADR 0006。投票は匿名のままでよい）、
+    // 分析を見られるまで投票してから、1トピック1件まで（ADR 0005。ルールは progress::post_permission）
+    match progress::post_permission(&state.pool, &topic_id, existing.as_deref()).await? {
+        PostPermission::Allowed => {}
+        PostPermission::RegistrationRequired => {
+            return Err(ApiError::unauthorized(
+                "registration_required",
+                "意見を投稿するには、パスキーの登録が要ります",
+            ));
+        }
+        PostPermission::VotesRequired { remaining } => {
+            return Err(ApiError::forbidden(
+                "votes_required",
+                format!("最初の意見にあと{remaining}件投票すると、意見を投稿できます"),
+            ));
+        }
+        PostPermission::LimitReached => {
+            return Err(ApiError::conflict(
+                "statement_limit",
+                "このトピックには、もう意見を投稿しています（1トピック1件まで）",
+            ));
+        }
     }
     let participant = Participant::ensure(&state, existing).await?;
 
@@ -300,21 +350,72 @@ pub async fn post_statement(
     .execute(&state.pool)
     .await?;
 
-    let review = state.moderation.review(&state.pool, body).await;
-    moderation::save(&state.pool, &id, &review).await?;
-    let verdict = review.verdict;
+    let context = moderation::context_for_topic(&state.pool, &topic_id, Some(&id)).await?;
+    let review = state.moderation.review(&state.pool, body, &context).await;
 
-    let suggestion = match &verdict {
-        Verdict::Rejected { suggestion } => suggestion.clone(),
-        _ => None,
+    // 同じ意見がすでにあれば、保存せず（上限にも数えない）、その意見への投票を案内する（ADR 0005）
+    if let Verdict::Duplicate { statement_id } = &review.verdict {
+        sqlx::query("DELETE FROM statements WHERE id = $1")
+            .bind(&id)
+            .execute(&state.pool)
+            .await?;
+        let body = context
+            .statements
+            .iter()
+            .find(|(sid, _)| sid == statement_id)
+            .map(|(_, b)| b.clone())
+            .unwrap_or_default();
+        let your_vote: Option<i64> = sqlx::query_scalar(
+            "SELECT vote_value FROM votes WHERE user_id = $1 AND statement_id = $2",
+        )
+        .bind(&participant.user_id)
+        .bind(statement_id)
+        .fetch_optional(&state.pool)
+        .await?;
+        return Ok((
+            StatusCode::OK,
+            participant,
+            Json(PostedStatement {
+                id: None,
+                status: "duplicate",
+                rejection: None,
+                suggestion: None,
+                similar: Some(SimilarStatement {
+                    id: statement_id.clone(),
+                    body,
+                    your_vote,
+                }),
+            }),
+        ));
+    }
+
+    moderation::save(&state.pool, &id, &review).await?;
+    // 書いた人は自分の意見に賛成したものとする（Polis と同じ。自分の意見が次の意見に出ず、立場が意見マップに入る）
+    if !matches!(review.verdict, Verdict::Rejected { .. }) {
+        sqlx::query(
+            "INSERT INTO votes (id, user_id, statement_id, vote_value, created_at)
+             VALUES ($1, $2, $3, 1, $4)",
+        )
+        .bind(new_id())
+        .bind(&participant.user_id)
+        .bind(&id)
+        .bind(now_iso())
+        .execute(&state.pool)
+        .await?;
+    }
+    let (rejection, suggestion) = match &review.verdict {
+        Verdict::Rejected { reason, suggestion } => (Some(reason.as_str()), suggestion.clone()),
+        _ => (None, None),
     };
     Ok((
         StatusCode::CREATED,
         participant,
         Json(PostedStatement {
-            id,
-            status: verdict.status(),
+            id: Some(id),
+            status: review.verdict.status().as_str(),
+            rejection,
             suggestion,
+            similar: None,
         }),
     ))
 }

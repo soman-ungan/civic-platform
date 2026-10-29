@@ -58,10 +58,10 @@ civic-platform/
 
 ## AI（LLM）の原則（`docs/adr/0003-llm-operations.md`）
 - Claude API は `backend/src/shared/llm/` から reqwest で直接呼ぶ（Rust に公式 SDK が無いため）。応答は構造化出力で受け取る。
-- **API キーが無くても動くこと**（モデレーションは全件承認、タグ付けはしない）。テストは偽の LLM（`Llm::fake`）で行い、実際の API は呼ばない。実際の API を呼ぶ評価（`eval`）は費用がかかるので、実行の前にユーザーの了承を得る。
-- モデレーションは主張や政治的な立場では判断しない。公人の公務への批判は公開、人格攻撃・私生活は非公開。
+- **API キーが無くても動くこと**（モデレーションは全件承認（公人の氏名の確かめだけは効く）、似た意見の判定とタグ付けはしない）。テストは偽の LLM（`Llm::fake`）で行い、実際の API は呼ばない。実際の API を呼ぶ評価（`eval`）は費用がかかるので、実行の前にユーザーの了承を得る。
+- 意見の審査（ADR 0007）は主張や政治的な立場では判断しない。1回の呼び出しで、害・公序良俗／人物／投票できる意見か・トピックとの関係／似た意見 を別々に答えさせる。公人の政策・公務への批判は公開、人格攻撃・私生活・人物の評価や進退（ほめても同じ）は非公開。投票できない文・無関係な文は非公開（迷ったら公開）。公人の氏名は AI の前にプログラムで確かめる
 - **判定できないとき（通信の失敗・費用の上限）は pending のまま残し、自動承認しない。** refusal は flagged（人が確認）。
-- AI に送るのは本文（タグ付けはトピックのタイトルと説明）だけ。参加者 ID・関わり方・トピック ID は送らない。
+- AI に送るのは本文と、公開済みのトピックの内容（審査ではタイトル・説明・承認済みの意見の本文、タグ付けはタイトルと説明）だけ。参加者 ID・関わり方・トピックや意見の ID は送らない。
 - 首長・議員などの人物はタグにしない。議員ごとの記録はフェーズ5で、会議録の発言者の記載から機械的に対応付ける（LLM に推測させない）。投票の対象の意見の文には議員名を入れない。
 - 行政資料の収集は「エージェント」にせず、設定に従う決まった手順のコードにする。原本は保持しない（`docs/design/collection.md`）。
 
@@ -76,7 +76,7 @@ civic-platform/
 - トピックは期限つき（既定は公開から90日。運営者が早めに締め切れる）。締め切っても結果は読める。止めるのは投票と投稿だけ
 - 意見は、参加する人は1トピック1件まで（承認待ちを含む）。市民提案のトピックでは、提案した本人だけ3件まで。市民からのトピックは提案として受け、運営者の確認を通ったものだけを公開する（1人週1件まで）
 - 似た意見（同じ立場で同じこと）は、AI が見つけたら公開せず、既存の意見への投票を案内する（上限に数えない）。立場が違えば別の意見として通す
-- 分析は、最初の意見すべてと合わせて一定の数（既定15件）に投票したら見られる（いまの実装は「全部に投票するまで」。フェーズ6で変える）
+- 分析は、最初の意見すべてに投票したら見られる（市民の意見は数えないので、公開後に一度開いた分析は閉じない）。次の意見は最初の意見から出す。意見の投稿も、分析を見られるようになってから（`backend/src/process/progress.rs`）。投稿した人は自分の意見に賛成したものとする（Polis と同じ）
 - **お金（寄付・投げ銭）で議論への影響を変えない。** 投稿数・投票・表示の順番は誰でも同じ。行政からの出資と、政党・政治団体・候補者からの寄付は受けない。収支は公開する
 - 会議録から作るトピックが既存と同じ論点（何を決める・変えるかが同じ）なら、新しく作らず意見を足す（下書きには最初の意見として、公開中には確認待ちで。`statements.is_seed`）。意見が少ないトピックも残して運営者が確かめる。AI に反対の立場の意見を作らせない。類似度の判定のしかたは、意見の取りまとめのフェーズで決める
 - トピックの投票は混ぜない。統合は「提言」（合意点と意見が分かれた点を原文と数字のまま集める）と、それを元にした「第2回のトピック」で行う（提言の作り方は検討中）
@@ -163,14 +163,14 @@ civic-platform/
   - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）
   - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}` — Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count` を返す（承認済みの意見だけで数える）
   - `PUT /municipalities/{slug}/relation` — このまちとの関わり方（投票の前に必要）。地区は受け取らない
-  - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件と進捗 `progress`（`voted`・`total`・`analysis_unlocked`。Polis の優先度で重み付けした抽選）
+  - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件（最初の意見が残っていればその中から。Polis の優先度で重み付けした抽選）、進捗 `progress`（`voted`・`total`・`analysis_unlocked`・`analysis_remaining`）、投稿できるか `posting`（`status`: allowed / registration_required / votes_required（`remaining`）/ limit_reached）
   - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・`statements_by_group`・`group_composition`（グループごとの関わり方の構成）・関わり方ごとの集計（分析対象が5人未満なら insufficient。関わり方の集計は二次秘匿済み）
-    - **そのトピックのすべての承認済み意見に投票するまでは `locked`（残り件数）を返す**。全体の傾向に投票が左右されないようにするため。意見が増えれば再びロックされる
-    - 分析を見られるかのルールは `backend/src/process/progress.rs` の `Progress::analysis_unlocked` の1か所だけ。画面は `progress.analysis_unlocked` を見る（ルールを写さない）
+    - **最初の意見すべてに投票するまでは `locked`（残り件数）を返す**。全体の傾向に投票が左右されないようにするため。最初の意見が増えれば（公開の前の下書きでだけ起きる）再びロックされる
+    - 分析を見られるか・投稿できるかのルールは `backend/src/process/progress.rs`（`Progress::analysis_unlocked`・`post_permission`）の1か所だけ。画面は `progress`・`posting` を見る（ルールを写さない）
   - `GET /municipalities/{slug}/finances?year=` — まちのお金。年度ごとに `settlement`（決算カード）と `budget`（公開済みの当初予算。主な事業つき）。金額は千円、`per_capita` は円。年度を省くと最新（予算だけの年度を含む）。`trend` は決算の年度と、決算がまだ無く予算だけがある年度（`kind`: settlement / budget）。トピックの詳細の `finances` は、分野タグに対応する目的別歳出と、今年度の主な事業（5件まで）
-  - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。投票を終えたトピックの分だけを返す（Cookie が無ければ空）
-  - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`
-  - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）。判定の結果 `status`（approved / rejected / flagged / pending）と、rejected のときは言い換えの提案 `suggestion` を返す
+  - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。分析を見られて、1件以上投票したトピックの分だけを返す（Cookie が無ければ空）
+  - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`。票はあとから変えられない（投票済みは 409 `already_voted`。分析を見てから票を合わせ直すことを防ぐ）
+  - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）。判定の結果 `status`（approved / rejected / flagged / pending / duplicate）。rejected は理由の種類 `rejection`（harm / person / official_name / not_votable）と言い換えの提案 `suggestion`、duplicate は保存せず案内する意見 `similar`（投票済みならその票 `your_vote`）。保存した意見（rejected 以外）には投稿者の賛成の票を入れる。分析の前は 403 `votes_required`（未登録でも先にこちら）、未登録は 401 `registration_required`、2件目は 409 `statement_limit`
   - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別。**読む・投票はログインなし、投稿はパスキーの登録が要る**（ADR 0006。未登録なら 401 `registration_required`）。CI は `.github/workflows/ci.yml`
   - `GET /auth/me`（`registered`・`operator`。利用者の ID は返さない）/ `POST /auth/register/start`→`finish`（今の参加者にパスキーを付ける。投票はそのまま）/ `POST /auth/login/start`→`finish`（名前を入力しないパスキー。その端末の匿名の投票をアカウントに移す）/ `POST /auth/logout`
   - パスキーは webauthn-rs（`backend/src/interface/api/auth.rs`）、アカウントの処理は `backend/src/records/accounts.rs`。保存するのは公開鍵・ID・日時だけ。設定は `WEBAUTHN_RP_ID`・`WEBAUTHN_ORIGIN`（既定は localhost）。テストはソフトウェアのパスキー（`tests/auth.rs`）

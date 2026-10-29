@@ -220,9 +220,15 @@ async fn registering_keeps_votes_and_allows_posting() {
     common::assert_no_key(&res.json, "id");
     common::assert_no_key(&me(&state, Some(&cookie)).await, "user_id");
 
-    // 投票はそのまま引き継がれ、投稿できるようになる
+    // 投票はそのまま引き継がれ、分析を見られるまで（最初の意見すべてに）投票すると投稿できる
     let account = only_registered_user(&pool).await;
     assert_eq!(votes_of(&pool, &account).await, [("a1".to_string(), 1)]);
+    sqlx::query("UPDATE statements SET is_seed = TRUE WHERE id IN ('a1', 'a2')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(post_statement(&state, &cookie).await, StatusCode::FORBIDDEN);
+    vote(&state, &cookie, "a2", -1).await;
     assert_eq!(post_statement(&state, &cookie).await, StatusCode::CREATED);
     // 保存したのは公開鍵などのパスキーと日時だけ
     let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM passkeys WHERE user_id = $1")
@@ -260,13 +266,13 @@ async fn logging_in_on_another_device_merges_its_anonymous_votes() {
     assert_eq!(res.json, json!({"registered": true, "operator": false}));
     let switched = res.cookie.expect("Cookie を切り替える");
     assert_eq!(me(&state, Some(&switched)).await["registered"], true);
-    assert_eq!(post_statement(&state, &switched).await, StatusCode::CREATED);
 
     // a1 はアカウント側（反対）を残し、a2 は移る。端末Bの匿名の参加者は消える
     assert_eq!(
         votes_of(&pool, &account).await,
         [("a1".to_string(), -1), ("a2".to_string(), 1)]
     );
+    assert_eq!(post_statement(&state, &switched).await, StatusCode::CREATED);
     let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE id = $1")
         .bind(&anonymous_b)
         .fetch_one(&pool)

@@ -93,7 +93,7 @@ fn extraction_reply() -> Value {
 }
 
 fn approve() -> Value {
-    json!({"verdict": "approved", "reason": "", "suggestion": ""})
+    common::approved_reply()
 }
 
 #[tokio::test]
@@ -143,7 +143,7 @@ async fn imports_checked_topics_as_drafts() {
     let (pool, llm, fake, moderation) = setup(true).await;
     fake.push_json(extraction_reply());
     // 確かめたあとに残る意見3件をモデレーション。1件目は非公開にする
-    fake.push_json(json!({"verdict": "rejected", "reason": "", "suggestion": ""}));
+    fake.push_json(common::review_reply("reject", "ok", "ok", 0));
     fake.push_json(approve());
     fake.push_json(approve());
 

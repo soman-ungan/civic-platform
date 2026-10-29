@@ -410,9 +410,14 @@ async fn statements_by_group_lists_every_approved_statement() {
 }
 
 #[tokio::test]
-async fn analysis_is_locked_until_every_statement_is_voted() {
+async fn analysis_is_locked_until_every_seed_is_voted() {
     let (pool, state) = setup().await;
     run_topic(&pool, "t1", false).await.unwrap();
+    // t1 の意見をすべて最初の意見にする（分析を開く条件は、最初の意見すべてへの投票）
+    sqlx::query("UPDATE statements SET is_seed = TRUE WHERE topic_id = 't1'")
+        .execute(&pool)
+        .await
+        .unwrap();
 
     // Cookie が無い人
     let j = get(&state, &format!("{T1}/analysis"), None).await.json;
@@ -474,7 +479,7 @@ async fn analysis_is_locked_until_every_statement_is_voted() {
     .json;
     assert_eq!(pins.as_array().unwrap().len(), 1);
 
-    // 意見が増えたら、また投票が必要になる
+    // 市民の意見が増えても閉じない
     sqlx::query("INSERT INTO statements (id, topic_id, body, status, created_at) VALUES ('new', 't1', '新しい意見', 'approved', '2026-10-27T00:00:00Z')")
         .execute(&pool)
         .await
@@ -482,5 +487,15 @@ async fn analysis_is_locked_until_every_statement_is_voted() {
     let j = get(&state, &format!("{T1}/analysis"), Some(&cookie))
         .await
         .json;
-    assert_eq!(j, json!({ "status": "locked", "remaining": 1, "total": 8 }));
+    assert_eq!(j["status"], "ready");
+
+    // 最初の意見が増えたら、また投票が必要になる（公開の前の下書きでだけ起きる）
+    sqlx::query("INSERT INTO statements (id, topic_id, body, status, is_seed, created_at) VALUES ('new-seed', 't1', '新しい最初の意見', 'approved', TRUE, '2026-10-27T00:00:00Z')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let j = get(&state, &format!("{T1}/analysis"), Some(&cookie))
+        .await
+        .json;
+    assert_eq!(j, json!({ "status": "locked", "remaining": 1, "total": 9 }));
 }

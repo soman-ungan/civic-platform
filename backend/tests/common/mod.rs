@@ -222,6 +222,31 @@ pub fn cookie_for(state: &AppState, user_id: &str) -> String {
         .to_string()
 }
 
+/// パスキーを登録し、トピックの承認済みの意見すべてに投票した（分析を見られ、投稿できる）参加者の Cookie。
+/// 投票は DB に直接入れる（関わり方の登録を省くため）
+#[allow(dead_code)]
+pub async fn account_ready_to_post(pool: &SqlitePool, state: &AppState, topic_id: &str) -> String {
+    let user_id = backend::shared::util::new_id();
+    sqlx::query("INSERT INTO users (id, created_at, registered_at) VALUES ($1, $2, $2)")
+        .bind(&user_id)
+        .bind("2026-10-28T00:00:00Z")
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO votes (id, user_id, statement_id, vote_value, created_at)
+         SELECT 'v-' || $1 || '-' || id, $1, id, 0, $2 FROM statements
+         WHERE topic_id = $3 AND status = 'approved'",
+    )
+    .bind(&user_id)
+    .bind("2026-10-28T00:00:00Z")
+    .bind(topic_id)
+    .execute(pool)
+    .await
+    .unwrap();
+    cookie_for(state, &user_id)
+}
+
 /// パスキーを登録済みの参加者を作り、その Cookie を返す（投稿にはパスキーの登録が要る。ADR 0006）。
 /// パスキーそのものは作らず、登録済みの印だけを付ける（パスキーのやりとりは tests/auth.rs で確かめる）
 #[allow(dead_code)]
@@ -234,4 +259,28 @@ pub async fn registered_account(pool: &SqlitePool, state: &AppState) -> String {
         .await
         .unwrap();
     cookie_for(state, &id)
+}
+
+/// 偽の LLM が返す、意見の審査の答え（ADR 0007 の4つの観点）
+#[allow(dead_code)]
+pub fn review_reply(
+    harm: &str,
+    person: &str,
+    votable: &str,
+    duplicate_of: i64,
+) -> serde_json::Value {
+    serde_json::json!({
+        "harm": harm,
+        "person": person,
+        "votable": votable,
+        "duplicate_of": duplicate_of,
+        "reason": "",
+        "suggestion": ""
+    })
+}
+
+/// 偽の LLM が返す「公開」の答え
+#[allow(dead_code)]
+pub fn approved_reply() -> serde_json::Value {
+    review_reply("ok", "ok", "ok", 0)
 }

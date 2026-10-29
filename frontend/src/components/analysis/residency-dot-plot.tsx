@@ -9,6 +9,8 @@ import {
 import type { ResidencyRow } from "@/lib/api/types/analysis";
 import type { ResidencyType } from "@/lib/api/types/participation";
 
+import { STICKY_PANEL_HEADING } from "./sticky";
+
 /** 表示する意見の数（差の大きい順） */
 const MAX_ROWS = 5;
 
@@ -45,7 +47,9 @@ export function ResidencyDotPlot({ rows }: { rows: ResidencyRow[] }) {
 
   return (
     <div>
-      <h3 className="mb-1 font-semibold">このまちとの関わり方による違い</h3>
+      <h3 className={`mb-1 ${STICKY_PANEL_HEADING}`}>
+        このまちとの関わり方による違い
+      </h3>
       <p className="mb-2 text-xs leading-5 text-zinc-500">
         賛成した人の割合です。違いの大きい意見から{MAX_ROWS}
         件。5人未満の区分は表示しません（—）。

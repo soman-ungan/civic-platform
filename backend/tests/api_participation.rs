@@ -175,7 +175,7 @@ async fn user_count(pool: &SqlitePool) -> i64 {
 }
 
 #[tokio::test]
-async fn vote_is_recorded_and_overwritten() {
+async fn vote_is_recorded_and_cannot_be_changed() {
     let (pool, state) = setup().await;
     let cookie = registered(&state).await;
 
@@ -184,14 +184,15 @@ async fn vote_is_recorded_and_overwritten() {
     assert_eq!(res.json, json!({ "statement_id": "a1", "value": 1 }));
 
     let res = vote(&state, Some(&cookie), "a1", -1).await;
-    assert_eq!(res.status, StatusCode::OK);
+    assert_eq!(res.status, StatusCode::CONFLICT);
+    assert_eq!(res.json["error"]["code"], "already_voted");
 
     let values: Vec<i64> =
         sqlx::query_scalar("SELECT vote_value FROM votes WHERE statement_id = 'a1'")
             .fetch_all(&pool)
             .await
             .unwrap();
-    assert_eq!(values, [-1], "1人1票のまま、最後の判断で上書きされる");
+    assert_eq!(values, [1], "1人1票のまま、最初の票が残る");
 }
 
 #[tokio::test]
@@ -264,9 +265,10 @@ async fn next_statement_for_new_visitor() {
     let (_pool, state) = setup().await;
     let json = next(&state, None).await;
     assert_eq!(json["needs_relation"], true);
+    // この seed の t1 には最初の意見が無いので、分析は投票の前から開いている
     assert_eq!(
         json["progress"],
-        json!({ "voted": 0, "total": 3, "analysis_unlocked": false })
+        json!({ "voted": 0, "total": 3, "analysis_unlocked": true, "analysis_remaining": 0 })
     );
     let id = json["statement"]["id"].as_str().unwrap();
     assert!(
@@ -297,7 +299,7 @@ async fn next_statement_skips_voted_and_ends_with_null() {
     assert_eq!(json["statement"], Value::Null);
     assert_eq!(
         json["progress"],
-        json!({ "voted": 3, "total": 3, "analysis_unlocked": true })
+        json!({ "voted": 3, "total": 3, "analysis_unlocked": true, "analysis_remaining": 0 })
     );
 }
 
@@ -361,7 +363,7 @@ async fn posted_statement_is_auto_approved_and_appears_in_cards() {
         vote(&state, Some(&cookie), id, 1).await;
     }
 
-    let account = common::registered_account(&pool, &state).await;
+    let account = common::account_ready_to_post(&pool, &state, "t1").await;
     let res = post(&state, Some(&account), "  公園をもっと増やしてほしい  ").await;
     assert_eq!(res.status, StatusCode::CREATED);
     assert_eq!(res.json["status"], "approved");
@@ -385,16 +387,15 @@ async fn posted_statement_is_auto_approved_and_appears_in_cards() {
 #[tokio::test]
 async fn statement_length_is_counted_in_characters() {
     let (pool, state) = setup().await;
-    let account = common::registered_account(&pool, &state).await;
     // 絵文字は UTF-8 で 4 バイトだが 1 文字として数える（DB の length() と一致）
-    assert_eq!(
-        post(&state, Some(&account), &"😀".repeat(140)).await.status,
-        StatusCode::CREATED
-    );
-    assert_eq!(
-        post(&state, Some(&account), &"あ".repeat(140)).await.status,
-        StatusCode::CREATED
-    );
+    for body in ["😀".repeat(140), "あ".repeat(140)] {
+        let account = common::account_ready_to_post(&pool, &state, "t1").await;
+        assert_eq!(
+            post(&state, Some(&account), &body).await.status,
+            StatusCode::CREATED
+        );
+    }
+    let account = common::account_ready_to_post(&pool, &state, "t1").await;
 
     let too_long = post(&state, Some(&account), &"😀".repeat(141)).await;
     assert_eq!(too_long.status, StatusCode::UNPROCESSABLE_ENTITY);

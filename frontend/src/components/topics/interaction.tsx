@@ -11,7 +11,8 @@ import type { NextStatement } from "@/lib/api/types/participation";
 
 /**
  * 投票と「みんなの意見」をつなぐ。分析を見られるようになったら（`progress.analysis_unlocked`。
- * ルールは backend の1か所）分析を読み込み直し、意見が増えてまたロックされたら読み込み直す。
+ * ルールは backend の1か所）分析を読み込み直し、最初の意見が増えてまたロックされたら読み込み直す。
+ * ロックの間は「みんなの意見」を出さない（投票のボタンより下へスクロールさせないため。残りの件数は投稿の欄の案内で出す）。
  *
  * 画面は2段でスクロールする。投票の部分では、トピックの説明（`intro`）を上に貼り付け、
  * 議会での議論やお金（`context`）はその下を流れて隠れる。「みんなの意見」まで進むと、
@@ -36,14 +37,18 @@ export function TopicInteraction({
   initialAnalysis?: AnalysisView | null;
 }) {
   const [refreshKey, setRefreshKey] = useState(0);
+  // 分析を見られるか（画面に出すか）。最初の値はサーバー側で取ったもの
+  const initialUnlocked = initialNext?.progress.analysis_unlocked ?? null;
+  const [unlocked, setUnlocked] = useState(initialUnlocked ?? true);
   // 直前の「分析を見られるか」。最初の報告では読み込み直さない（分析側が自分で読み込む）
-  const unlocked = useRef<boolean | null>(null);
+  const last = useRef<boolean | null>(initialUnlocked);
 
   const onProgress = useCallback((p: NextStatement["progress"]) => {
-    if (unlocked.current !== null && unlocked.current !== p.analysis_unlocked) {
+    if (last.current !== null && last.current !== p.analysis_unlocked) {
       setRefreshKey((k) => k + 1);
     }
-    unlocked.current = p.analysis_unlocked;
+    last.current = p.analysis_unlocked;
+    setUnlocked(p.analysis_unlocked);
   }, []);
 
   return (
@@ -54,7 +59,8 @@ export function TopicInteraction({
             {intro}
           </div>
         )}
-        {context}
+        {/* サーバー側で作った要素は、並びの中に直に置くと key の警告が出るので、単独の子として包む */}
+        {context && <div>{context}</div>}
         <VotingPanel
           slug={slug}
           topicId={topicId}
@@ -62,12 +68,15 @@ export function TopicInteraction({
           initial={initialNext}
         />
       </div>
-      <AnalysisPanel
-        slug={slug}
-        topicId={topicId}
-        refreshKey={refreshKey}
-        initial={initialAnalysis}
-      />
+      {/* 隠すだけで外さない（読み込み直しの仕組みをそのまま使う） */}
+      <div hidden={!unlocked}>
+        <AnalysisPanel
+          slug={slug}
+          topicId={topicId}
+          refreshKey={refreshKey}
+          initial={initialAnalysis}
+        />
+      </div>
     </>
   );
 }

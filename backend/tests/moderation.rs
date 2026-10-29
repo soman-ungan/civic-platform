@@ -34,7 +34,7 @@ async fn setup() -> (AppState, Arc<Fake>) {
 
 /// パスキーを登録済みの参加者として投稿する（投稿にはパスキーの登録が要る。ADR 0006）
 async fn post(state: &AppState, body: &str) -> common::TestResponse {
-    let cookie = common::registered_account(&state.pool, state).await;
+    let cookie = common::account_ready_to_post(&state.pool, state, "t1").await;
     request(
         state,
         "POST",
@@ -56,7 +56,7 @@ async fn stored(pool: &SqlitePool, id: &str) -> (String, Option<String>, String)
 #[tokio::test]
 async fn approved_is_published() {
     let (state, fake) = setup().await;
-    fake.push_json(json!({"verdict": "approved", "reason": "問題なし", "suggestion": ""}));
+    fake.push_json(json!({"harm": "ok", "person": "ok", "votable": "ok", "duplicate_of": 0, "reason": "問題なし", "suggestion": ""}));
 
     let res = post(&state, "バスの本数を増やしてほしい").await;
     assert_eq!(res.status, StatusCode::CREATED);
@@ -74,7 +74,10 @@ async fn approved_is_published() {
 async fn rejected_returns_suggestion() {
     let (state, fake) = setup().await;
     fake.push_json(json!({
-        "verdict": "rejected",
+        "harm": "reject",
+        "person": "ok",
+        "votable": "ok",
+        "duplicate_of": 0,
         "reason": "人格攻撃",
         "suggestion": "  この計画には反対です。費用の根拠を示してほしい  "
     }));
@@ -90,7 +93,7 @@ async fn rejected_returns_suggestion() {
 #[tokio::test]
 async fn long_suggestion_is_cut_to_140_chars() {
     let (state, fake) = setup().await;
-    fake.push_json(json!({"verdict": "rejected", "reason": "x", "suggestion": "あ".repeat(200)}));
+    fake.push_json(json!({"harm": "reject", "person": "ok", "votable": "ok", "duplicate_of": 0, "reason": "x", "suggestion": "あ".repeat(200)}));
     let res = post(&state, "投稿").await;
     assert_eq!(
         res.json["suggestion"].as_str().unwrap().chars().count(),
@@ -101,7 +104,7 @@ async fn long_suggestion_is_cut_to_140_chars() {
 #[tokio::test]
 async fn flagged_and_refusal_wait_for_operator() {
     let (state, fake) = setup().await;
-    fake.push_json(json!({"verdict": "flagged", "reason": "判断に迷う", "suggestion": ""}));
+    fake.push_json(json!({"harm": "unsure", "person": "ok", "votable": "ok", "duplicate_of": 0, "reason": "判断に迷う", "suggestion": ""}));
     fake.push_reply("refusal", None);
 
     let a = post(&state, "皮肉っぽい投稿").await;
@@ -134,7 +137,7 @@ async fn failure_stays_pending_then_retry_decides() {
     let id = res.json["id"].as_str().unwrap();
 
     // 投稿の直後は再判定しない（判定中の投稿と重ならないように）
-    fake.push_json(json!({"verdict": "approved", "reason": "問題なし", "suggestion": ""}));
+    fake.push_json(json!({"harm": "ok", "person": "ok", "votable": "ok", "duplicate_of": 0, "reason": "問題なし", "suggestion": ""}));
     assert_eq!(
         moderation::retry_pending(&state.pool, &state.moderation)
             .await
@@ -174,7 +177,7 @@ async fn budget_exceeded_stays_pending() {
 #[tokio::test]
 async fn only_body_is_sent_to_llm() {
     let (state, fake) = setup().await;
-    fake.push_json(json!({"verdict": "approved", "reason": "", "suggestion": ""}));
+    fake.push_json(common::approved_reply());
     let res = post(&state, "送る本文").await;
     let (_, _, user_id) = stored(&state.pool, res.json["id"].as_str().unwrap()).await;
 

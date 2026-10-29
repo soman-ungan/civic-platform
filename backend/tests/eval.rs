@@ -30,17 +30,39 @@ fn moderation_cases_are_valid() {
     for c in &cases {
         assert!(ids.insert(&c.id), "id の重複: {}", c.id);
         assert!(
-            ["approved", "rejected", "flagged"].contains(&c.expected.as_str()),
+            ["approved", "rejected", "flagged", "duplicate"].contains(&c.expected.as_str()),
             "{}: {}",
             c.id,
             c.expected
         );
+        if let Some(r) = &c.rejection {
+            assert_eq!(
+                c.expected, "rejected",
+                "{}: 理由は rejected にだけ書く",
+                c.id
+            );
+            assert!(
+                ["harm", "person", "official_name", "not_votable"].contains(&r.as_str()),
+                "{}: {r}",
+                c.id
+            );
+        }
+        // 重複のケースには、比べる既存の意見が要る
+        if c.expected == "duplicate" {
+            assert!(!c.statements.is_empty(), "{}: 既存の意見が無い", c.id);
+        }
         let chars = c.body.chars().count();
         assert!((1..=140).contains(&chars), "{}: {chars} 文字", c.id);
     }
-    // どの判定のケースもある
-    for expected in ["approved", "rejected", "flagged"] {
-        assert!(cases.iter().any(|c| c.expected == expected));
+    // どの判定のケースもあり、非公開は理由ごとにある（氏名はプログラムで確かめるので評価しない）
+    for expected in ["approved", "rejected", "flagged", "duplicate"] {
+        assert!(cases.iter().any(|c| c.expected == expected), "{expected}");
+    }
+    for reason in ["harm", "person", "not_votable"] {
+        assert!(
+            cases.iter().any(|c| c.rejection.as_deref() == Some(reason)),
+            "{reason}"
+        );
     }
 }
 
@@ -87,8 +109,8 @@ async fn tagging_cases_use_vocabulary_and_own_districts() {
 async fn moderation_report_counts_misses() {
     let pool = seeded_pool().await;
     let (llm, fake) = Llm::fake(1.0);
-    fake.push_json(json!({"verdict": "approved", "reason": "", "suggestion": ""}));
-    fake.push_json(json!({"verdict": "approved", "reason": "", "suggestion": ""}));
+    fake.push_json(common::approved_reply());
+    fake.push_json(common::approved_reply());
     fake.push_reply("refusal", None);
     let cases = vec![
         case("a", "approved"),
@@ -125,6 +147,9 @@ fn case(id: &str, expected: &str) -> ModerationCase {
         id: id.into(),
         body: "本文".into(),
         expected: expected.into(),
+        rejection: None,
+        topic: None,
+        statements: Vec::new(),
         note: String::new(),
     }
 }

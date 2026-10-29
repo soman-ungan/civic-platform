@@ -8,6 +8,7 @@ import { GroupCompositionChart } from "./group-composition";
 import { GroupTable } from "./group-table";
 import { OpinionMap } from "./opinion-map";
 import { ResidencyDotPlot } from "./residency-dot-plot";
+import { STICKY_TITLE } from "./sticky";
 import { BUTTON_SECONDARY, ERROR_TEXT } from "@/components/ui/styles";
 import { topicApi } from "@/lib/api/paths";
 import { useApi } from "@/lib/api/use-api";
@@ -25,7 +26,7 @@ export function AnalysisPanel({
 }: {
   slug: string;
   topicId: string;
-  /** 値が変わると読み込み直す（すべての意見に投票し終えたときなど） */
+  /** 値が変わると読み込み直す（分析を見られるようになったときなど） */
   refreshKey: number;
   /** サーバー側で取ってきた最初の分析 */
   initial?: AnalysisView | null;
@@ -52,7 +53,7 @@ export function AnalysisPanel({
       aria-labelledby="analysis-title"
       className="mt-10 border-t border-zinc-200 pt-6 dark:border-zinc-800"
     >
-      <div className="mb-4 flex items-center justify-between">
+      <div className={`mb-2 ${STICKY_TITLE}`}>
         <h2 id="analysis-title" className="text-lg font-bold">
           みんなの意見
         </h2>
@@ -78,13 +79,10 @@ export function AnalysisPanel({
       {view?.status === "locked" && (
         <div className="rounded-2xl border border-dashed border-zinc-300 p-5 text-center dark:border-zinc-700">
           <p className="font-semibold">
-            すべての意見に投票すると、みんなの意見が見られます
-          </p>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            残り {view.remaining} 件（全 {view.total} 件）
+            あと {view.remaining} 件投票すると、みんなの意見が見られます
           </p>
           <p className="mt-2 text-xs leading-5 text-zinc-500">
-            全体の傾向に左右されず、自分の考えで投票してもらうため、投票が終わるまでは表示しません。パスでも投票済みになります。
+            全体の傾向に左右されず、自分の考えで投票してもらうため、最初に出ている意見（議会で出た意見など）すべてに投票するまでは表示しません。パスでも投票済みになります。
           </p>
         </div>
       )}

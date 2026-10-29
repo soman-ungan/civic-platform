@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! モデレーションとタグ付けの評価（docs/plans/2026-10-27-phase4-ai.md Step 4）。
+//! 意見の審査（モデレーション）とタグ付けの評価（docs/plans/2026-10-27-phase4-ai.md Step 4）。
 //! `evals/*.jsonl` を実際の API で判定し、正解率・取り違えの内訳・費用・遅延を出す。
 //! 費用がかかるので、実行は運営者の判断で行う（`cargo run -- eval ...`）。
 
@@ -12,21 +12,73 @@ use std::time::{Duration, Instant};
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
-use crate::process::moderation::Moderation;
+use crate::process::moderation::{Context, Moderation, Verdict};
 use crate::process::tagging::{Tagger, classify};
 use crate::shared::llm::Purpose;
 use crate::shared::util::now_iso;
 
-/// モデレーションの評価データの1件
+/// 意見の審査の評価データの1件（ADR 0007）
 #[derive(Debug, Clone, Deserialize)]
 pub struct ModerationCase {
     pub id: String,
     pub body: String,
-    /// approved / rejected / flagged
+    /// approved / rejected / flagged / duplicate
     pub expected: String,
+    /// rejected のときの理由の種類（harm / person / official_name / not_votable）。書けば理由も確かめる
+    #[serde(default)]
+    pub rejection: Option<String>,
+    /// 投稿先のトピック（無ければ、投票できる意見かを文の形だけで見る）
+    #[serde(default)]
+    pub topic: Option<CaseTopic>,
+    /// トピックの既存の意見（似た意見の判定）
+    #[serde(default)]
+    pub statements: Vec<String>,
     /// 何を確かめるケースか
     #[serde(default)]
     pub note: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CaseTopic {
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+impl ModerationCase {
+    fn context(&self) -> Context {
+        Context {
+            topic: self
+                .topic
+                .as_ref()
+                .map(|t| (t.title.clone(), t.description.clone())),
+            statements: self
+                .statements
+                .iter()
+                .enumerate()
+                .map(|(i, body)| (format!("e{}", i + 1), body.clone()))
+                .collect(),
+            // 評価データの人名は架空なので、名簿での確かめは使わない（AI の「人物」を評価する）
+            officials: Vec::new(),
+        }
+    }
+
+    /// 正解の表し方（理由を書いたケースは「rejected:理由」）
+    fn expected_label(&self) -> String {
+        match (&self.expected[..], &self.rejection) {
+            ("rejected", Some(r)) => format!("rejected:{r}"),
+            _ => self.expected.clone(),
+        }
+    }
+}
+
+/// 判定の表し方。正解に理由が書かれていれば、非公開の理由も付ける
+fn verdict_label(verdict: &Verdict, with_reason: bool) -> String {
+    match verdict {
+        Verdict::Duplicate { .. } => "duplicate".into(),
+        Verdict::Rejected { reason, .. } if with_reason => format!("rejected:{}", reason.as_str()),
+        v => v.status().as_str().into(),
+    }
 }
 
 /// タグ付けの評価データの1件。タグは名前で書く
@@ -103,23 +155,28 @@ pub async fn run_moderation(
     let mut latencies = Vec::new();
     for case in cases {
         let started = Instant::now();
-        let review = moderation.review_as(pool, &case.body, Purpose::Eval).await;
+        let review = moderation
+            .review_as(pool, &case.body, &case.context(), Purpose::Eval)
+            .await;
         latencies.push(started.elapsed());
-        let actual = review.verdict.status().as_str().to_owned();
+        let expected = case.expected_label();
+        let actual = verdict_label(&review.verdict, case.rejection.is_some());
         report.total += 1;
-        if actual == case.expected {
+        if actual == expected {
             report.correct += 1;
         } else {
             report.misses.push((
                 case.id.clone(),
-                case.expected.clone(),
+                expected.clone(),
                 actual.clone(),
                 case.note.clone(),
             ));
         }
+        // 内訳は状態ごとに数える（理由の違いは外れたケースに出る）
+        let status = |label: &str| label.split(':').next().unwrap_or(label).to_owned();
         *report
             .confusion
-            .entry((case.expected.clone(), actual))
+            .entry((status(&expected), status(&actual)))
             .or_default() += 1;
     }
     report.cost_micro_usd = eval_cost_since(pool, &since).await?;

@@ -5,8 +5,6 @@
 import { useEffect, useState } from "react";
 
 import { LoginSheet } from "@/components/auth/login-sheet";
-import { RelationSheet } from "./relation-sheet";
-import { StatementForm } from "./statement-form";
 import { BUTTON_SECONDARY, ERROR_TEXT } from "@/components/ui/styles";
 import { ApiError, apiFetch, errorMessage } from "@/lib/api/client";
 import { topicApi } from "@/lib/api/paths";
@@ -18,24 +16,9 @@ import {
 import { useApi } from "@/lib/api/use-api";
 import type { NextStatement, VoteValue } from "@/lib/api/types/participation";
 
-const VOTE_BUTTONS: { value: VoteValue; label: string; className: string }[] = [
-  {
-    value: 1,
-    label: "賛成👍️",
-    className: "bg-emerald-600 text-white active:bg-emerald-700",
-  },
-  {
-    value: -1,
-    label: "反対👎️",
-    className: "bg-rose-600 text-white active:bg-rose-700",
-  },
-  {
-    value: 0,
-    label: "パス",
-    className:
-      "border border-zinc-300 bg-white text-zinc-700 active:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300",
-  },
-];
+import { RelationSheet } from "./relation-sheet";
+import { StatementForm } from "./statement-form";
+import { VOTE_BUTTONS } from "./vote-buttons";
 
 /**
  * Polis 風の投票。意見を1件ずつカードで出し、賛成 / 反対 / パスで次へ進む。
@@ -90,6 +73,10 @@ export function VotingPanel({
     } catch (e) {
       if (e instanceof ApiError && e.code === "relation_required") {
         setPendingVote(value);
+      } else if (e instanceof ApiError && e.code === "already_voted") {
+        // 二重に押したときなど。票は変えられないので、次の意見へ進む
+        setVoteError("この意見には投票済みです。");
+        await load();
       } else {
         setVoteError(errorMessage(e, "投票に失敗しました"));
       }
@@ -216,10 +203,20 @@ export function VotingPanel({
         </div>
       )}
 
-      <StatementForm
-        endpoint={`${base}/statements`}
-        onPosted={() => void load()}
-      />
+      {/* 分析が開くまでは、投票のボタンの下を少しだけ見せて切る（スクロールはボタンのすぐ下で止まり、端末の弾む動きで戻る） */}
+      <div
+        className={
+          progress.analysis_unlocked
+            ? undefined
+            : "max-h-24 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_50%,transparent)]"
+        }
+      >
+        <StatementForm
+          topicBase={base}
+          posting={data.posting}
+          onChanged={() => void load()}
+        />
+      </div>
 
       {loginVote !== null && (
         <LoginSheet

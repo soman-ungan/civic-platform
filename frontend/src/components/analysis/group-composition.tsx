@@ -9,6 +9,8 @@ import {
 } from "@/lib/labels";
 import type { GroupComposition, GroupView } from "@/lib/api/types/analysis";
 
+import { STICKY_PANEL_HEADING } from "./sticky";
+
 /**
  * 意見グループごとの、このまちとの関わり方の内訳（100% 積み上げの帯）。
  * Polis のレポートの「各グループの内訳」と同じく、グループを説明するためだけに使う。
@@ -26,7 +28,7 @@ export function GroupCompositionChart({
 
   return (
     <div>
-      <h3 className="mb-1 font-semibold">
+      <h3 className={`mb-1 ${STICKY_PANEL_HEADING}`}>
         グループの構成（このまちとの関わり方）
       </h3>
       <p className="mb-3 text-xs leading-5 text-zinc-500">
