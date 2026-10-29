@@ -31,6 +31,14 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
   - 保存した意見（rejected 以外）には投稿者の賛成の票を入れる（Polis と同じ）
   - 分析の前は 403 `votes_required`（未登録でも先にこちら）、未登録は 401 `registration_required`、2件目は 409 `statement_limit`
 - 締め切ったトピック（`closes_at` を過ぎた。ADR 0005）への投票・投稿は 409 `topic_closed`
+- 投稿できる数は1トピック1件。市民提案のトピックを提案した本人は、提案に含めた最初の意見とあわせて3件
+
+## トピックの提案（`interface/api/proposals.rs`。ADR 0005）
+- `GET /municipalities/{slug}/proposals` — 提案できるか `permission`（`status`: allowed / registration_required / relation_required / weekly_limit（`next_at`））と、本人の提案 `items`（新しい順。`state`: reviewing / published / declined（公開しないまま取り下げ）/ withdrawn（公開のあとに取り下げ））。Cookie が無ければ空
+- `POST /municipalities/{slug}/proposals` — `{title, description, statements}`（タイトル1〜60字・説明1〜140字・意見1〜3件で各140字以内。文字数は `shared/limits.rs`）。下書き（`source_type = 'citizen'`）として保存し、意見は承認済みの最初の意見になる。201 で提案1件
+  - 未登録は 401 `registration_required`、関わり方が未登録は 409 `relation_required`、その自治体に直近7日で提案していたら 409 `proposal_limit`（見送りになった提案も数える）
+  - 入力の誤りは 422 `invalid_proposal`、公人の氏名が入っていたら 422 `official_name`（AI の審査は呼ばない。運営者が全件を見る）
+  - 提案した人（`topics.proposed_by`）はどの API にも返さない。本人の賛成の票は、運営者が公開したときに入れる
 
 ## 分析
 - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・`statements_by_group`・`group_composition`（グループごとの関わり方の構成）・関わり方ごとの集計
@@ -62,8 +70,8 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 | `GET /operator/municipalities` | すべての自治体（準備中も） |
 | `GET .../{slug}/tags` | 付けられるタグ（分野と、その自治体の地区） |
 | `GET .../{slug}/topics?status=draft\|published\|archived&after=&limit=` | トピック（出典・意見と根拠の発言・タグつき）。下書きは古い順、ほかは新しい順 |
-| `GET` / `PATCH .../topics/{id}` | 1件 / タイトル・説明の手直し |
-| `POST .../topics/{id}/publish` / `archive` | 公開（初めてなら90日の期限が付く）/ 取り下げ |
+| `GET` / `PATCH .../topics/{id}` | 1件（種類 `source_type`: assembly / citizen。提案した人は返さない）/ タイトル・説明の手直し |
+| `POST .../topics/{id}/publish` / `archive` | 公開（初めてなら90日の期限が付く。市民の提案なら提案した人の賛成の票も入る）/ 取り下げ（市民の提案なら、本人には「見送り」） |
 | `PUT .../topics/{id}/closes-at` | `{closes_at?}` 期限の変更。省くと今（すぐ締め切る）。公開中だけ（ほかは 409） |
 | `POST .../topics/{id}/statements` | 意見を足す（運営者の意見として承認済み。下書きなら最初の意見） |
 | `PUT` / `DELETE .../topics/{id}/tags/{tag_id}` | タグを付ける（運営者のタグとして）/ 外す |

@@ -43,3 +43,12 @@ ADR 0005 は、市民からのトピックを「提案」として受け、運�
 ## あとで決めること
 - 同じ論点のトピックがすでにある提案は、今回は運営者が見送るだけにする（似たトピックの判定は、意見の取りまとめのフェーズで）
 - タイトルの上限（60字）は仮の値
+
+## 実装時の変更点
+- 文字数の上限（タイトル60字・説明140字・意見140字）を `backend/src/shared/limits.rs` にまとめ、会議録の取り込み・意見の投稿・提案で同じ値を使うようにした（前は `ingest/minutes/extract.rs` と `interface/api/participation.rs` に別々にあった）。frontend は `src/lib/statement.ts`
+- 公人の氏名の確かめは、意見の審査と同じ関数（`process::moderation::official_name_in`）を API から呼ぶ。`records` は `process` を使わないので、確かめは `interface/api/proposals.rs` に置いた
+- 本人の賛成の票は `records::topics::set_status`（公開）の中で入れる。CLI の `publish topic` と管理画面の公開の両方に効く
+- 投稿の上限に達したときの文（API と画面）を「1トピック1件まで」から「投稿できる意見の数に達しました」にした（提案した本人は3件のため）
+- 関わり方のシート（`RelationSheet`）に保存のボタンの文を渡せるようにし、提案の画面では「保存して提案する」にした
+- 提案の画面では、公開したあとに自動のタグ付けでタイトルと説明を AI に送ることを伝える
+- 確かめ: `cargo test`（新しいテスト6件を含め、すべて通る）・clippy・frontend の lint と型チェック。コピーした DB で backend と frontend を起動し、API（提出・週1件）と画面の HTML（未登録・週1件・フォーム・タイムラインの入口）を確かめた。ブラウザが無いので、パスキーの登録と見た目は手元で確かめてもらう
