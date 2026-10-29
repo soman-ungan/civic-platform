@@ -21,7 +21,7 @@ export const metadata: Metadata = {
  */
 export default function OperatorPage({ searchParams }: PageProps<"/operator">) {
   return (
-    <main className="min-h-0 flex-1 overflow-y-auto">
+    <main className="flex min-h-0 flex-1 flex-col">
       <Suspense>
         <Console searchParams={searchParams} />
       </Suspense>
