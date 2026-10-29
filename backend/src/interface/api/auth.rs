@@ -29,11 +29,13 @@ use super::participant::{self, MaybeParticipant, Participant};
 use crate::records::accounts;
 
 /// パスキーに付ける表示名（端末のパスキーの一覧に出る）。個人の情報も自治体名も入れず、作った日（日本時間）だけを入れる。
-/// 同じ端末で2つめのアカウントを作ってしまったとき、ログインの一覧で見分けられるように（古いほうが元のアカウント）
-fn passkey_name(now: chrono::DateTime<chrono::Utc>) -> String {
+/// 同じ端末で2つめのアカウントを作ってしまったとき、ログインの一覧で見分けられるように（古いほうが元のアカウント）。
+/// 運営者のパスキーには「運営者」と入れ、参加者としてのパスキーと見分けられるようにする
+fn passkey_name(now: chrono::DateTime<chrono::Utc>, operator: bool) -> String {
     let jst = chrono::FixedOffset::east_opt(9 * 3600).expect("+09:00 は正しい時差");
     format!(
-        "civic-platform（{} 作成）",
+        "civic-platform{}（{} 作成）",
+        if operator { " 運営者" } else { "" },
         now.with_timezone(&jst).format("%Y-%m-%d")
     )
 }
@@ -66,6 +68,13 @@ impl From<accounts::Status> for Me {
 pub struct Started<T> {
     pub challenge_id: String,
     pub options: T,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct RegisterStart {
+    /// 運営者の招待のトークン。使える招待なら、パスキーの名前に「運営者」と入れる（運営者にするのは finish）
+    #[serde(default)]
+    pub operator_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -138,12 +147,22 @@ pub async fn me(
     Ok(Json(status.into()))
 }
 
-/// POST /api/auth/register/start — 今の参加者（匿名なら作る）にパスキーを付ける手続きを始める
+/// POST /api/auth/register/start — 今の参加者（匿名なら作る）にパスキーを付ける手続きを始める。
+/// 本文（`{operator_token}`）は省ける
 pub async fn register_start(
     State(state): State<AppState>,
     MaybeParticipant(existing): MaybeParticipant,
+    input: Option<ApiJson<RegisterStart>>,
 ) -> Result<(Participant, Json<Started<Value>>), ApiError> {
+    let input = input.map(|ApiJson(v)| v).unwrap_or_default();
     let participant = Participant::ensure(&state, existing).await?;
+    // 招待から登録するか、すでに運営者（ほかの端末にもパスキーを足す）なら運営者のパスキー
+    let operator = match &input.operator_token {
+        Some(token) => accounts::operator_invite_valid(&state.pool, token).await?,
+        None => false,
+    } || accounts::status(&state.pool, &participant.user_id)
+        .await?
+        .operator;
     let user_uuid = Uuid::parse_str(&participant.user_id)
         .map_err(|e| anyhow::anyhow!("利用者の ID が UUID ではありません: {e}"))?;
     // 同じ端末に同じアカウントのパスキーを重ねて作らない
@@ -153,7 +172,7 @@ pub async fn register_start(
         .filter_map(|j| serde_json::from_str::<Passkey>(j).ok())
         .map(|p| p.cred_id().clone())
         .collect();
-    let name = passkey_name(chrono::Utc::now());
+    let name = passkey_name(chrono::Utc::now(), operator);
     let (options, registration) = state
         .webauthn
         .start_passkey_registration(
@@ -297,12 +316,16 @@ mod tests {
     fn passkey_name_has_only_the_date_in_japan_time() {
         let at = |t: &str| t.parse::<chrono::DateTime<chrono::Utc>>().unwrap();
         assert_eq!(
-            passkey_name(at("2026-10-28T14:59:59Z")),
+            passkey_name(at("2026-10-28T14:59:59Z"), false),
             "civic-platform（2026-10-28 作成）"
         );
         assert_eq!(
-            passkey_name(at("2026-10-28T15:00:00Z")),
+            passkey_name(at("2026-10-28T15:00:00Z"), false),
             "civic-platform（2026-10-29 作成）"
+        );
+        assert_eq!(
+            passkey_name(at("2026-10-28T15:00:00Z"), true),
+            "civic-platform 運営者（2026-10-29 作成）"
         );
     }
 }

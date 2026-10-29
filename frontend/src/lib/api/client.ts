@@ -9,7 +9,10 @@ export { ApiError, errorMessage } from "./error";
 
 export async function apiFetch<T>(
   path: string,
-  init?: { method?: "GET" | "POST" | "PUT"; body?: unknown },
+  init?: {
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    body?: unknown;
+  },
 ): Promise<T> {
   const res = await fetch(path, {
     method: init?.method ?? "GET",

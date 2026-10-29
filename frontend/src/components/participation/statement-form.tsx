@@ -133,6 +133,9 @@ export function StatementForm({
     }
   }
 
+  // 締め切ったトピックには投稿できない（投票の欄で締め切りを伝える）
+  if (posting.status === "closed") return null;
+
   return (
     <section className="mt-6">
       {message?.kind === "duplicate" ? (

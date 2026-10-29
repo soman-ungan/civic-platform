@@ -27,6 +27,36 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<DraftSummary>, sqlx::Error> {
     .await
 }
 
+/// 自治体のトピックの ID（状態で絞る。下書きは古い順、ほかは新しい順）。管理画面の一覧に使う。
+/// `after`（前に読んだ最後の ID）の次から `limit` 件。公開などで一覧から抜けても読み飛ばさないよう、件数ではなく ID で続ける
+pub async fn ids_in(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    status: Publication,
+    after: Option<&str>,
+    limit: i64,
+) -> Result<Vec<String>, sqlx::Error> {
+    let (cmp, order) = if status == Publication::Draft {
+        (">", "created_at, id")
+    } else {
+        ("<", "created_at DESC, id DESC")
+    };
+    // PostgreSQL では型の決まらないパラメーターを IS NULL にできないため CAST する
+    sqlx::query_scalar(&format!(
+        "SELECT id FROM topics WHERE municipality_id = $1 AND status = $2
+           AND (CAST($3 AS TEXT) IS NULL
+                OR created_at {cmp} (SELECT created_at FROM topics WHERE id = $3)
+                OR (created_at = (SELECT created_at FROM topics WHERE id = $3) AND id {cmp} $3))
+         ORDER BY {order} LIMIT $4"
+    ))
+    .bind(municipality_id)
+    .bind(status.as_str())
+    .bind(after)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+}
+
 #[derive(Debug, sqlx::FromRow)]
 pub struct TopicSummary {
     pub id: String,
@@ -61,9 +91,14 @@ pub struct SourceLine {
 #[derive(Debug)]
 pub struct DraftDetail {
     pub id: String,
+    pub municipality_id: String,
     pub status: String,
     pub title: String,
     pub description: String,
+    pub created_at: String,
+    pub published_at: Option<String>,
+    /// 投票の期限（NULL は期限なし）
+    pub closes_at: Option<String>,
     pub sources: Vec<SourceLine>,
     /// (意見の ID, 本文, 状態)
     pub statements: Vec<(String, String, String)>,
@@ -74,11 +109,24 @@ pub struct DraftDetail {
 }
 
 pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetail>, sqlx::Error> {
-    let Some((id, status, title, description)): Option<(String, String, String, String)> =
-        sqlx::query_as("SELECT id, status, title, description FROM topics WHERE id = $1")
-            .bind(topic_id)
-            .fetch_optional(pool)
-            .await?
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        id: String,
+        municipality_id: String,
+        status: String,
+        title: String,
+        description: String,
+        created_at: String,
+        published_at: Option<String>,
+        closes_at: Option<String>,
+    }
+    let Some(row): Option<Row> = sqlx::query_as(
+        "SELECT id, municipality_id, status, title, description, created_at, published_at, closes_at
+         FROM topics WHERE id = $1",
+    )
+    .bind(topic_id)
+    .fetch_optional(pool)
+    .await?
     else {
         return Ok(None);
     };
@@ -120,10 +168,14 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
     .fetch_all(pool)
     .await?;
     Ok(Some(DraftDetail {
-        id,
-        status,
-        title,
-        description,
+        id: row.id,
+        municipality_id: row.municipality_id,
+        status: row.status,
+        title: row.title,
+        description: row.description,
+        created_at: row.created_at,
+        published_at: row.published_at,
+        closes_at: row.closes_at,
         sources,
         statements,
         basis,
@@ -175,17 +227,46 @@ impl DraftDetail {
     }
 }
 
-/// 公開する・保管する（公開をやめる）。下書き・公開済みのトピックが対象。見つからなければ false
+/// 公開する・保管する（公開をやめる）。下書き・公開済みのトピックが対象。見つからなければ false。
+/// 初めて公開するときに、公開の日時と投票の期限 `closes_at`（決まりは `process::progress::default_closes_at`）を付ける（ADR 0005）。
+/// 保管するときは `closes_at` を使わない
 pub async fn set_status(
     pool: &SqlitePool,
     topic_id: &str,
     status: Publication,
+    closes_at: &str,
 ) -> Result<bool, sqlx::Error> {
     let result = sqlx::query("UPDATE topics SET status = $1 WHERE id = $2")
         .bind(status.as_str())
         .bind(topic_id)
         .execute(pool)
         .await?;
+    if status == Publication::Published {
+        sqlx::query(
+            "UPDATE topics SET published_at = $1, closes_at = $2
+             WHERE id = $3 AND published_at IS NULL",
+        )
+        .bind(crate::shared::util::now_iso())
+        .bind(closes_at)
+        .bind(topic_id)
+        .execute(pool)
+        .await?;
+    }
+    Ok(result.rows_affected() > 0)
+}
+
+/// 投票の期限を変える（早めに締め切るなら今の日時。ADR 0005）。公開済みのトピックが対象。見つからなければ false
+pub async fn set_closes_at(
+    pool: &SqlitePool,
+    topic_id: &str,
+    closes_at: &str,
+) -> Result<bool, sqlx::Error> {
+    let result =
+        sqlx::query("UPDATE topics SET closes_at = $1 WHERE id = $2 AND status = 'published'")
+            .bind(closes_at)
+            .bind(topic_id)
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected() > 0)
 }
 

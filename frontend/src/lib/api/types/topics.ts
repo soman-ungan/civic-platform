@@ -18,6 +18,10 @@ export type Topic = {
   source_type: "assembly" | "citizen";
   source_url: string | null;
   created_at: string;
+  /** 投票の期限（null は期限なし。ADR 0005） */
+  closes_at: string | null;
+  /** 締め切ったか（投票と投稿はできない。結果は読める） */
+  closed: boolean;
   statement_count: number;
   participant_count: number;
   tags: Tag[];

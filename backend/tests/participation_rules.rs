@@ -92,6 +92,7 @@ fn unlock_needs_all_seeds_only() {
         total,
         seeds_voted,
         seeds_total,
+        closed: false,
     };
     // 最初の意見が残っていれば、ほかの意見に何件投票していても開かない
     assert_eq!(p(15, 30, 2, 3).analysis_remaining(), 1);

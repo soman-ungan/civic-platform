@@ -8,7 +8,7 @@ import { useRef, useState } from "react";
 import { ChipButton } from "@/components/ui/chip";
 import { ScrollRow } from "@/components/ui/scroll-row";
 import { BADGE_AMBER } from "@/components/ui/styles";
-import { SOURCE_LABELS } from "@/lib/labels";
+import { deadlineLabel, SOURCE_LABELS } from "@/lib/labels";
 import type { Participation } from "@/lib/api/types/participation";
 import type { Tag, Topic } from "@/lib/api/types/topics";
 
@@ -134,6 +134,7 @@ function participationLabel(topic: Topic): string | null {
 function TopicCard({ slug, topic }: { slug: string; topic: Topic }) {
   const style = PARTICIPATION_STYLES[topic.participation];
   const label = participationLabel(topic);
+  const deadline = deadlineLabel(topic);
   return (
     <Link
       href={`/${slug}/topics/${topic.id}`}
@@ -165,6 +166,10 @@ function TopicCard({ slug, topic }: { slug: string; topic: Topic }) {
         ))}
         <span className="ml-auto text-zinc-500">
           意見 {topic.statement_count} 件 ・ 参加 {topic.participant_count} 人
+          {deadline && (
+            // 日数はサーバーとブラウザの時刻で変わりうる
+            <span suppressHydrationWarning> ・ {deadline}</span>
+          )}
         </span>
       </div>
     </Link>

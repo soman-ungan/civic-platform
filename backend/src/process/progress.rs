@@ -1,17 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 //! 参加のルール: 参加者の進み具合（投票した意見の数）、参加の状態、分析を見られるか、
-//! トピックに参加できるか（自治体・公開の状態）、このまちとの関わり方。
+//! トピックに参加できるか（自治体・公開の状態・期限）、このまちとの関わり方。
 //! 投票・投稿・次の意見・分析・トピックの一覧は、すべてここのルールを使う（ルールを1か所で変えられるように）
 
 use std::collections::HashMap;
 
+use chrono::{DateTime, Duration, SecondsFormat, Utc};
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use sqlx::SqlitePool;
 
+use crate::shared::util::now_iso;
+
 /// このまちとの関わり方（ADR 0002。市民を分けてよいのは、これだけ）
 pub const RESIDENCY_TYPES: [&str; 4] = ["resident", "neighbor", "commuter", "related"];
+
+/// トピックの投票の期限の既定（公開から。ADR 0005）
+pub const TOPIC_OPEN_DAYS: i64 = 90;
 
 /// 1人が1つのトピックに投稿できる意見の数（ADR 0005。市民提案のトピックの提案者は 6d で別に決める）
 pub const STATEMENTS_PER_TOPIC: i64 = 1;
@@ -25,12 +31,18 @@ pub struct Progress {
     /// 投票した最初の意見（議会での主張など。`statements.is_seed`）の数
     pub seeds_voted: i64,
     pub seeds_total: i64,
+    /// トピックを締め切ったか（`closes_at` を過ぎた）
+    pub closed: bool,
 }
 
 impl Progress {
     /// 分析を見られるようになるまでの残りの件数: 未投票の最初の意見の数（ADR 0005）。
-    /// 市民の意見は数えない（増えるたびに分析が閉じないように。公開中に足す意見は最初の意見にならない）
+    /// 市民の意見は数えない（増えるたびに分析が閉じないように。公開中に足す意見は最初の意見にならない）。
+    /// 締め切ったトピックは誰でも見られる（投票が終わったので、傾向に左右される心配がない）
     pub fn analysis_remaining(&self) -> i64 {
+        if self.closed {
+            return 0;
+        }
         (self.seeds_total - self.seeds_voted).max(0)
     }
 
@@ -47,9 +59,10 @@ impl Progress {
 
 impl Serialize for Progress {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut s = serializer.serialize_struct("Progress", 4)?;
+        let mut s = serializer.serialize_struct("Progress", 5)?;
         s.serialize_field("voted", &self.voted)?;
         s.serialize_field("total", &self.total)?;
+        s.serialize_field("closed", &self.closed)?;
         s.serialize_field("analysis_unlocked", &self.analysis_unlocked())?;
         s.serialize_field("analysis_remaining", &self.analysis_remaining())?;
         s.end()
@@ -93,6 +106,7 @@ pub async fn progress(
     .bind(topic_id)
     .fetch_one(pool)
     .await?;
+    let closed = topic_closed(pool, topic_id).await?;
     let (voted, seeds_voted): (i64, i64) = match user_id {
         Some(uid) => {
             sqlx::query_as(
@@ -113,7 +127,42 @@ pub async fn progress(
         total,
         seeds_voted,
         seeds_total,
+        closed,
     })
+}
+
+/// トピックを締め切ったか（投票と投稿を止める）
+pub async fn topic_closed(pool: &SqlitePool, topic_id: &str) -> Result<bool, sqlx::Error> {
+    let closes_at: Option<String> =
+        sqlx::query_scalar("SELECT closes_at FROM topics WHERE id = $1")
+            .bind(topic_id)
+            .fetch_optional(pool)
+            .await?
+            .flatten();
+    Ok(is_closed(closes_at.as_deref()))
+}
+
+/// 締め切ったか: 期限（`topics.closes_at`）を過ぎた。期限なし（NULL）は締め切らない（ADR 0005）
+pub fn is_closed(closes_at: Option<&str>) -> bool {
+    closes_at.is_some_and(|c| c <= now_iso().as_str())
+}
+
+/// 公開したときに付ける期限（今から `TOPIC_OPEN_DAYS` 日後）
+pub fn default_closes_at() -> String {
+    format_time(Utc::now() + Duration::days(TOPIC_OPEN_DAYS))
+}
+
+/// 運営者が入力した期限を、保存する形（ISO8601、UTC、ミリ秒まで）にそろえる。
+/// 文字列のまま比べて締め切りを決めるので、形をそろえておく
+pub fn normalize_closes_at(input: &str) -> Option<String> {
+    DateTime::parse_from_rfc3339(input.trim())
+        .ok()
+        .map(|t| format_time(t.with_timezone(&Utc)))
+}
+
+fn format_time(t: DateTime<Utc>) -> String {
+    // `shared::util::now_iso` と同じ形
+    t.to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
 /// 投稿できるか（ADR 0005・0006）。API では `{"status": "allowed" | ..., "remaining"?}` で返す
@@ -121,6 +170,8 @@ pub async fn progress(
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum PostPermission {
     Allowed,
+    /// トピックを締め切った（結果は読める）
+    Closed,
     /// パスキーの登録が要る
     RegistrationRequired,
     /// 分析を見られるようになるまで（最初の意見すべてに）投票する（残りの件数）。ほかの人の意見を読んでから書いてもらうため
@@ -146,6 +197,9 @@ pub async fn post_permission(
     user_id: Option<&str>,
 ) -> Result<PostPermission, sqlx::Error> {
     let progress = progress(pool, topic_id, user_id).await?;
+    if progress.closed {
+        return Ok(PostPermission::Closed);
+    }
     if !progress.analysis_unlocked() {
         return Ok(PostPermission::VotesRequired {
             remaining: progress.analysis_remaining(),
@@ -206,11 +260,12 @@ pub async fn progress_by_topic(
     municipality_id: &str,
     user_id: Option<&str>,
 ) -> Result<HashMap<String, Progress>, sqlx::Error> {
-    let totals: Vec<(String, i64, i64)> = sqlx::query_as(
+    let totals: Vec<(String, i64, i64, Option<String>)> = sqlx::query_as(
         "SELECT t.id,
             (SELECT count(*) FROM statements s WHERE s.topic_id = t.id AND s.status = 'approved'),
             (SELECT count(*) FROM statements s
-             WHERE s.topic_id = t.id AND s.status = 'approved' AND s.is_seed)
+             WHERE s.topic_id = t.id AND s.status = 'approved' AND s.is_seed),
+            t.closes_at
          FROM topics t WHERE t.municipality_id = $1 AND t.status = 'published'",
     )
     .bind(municipality_id)
@@ -236,12 +291,13 @@ pub async fn progress_by_topic(
     };
     Ok(totals
         .into_iter()
-        .map(|(topic_id, total, seeds_total)| {
+        .map(|(topic_id, total, seeds_total, closes_at)| {
             let progress = Progress {
                 voted: voted.get(&topic_id).copied().unwrap_or(0),
                 total,
                 seeds_voted: seeds_voted.get(&topic_id).copied().unwrap_or(0),
                 seeds_total,
+                closed: is_closed(closes_at.as_deref()),
             };
             (topic_id, progress)
         })

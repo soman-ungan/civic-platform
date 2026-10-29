@@ -25,3 +25,24 @@ export const AUTH_API = {
   loginFinish: "/api/auth/login/finish",
   logout: "/api/auth/logout",
 } as const;
+
+/** 運営者の API（運営者でなければ 404） */
+export const OPERATOR_MUNICIPALITIES_API = "/api/operator/municipalities";
+
+/** /api/operator/municipalities/{slug} */
+export function operatorApi(slug: string): string {
+  return `${OPERATOR_MUNICIPALITIES_API}/${enc(slug)}`;
+}
+
+/** /api/operator/municipalities/{slug}/topics/{id} */
+export function operatorTopicApi(slug: string, topicId: string): string {
+  return `${operatorApi(slug)}/topics/${enc(topicId)}`;
+}
+
+/** /api/operator/municipalities/{slug}/statements/{id} */
+export function operatorStatementApi(
+  slug: string,
+  statementId: string,
+): string {
+  return `${operatorApi(slug)}/statements/${enc(statementId)}`;
+}

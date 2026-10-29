@@ -30,6 +30,11 @@ pub struct MunicipalityDetail {
     pub districts: Vec<District>,
 }
 
+const SELECT_ANY_MUNICIPALITY: &str = "
+    SELECT m.id, m.slug, m.name, p.name AS prefecture_name
+    FROM municipalities m
+    JOIN prefectures p ON p.code = m.prefecture_code";
+
 const SELECT_MUNICIPALITY: &str = "
     SELECT m.id, m.slug, m.name, p.name AS prefecture_name
     FROM municipalities m
@@ -44,6 +49,22 @@ pub async fn resolve(pool: &SqlitePool, slug: &str) -> Result<Municipality, ApiE
         .fetch_optional(pool)
         .await?
         .ok_or(ApiError::NotFound)
+}
+
+/// slug から自治体を引く（準備中のものも）。運営者の API で使う
+pub async fn resolve_any(pool: &SqlitePool, slug: &str) -> Result<Municipality, ApiError> {
+    sqlx::query_as(&format!("{SELECT_ANY_MUNICIPALITY} WHERE m.slug = $1"))
+        .bind(slug)
+        .fetch_optional(pool)
+        .await?
+        .ok_or(ApiError::NotFound)
+}
+
+/// すべての自治体（準備中のものも）。運営者の API で使う
+pub async fn all(pool: &SqlitePool) -> Result<Vec<Municipality>, sqlx::Error> {
+    sqlx::query_as(&format!("{SELECT_ANY_MUNICIPALITY} ORDER BY m.id"))
+        .fetch_all(pool)
+        .await
 }
 
 /// GET /api/municipalities — 公開中の自治体の一覧

@@ -12,6 +12,7 @@ use crate::interface::api::error::ApiError;
 use crate::interface::api::participant::MaybeParticipant;
 use crate::interface::api::{finances, municipalities};
 use crate::process::progress::{self, Participation};
+use crate::shared::util::now_iso;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Tag {
@@ -28,6 +29,7 @@ struct TopicRow {
     source_type: String,
     source_url: Option<String>,
     created_at: String,
+    closes_at: Option<String>,
     statement_count: i64,
     participant_count: i64,
 }
@@ -40,6 +42,10 @@ pub struct Topic {
     pub source_type: String,
     pub source_url: Option<String>,
     pub created_at: String,
+    /// 投票の期限（ADR 0005。NULL は期限なし）
+    pub closes_at: Option<String>,
+    /// 締め切ったか（投票と投稿はできない。結果は読める）
+    pub closed: bool,
     /// 承認済みの意見の数
     pub statement_count: i64,
     /// 1件以上投票した人の数
@@ -85,7 +91,7 @@ pub struct ListQuery {
 
 /// $1 = municipality_id。$2 以降は呼び出し側で追加する。公開済みのトピックだけ（下書きは運営者の確認待ち）
 const SELECT_TOPIC: &str = "
-    SELECT t.id, t.title, t.description, t.source_type, t.source_url, t.created_at,
+    SELECT t.id, t.title, t.description, t.source_type, t.source_url, t.created_at, t.closes_at,
         (SELECT count(*) FROM statements s
           WHERE s.topic_id = t.id AND s.status = 'approved') AS statement_count,
         (SELECT count(DISTINCT v.user_id) FROM votes v
@@ -135,13 +141,15 @@ fn into_topic(row: TopicRow, tags: Vec<Tag>, voted_count: i64) -> Topic {
         source_type: row.source_type,
         source_url: row.source_url,
         created_at: row.created_at,
+        closed: progress::is_closed(row.closes_at.as_deref()),
+        closes_at: row.closes_at,
         statement_count: row.statement_count,
         participant_count: row.participant_count,
         tags,
     }
 }
 
-/// GET /api/municipalities/{slug}/topics?tag={tag_id} — 新しい順
+/// GET /api/municipalities/{slug}/topics?tag={tag_id} — 受付中を先に、それぞれ新しい順
 pub async fn list(
     State(state): State<AppState>,
     Path(slug): Path<String>,
@@ -155,10 +163,12 @@ pub async fn list(
         "{SELECT_TOPIC}
            AND (CAST($2 AS TEXT) IS NULL OR EXISTS (
                 SELECT 1 FROM topic_tags tt WHERE tt.topic_id = t.id AND tt.tag_id = $2))
-         ORDER BY t.created_at DESC, t.id DESC"
+         ORDER BY CASE WHEN t.closes_at IS NOT NULL AND t.closes_at <= $3 THEN 1 ELSE 0 END,
+                  t.created_at DESC, t.id DESC"
     ))
     .bind(&municipality.id)
     .bind(&query.tag)
+    .bind(now_iso())
     .fetch_all(&state.pool)
     .await?;
 

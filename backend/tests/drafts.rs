@@ -64,19 +64,32 @@ async fn draft_is_hidden_until_published() {
 
     assert_eq!(topics::list(&pool).await.unwrap().len(), 1);
     assert!(
-        topics::set_status(&pool, "t1", Publication::Published)
-            .await
-            .unwrap()
+        topics::set_status(
+            &pool,
+            "t1",
+            Publication::Published,
+            "2026-12-31T00:00:00.000Z"
+        )
+        .await
+        .unwrap()
     );
     assert!(topics::list(&pool).await.unwrap().is_empty());
 
+    // 公開すると、公開の日時と期限が付く
     let detail = request(&state, "GET", T1, None, None).await;
     assert_eq!(detail.status, StatusCode::OK);
+    assert_eq!(detail.json["closes_at"], "2026-12-31T00:00:00.000Z");
+    let published_at: Option<String> =
+        sqlx::query_scalar("SELECT published_at FROM topics WHERE id = 't1'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(published_at.is_some());
     assert_eq!(run_all(&pool, true).await.unwrap(), 2);
 
     // 保管すると、また見えなくなる
     assert!(
-        topics::set_status(&pool, "t1", Publication::Archived)
+        topics::set_status(&pool, "t1", Publication::Archived, "")
             .await
             .unwrap()
     );

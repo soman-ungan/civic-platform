@@ -26,7 +26,11 @@ type Started<T> = { challenge_id: string; options: { publicKey: T } };
 export async function registerPasskey(operatorToken?: string): Promise<Me> {
   const started = await apiFetch<
     Started<PublicKeyCredentialCreationOptionsJSON>
-  >(AUTH_API.registerStart, { method: "POST" });
+  >(AUTH_API.registerStart, {
+    method: "POST",
+    // 招待からの登録なら、パスキーの名前に「運営者」と入る（運営者にするのは finish）
+    body: operatorToken ? { operator_token: operatorToken } : undefined,
+  });
   const credential = await startRegistration({
     optionsJSON: started.options.publicKey,
   });

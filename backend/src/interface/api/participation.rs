@@ -104,6 +104,7 @@ pub async fn next_statement(
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
     super::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
     let progress = progress::progress(&state.pool, &topic_id, user_id.as_deref()).await?;
+    let closed = progress.closed;
 
     // Cookie の無い人は「まだ何も投票していない人」として扱う（空文字の user_id は存在しない）
     let user_id = user_id.unwrap_or_default();
@@ -138,7 +139,9 @@ pub async fn next_statement(
         .iter()
         .map(|c| priorities.get(&c.id).copied().unwrap_or(0.0))
         .collect();
+    // 締め切ったトピックは、投票の対象を出さない（結果は読める）
     let statement = select_probabilistically(&weights, rand::random::<f64>())
+        .filter(|_| !closed)
         .map(|i| candidates.into_iter().nth(i).expect("範囲内"));
 
     let needs_relation = !has_relation(&state.pool, &user_id, &municipality.id).await?;
@@ -166,6 +169,14 @@ pub fn select_probabilistically(weights: &[f64], r: f64) -> Option<usize> {
     cumulative.iter().position(|c| *c > target)
 }
 
+/// 締め切ったトピックへの投票・投稿（ADR 0005。結果は読める）
+fn topic_closed() -> ApiError {
+    ApiError::conflict(
+        "topic_closed",
+        "このトピックは締め切りました。結果は引き続き見られます",
+    )
+}
+
 // ===== 投票 =====
 
 #[derive(Debug, Deserialize)]
@@ -180,7 +191,7 @@ pub struct Vote {
 }
 
 /// POST /api/municipalities/{slug}/topics/{topic_id}/statements/{statement_id}/votes
-/// 同じ意見への再投票は、最後の判断で上書きする。
+/// 同じ意見への再投票はできない（409 `already_voted`）。締め切ったトピックには投票できない（409 `topic_closed`）
 pub async fn vote(
     State(state): State<AppState>,
     Path((slug, topic_id, statement_id)): Path<(String, String, String)>,
@@ -197,6 +208,9 @@ pub async fn vote(
 
     // その自治体のそのトピックの、承認済みの意見であること
     super::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
+    if progress::topic_closed(&state.pool, &topic_id).await? {
+        return Err(topic_closed());
+    }
     let found: Option<String> = sqlx::query_scalar(
         "SELECT id FROM statements WHERE id = $1 AND topic_id = $2 AND status = 'approved'",
     )
@@ -315,6 +329,7 @@ pub async fn post_statement(
     // 分析を見られるまで投票してから、1トピック1件まで（ADR 0005。ルールは progress::post_permission）
     match progress::post_permission(&state.pool, &topic_id, existing.as_deref()).await? {
         PostPermission::Allowed => {}
+        PostPermission::Closed => return Err(topic_closed()),
         PostPermission::RegistrationRequired => {
             return Err(ApiError::unauthorized(
                 "registration_required",

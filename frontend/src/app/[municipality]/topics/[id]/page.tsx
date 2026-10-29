@@ -4,12 +4,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { OperatorLink } from "@/components/auth/operator-link";
 import { TopicInteraction } from "@/components/topics/interaction";
 import { TopicFinances } from "@/components/topics/finances";
 import { TopicSources } from "@/components/topics/sources";
 import { municipalityApi, topicApi } from "@/lib/api/paths";
 import { apiGet, requestCookie } from "@/lib/api/server";
-import { SOURCE_LABELS } from "@/lib/labels";
+import { deadlineLabel, SOURCE_LABELS } from "@/lib/labels";
 import type { AnalysisView } from "@/lib/api/types/analysis";
 import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
 import type { NextStatement } from "@/lib/api/types/participation";
@@ -49,19 +50,24 @@ async function TopicView({
   if (!municipality || !topic) {
     notFound();
   }
+  const deadline = deadlineLabel(topic);
 
   return (
     <>
       <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto w-full max-w-md px-4 pb-3">
-          <Link
-            href={`/${municipality.slug}`}
-            className="inline-flex h-10 items-center text-sm text-zinc-600 dark:text-zinc-400"
-          >
-            ← {municipality.name}のトピック
-          </Link>
+          <div className="flex items-center justify-between gap-4">
+            <Link
+              href={`/${municipality.slug}`}
+              className="inline-flex h-10 items-center text-sm text-zinc-600 dark:text-zinc-400"
+            >
+              ← {municipality.name}のトピック
+            </Link>
+            <OperatorLink />
+          </div>
           <p className="mb-0.5 text-xs text-zinc-500">
             {SOURCE_LABELS[topic.source_type]}
+            {deadline && ` ・ ${deadline}`}
           </p>
           <h1 className="text-lg leading-snug font-bold">{topic.title}</h1>
           {topic.tags.length > 0 && (

@@ -9,6 +9,8 @@ export type Participation = "none" | "in_progress" | "completed";
 export type Progress = {
   voted: number;
   total: number;
+  /** トピックを締め切ったか（投票の対象は出ない。分析は誰でも見られる） */
+  closed: boolean;
   /** 分析を見られるか（ルールは backend の1か所。画面は写さない） */
   analysis_unlocked: boolean;
   /** 分析を見られるようになるまでの残りの件数（未投票の最初の意見の数） */
@@ -18,6 +20,7 @@ export type Progress = {
 /** 意見を投稿できるか（backend の `progress::post_permission`。画面はルールを写さない） */
 export type PostPermission =
   | { status: "allowed" }
+  | { status: "closed" }
   | { status: "registration_required" }
   | { status: "votes_required"; remaining: number }
   | { status: "limit_reached" };
