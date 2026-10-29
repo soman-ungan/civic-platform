@@ -9,9 +9,6 @@ export type Participation = "none" | "in_progress" | "completed";
 export type Progress = {
   voted: number;
   total: number;
-  /** 投票した最初の意見（議会での主張など）の数。最初の意見は先に出るので、段階を見せるのに使う */
-  seeds_voted: number;
-  seeds_total: number;
   /** 分析を見られるか（ルールは backend の1か所。画面は写さない） */
   analysis_unlocked: boolean;
   /** 分析を見られるようになるまでの残りの件数（未投票の最初の意見の数） */

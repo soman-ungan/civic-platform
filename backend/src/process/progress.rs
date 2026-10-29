@@ -17,8 +17,7 @@ pub const RESIDENCY_TYPES: [&str; 4] = ["resident", "neighbor", "commuter", "rel
 pub const STATEMENTS_PER_TOPIC: i64 = 1;
 
 /// 参加者がトピックで投票した承認済みの意見の数と、承認済みの意見の総数（それぞれ、うち最初の意見の数も）。
-/// API では `analysis_unlocked` と `analysis_remaining` も返す（画面が分析を開く条件を写さずに済むように）。
-/// 最初の意見の件数は、画面が段階（最初の意見 → 参加した人の意見）を見せるのに使う。カードごとの印は返さない（ADR 0005）
+/// API では `analysis_unlocked` と `analysis_remaining` も返す（画面が分析を開く条件を写さずに済むように）
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Progress {
     pub voted: i64,
@@ -48,11 +47,9 @@ impl Progress {
 
 impl Serialize for Progress {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut s = serializer.serialize_struct("Progress", 6)?;
+        let mut s = serializer.serialize_struct("Progress", 4)?;
         s.serialize_field("voted", &self.voted)?;
         s.serialize_field("total", &self.total)?;
-        s.serialize_field("seeds_voted", &self.seeds_voted)?;
-        s.serialize_field("seeds_total", &self.seeds_total)?;
         s.serialize_field("analysis_unlocked", &self.analysis_unlocked())?;
         s.serialize_field("analysis_remaining", &self.analysis_remaining())?;
         s.end()
@@ -141,12 +138,19 @@ impl PostPermission {
 }
 
 /// その参加者がトピックに意見を投稿できるか。
+/// 先に投票の条件を見る（未登録の人にも、最初の意見を終えるまではパスキーの案内を出さない）。
 /// 数えるのは承認待ち・確認待ち・承認済みの自分の意見。非公開（rejected）は数えない（書き直して出し直せる）
 pub async fn post_permission(
     pool: &SqlitePool,
     topic_id: &str,
     user_id: Option<&str>,
 ) -> Result<PostPermission, sqlx::Error> {
+    let progress = progress(pool, topic_id, user_id).await?;
+    if !progress.analysis_unlocked() {
+        return Ok(PostPermission::VotesRequired {
+            remaining: progress.analysis_remaining(),
+        });
+    }
     let Some(user_id) = user_id else {
         return Ok(PostPermission::RegistrationRequired);
     };
@@ -157,12 +161,6 @@ pub async fn post_permission(
             .await?;
     if registered != Some(true) {
         return Ok(PostPermission::RegistrationRequired);
-    }
-    let progress = progress(pool, topic_id, Some(user_id)).await?;
-    if !progress.analysis_unlocked() {
-        return Ok(PostPermission::VotesRequired {
-            remaining: progress.analysis_remaining(),
-        });
     }
     let posted: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM statements

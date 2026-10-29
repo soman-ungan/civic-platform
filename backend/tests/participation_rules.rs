@@ -114,8 +114,6 @@ async fn analysis_and_progress_use_the_rule() {
     let json = next(&state, &cookie).await;
     assert_eq!(json["progress"]["analysis_unlocked"], false);
     assert_eq!(json["progress"]["analysis_remaining"], 3);
-    assert_eq!(json["progress"]["seeds_voted"], 0);
-    assert_eq!(json["progress"]["seeds_total"], 3);
     let analysis = request(
         &state,
         "GET",
@@ -253,6 +251,31 @@ async fn pending_and_flagged_count_but_other_topics_do_not() {
         .await
         .unwrap();
     assert_eq!(next(&state, &cookie).await["posting"]["status"], "allowed");
+}
+
+#[tokio::test]
+async fn anonymous_participants_vote_seeds_before_registration_is_offered() {
+    let (pool, state) = setup(2, 1).await;
+    sqlx::query("INSERT INTO users (id, created_at) VALUES ('anon', $1)")
+        .bind(AT)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let cookie = cookie_for(&state, "anon");
+    // 最初の意見を終えるまでは、登録の前でも投票の案内（パスキーの案内は出さない）
+    assert_eq!(
+        next(&state, &cookie).await["posting"],
+        json!({"status": "votes_required", "remaining": 2})
+    );
+    let res = post(&state, &cookie, "公園を増やしてほしい").await;
+    assert_eq!(res.status, StatusCode::FORBIDDEN);
+    assert_eq!(res.json["error"]["code"], "votes_required");
+    // 終えたら、パスキーの登録の案内
+    votes(&pool, "anon", &ids("seed", 0..2)).await;
+    assert_eq!(
+        next(&state, &cookie).await["posting"],
+        json!({"status": "registration_required"})
+    );
 }
 
 #[tokio::test]

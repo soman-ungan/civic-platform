@@ -184,7 +184,7 @@ export function StatementForm({
         <PasskeyPrompt
           onRegistered={() => {
             setNeedsPasskey(false);
-            // 登録しても、分析を見られるまでは投稿できないことがある。`posting` を読み直してから開く
+            // 登録の状態が変わったので、`posting` を読み直してから開く
             onChanged();
           }}
           onCancel={() => setNeedsPasskey(false)}
