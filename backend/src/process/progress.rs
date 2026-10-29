@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 //! 参加のルール: 参加者の進み具合（投票した意見の数）、参加の状態、分析を見られるか、
-//! トピックに参加できるか（自治体・公開の状態・期限）、このまちとの関わり方。
-//! 投票・投稿・次の意見・分析・トピックの一覧は、すべてここのルールを使う（ルールを1か所で変えられるように）
+//! トピックに参加できるか（自治体・公開の状態・期限）、このまちとの関わり方、トピックを提案できるか。
+//! 投票・投稿・提案・次の意見・分析・トピックの一覧は、すべてここのルールを使う（ルールを1か所で変えられるように）
 
 use std::collections::HashMap;
 
@@ -19,8 +19,14 @@ pub const RESIDENCY_TYPES: [&str; 4] = ["resident", "neighbor", "commuter", "rel
 /// トピックの投票の期限の既定（公開から。ADR 0005）
 pub const TOPIC_OPEN_DAYS: i64 = 90;
 
-/// 1人が1つのトピックに投稿できる意見の数（ADR 0005。市民提案のトピックの提案者は 6d で別に決める）
+/// 1人が1つのトピックに投稿できる意見の数（ADR 0005）
 pub const STATEMENTS_PER_TOPIC: i64 = 1;
+
+/// 市民提案のトピックで、提案した本人が投稿できる意見の数（提案に含めた最初の意見も数える。ADR 0005）
+pub const STATEMENTS_PER_TOPIC_PROPOSER: i64 = 3;
+
+/// 1人が1つの自治体にトピックを提案できる間隔（この日数に1件。ADR 0005）
+pub const PROPOSAL_INTERVAL_DAYS: i64 = 7;
 
 /// 参加者がトピックで投票した承認済みの意見の数と、承認済みの意見の総数（それぞれ、うち最初の意見の数も）。
 /// API では `analysis_unlocked` と `analysis_remaining` も返す（画面が分析を開く条件を写さずに済むように）
@@ -178,7 +184,7 @@ pub enum PostPermission {
     VotesRequired {
         remaining: i64,
     },
-    /// このトピックに投稿できる数（`STATEMENTS_PER_TOPIC`）に達した
+    /// このトピックに投稿できる数（`STATEMENTS_PER_TOPIC`、提案者は `STATEMENTS_PER_TOPIC_PROPOSER`）に達した
     LimitReached,
 }
 
@@ -224,10 +230,91 @@ pub async fn post_permission(
     .bind(user_id)
     .fetch_one(pool)
     .await?;
-    Ok(if posted >= STATEMENTS_PER_TOPIC {
-        PostPermission::LimitReached
+    Ok(
+        if posted >= statements_per_topic(pool, topic_id, user_id).await? {
+            PostPermission::LimitReached
+        } else {
+            PostPermission::Allowed
+        },
+    )
+}
+
+/// その参加者がトピックに投稿できる意見の数: 提案した本人なら3件、ほかの人は1件（ADR 0005）
+async fn statements_per_topic(
+    pool: &SqlitePool,
+    topic_id: &str,
+    user_id: &str,
+) -> Result<i64, sqlx::Error> {
+    let proposer: Option<String> =
+        sqlx::query_scalar("SELECT proposed_by FROM topics WHERE id = $1")
+            .bind(topic_id)
+            .fetch_optional(pool)
+            .await?
+            .flatten();
+    Ok(if proposer.as_deref() == Some(user_id) {
+        STATEMENTS_PER_TOPIC_PROPOSER
     } else {
-        PostPermission::Allowed
+        STATEMENTS_PER_TOPIC
+    })
+}
+
+/// トピックを提案できるか（ADR 0005・0006）。API では `{"status": "allowed" | ..., "next_at"?}` で返す
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum ProposePermission {
+    Allowed,
+    /// パスキーの登録が要る
+    RegistrationRequired,
+    /// この自治体との関わり方の登録が要る
+    RelationRequired,
+    /// この自治体には、直近 `PROPOSAL_INTERVAL_DAYS` 日に提案している（次に提案できる日時）
+    WeeklyLimit {
+        next_at: String,
+    },
+}
+
+impl ProposePermission {
+    pub fn allowed(&self) -> bool {
+        *self == Self::Allowed
+    }
+}
+
+/// その参加者がこの自治体にトピックを提案できるか。
+/// 見送りになった提案も数える（出し直しで間隔を詰めないように）。自治体ごとに数える
+pub async fn propose_permission(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    user_id: Option<&str>,
+) -> Result<ProposePermission, sqlx::Error> {
+    let Some(user_id) = user_id else {
+        return Ok(ProposePermission::RegistrationRequired);
+    };
+    let registered: Option<bool> =
+        sqlx::query_scalar("SELECT registered_at IS NOT NULL FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await?;
+    if registered != Some(true) {
+        return Ok(ProposePermission::RegistrationRequired);
+    }
+    if !has_relation(pool, user_id, municipality_id).await? {
+        return Ok(ProposePermission::RelationRequired);
+    }
+    let last: Option<String> = sqlx::query_scalar(
+        "SELECT max(created_at) FROM topics WHERE proposed_by = $1 AND municipality_id = $2",
+    )
+    .bind(user_id)
+    .bind(municipality_id)
+    .fetch_one(pool)
+    .await?;
+    let next_at = last
+        .and_then(|last| DateTime::parse_from_rfc3339(&last).ok())
+        .map(|last| format_time(last.with_timezone(&Utc) + Duration::days(PROPOSAL_INTERVAL_DAYS)));
+    Ok(match next_at {
+        Some(next_at) if next_at.as_str() > now_iso().as_str() => {
+            ProposePermission::WeeklyLimit { next_at }
+        }
+        _ => ProposePermission::Allowed,
     })
 }
 

@@ -15,10 +15,8 @@ use crate::interface::api::participant::{MaybeParticipant, Participant};
 use crate::process::analysis::store::{self, Stored};
 use crate::process::moderation::{self, Verdict};
 use crate::process::progress::{self, PostPermission, Progress, RESIDENCY_TYPES, has_relation};
+use crate::shared::limits::MAX_STATEMENT_CHARS;
 use crate::shared::util::{new_id, now_iso};
-
-/// 意見の最大文字数（DB の CHECK と同じ。文字数は Unicode のコードポイント単位）
-pub const MAX_STATEMENT_CHARS: usize = 140;
 
 // ===== 居住地属性（このまちとの関わり方） =====
 
@@ -345,7 +343,7 @@ pub async fn post_statement(
         PostPermission::LimitReached => {
             return Err(ApiError::conflict(
                 "statement_limit",
-                "このトピックには、もう意見を投稿しています（1トピック1件まで）",
+                "このトピックに投稿できる意見の数に達しました",
             ));
         }
     }

@@ -11,6 +11,7 @@ pub mod municipalities;
 pub mod operator;
 pub mod participant;
 pub mod participation;
+pub mod proposals;
 pub mod topics;
 
 use axum::Router;
@@ -41,6 +42,10 @@ pub fn router() -> Router<AppState> {
             put(participation::put_relation),
         )
         .route("/municipalities/{slug}/finances", get(finances::finances))
+        .route(
+            "/municipalities/{slug}/proposals",
+            get(proposals::mine).post(proposals::create),
+        )
         .route("/municipalities/{slug}/topics", get(topics::list))
         .route(
             "/municipalities/{slug}/topics/{topic_id}",

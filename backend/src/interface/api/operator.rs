@@ -88,6 +88,8 @@ pub struct TopicTag {
 pub struct OperatorTopic {
     pub id: String,
     pub status: String,
+    /// assembly（会議録から）/ citizen（市民の提案。提案した人は返さない）
+    pub source_type: String,
     pub title: String,
     pub description: String,
     pub created_at: String,
@@ -136,6 +138,7 @@ impl From<DraftDetail> for OperatorTopic {
                 .collect(),
             id: d.id,
             status: d.status,
+            source_type: d.source_type,
             title: d.title,
             description: d.description,
             created_at: d.created_at,
