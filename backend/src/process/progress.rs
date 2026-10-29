@@ -17,7 +17,8 @@ pub const RESIDENCY_TYPES: [&str; 4] = ["resident", "neighbor", "commuter", "rel
 pub const STATEMENTS_PER_TOPIC: i64 = 1;
 
 /// 参加者がトピックで投票した承認済みの意見の数と、承認済みの意見の総数（それぞれ、うち最初の意見の数も）。
-/// API では `analysis_unlocked` と `analysis_remaining` も返す（画面が分析を開く条件を写さずに済むように）
+/// API では `analysis_unlocked` と `analysis_remaining` も返す（画面が分析を開く条件を写さずに済むように）。
+/// 最初の意見の件数は、画面が段階（最初の意見 → 参加した人の意見）を見せるのに使う。カードごとの印は返さない（ADR 0005）
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Progress {
     pub voted: i64,
@@ -47,9 +48,11 @@ impl Progress {
 
 impl Serialize for Progress {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut s = serializer.serialize_struct("Progress", 4)?;
+        let mut s = serializer.serialize_struct("Progress", 6)?;
         s.serialize_field("voted", &self.voted)?;
         s.serialize_field("total", &self.total)?;
+        s.serialize_field("seeds_voted", &self.seeds_voted)?;
+        s.serialize_field("seeds_total", &self.seeds_total)?;
         s.serialize_field("analysis_unlocked", &self.analysis_unlocked())?;
         s.serialize_field("analysis_remaining", &self.analysis_remaining())?;
         s.end()

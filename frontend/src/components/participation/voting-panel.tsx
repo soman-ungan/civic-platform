@@ -157,11 +157,20 @@ export function VotingPanel({
           {progress.voted} / {progress.total}
         </span>
       </div>
-      {!progress.analysis_unlocked && (
+      {/* 段階は進み具合で見せる。カードの見た目は最初の意見も同じにする（中身だけで判断してもらうため。ADR 0005） */}
+      {!progress.analysis_unlocked ? (
         <p className="-mt-1 mb-3 text-xs text-zinc-500">
-          あと{progress.analysis_remaining}
-          件で「みんなの意見」が見られ、自分の意見も投稿できます
+          最初の意見 {progress.seeds_voted} / {progress.seeds_total}
+          ・終えると「みんなの意見」が見られ、自分の意見も投稿できます
         </p>
+      ) : (
+        statement &&
+        progress.seeds_total > 0 &&
+        progress.voted === progress.seeds_voted && (
+          <p className="-mt-1 mb-3 text-xs text-zinc-500">
+            ここからは、参加した人が投稿した意見です
+          </p>
+        )
       )}
 
       {statement ? (

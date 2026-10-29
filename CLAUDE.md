@@ -163,7 +163,7 @@ civic-platform/
   - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）
   - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}` — Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count` を返す（承認済みの意見だけで数える）
   - `PUT /municipalities/{slug}/relation` — このまちとの関わり方（投票の前に必要）。地区は受け取らない
-  - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件（最初の意見が残っていればその中から。Polis の優先度で重み付けした抽選）、進捗 `progress`（`voted`・`total`・`analysis_unlocked`・`analysis_remaining`）、投稿できるか `posting`（`status`: allowed / registration_required / votes_required（`remaining`）/ limit_reached）
+  - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件（最初の意見が残っていればその中から。Polis の優先度で重み付けした抽選）、進捗 `progress`（`voted`・`total`・`seeds_voted`・`seeds_total`・`analysis_unlocked`・`analysis_remaining`。最初の意見かどうかはカードごとには返さず、画面は件数で段階を見せる）、投稿できるか `posting`（`status`: allowed / registration_required / votes_required（`remaining`）/ limit_reached）
   - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・`statements_by_group`・`group_composition`（グループごとの関わり方の構成）・関わり方ごとの集計（分析対象が5人未満なら insufficient。関わり方の集計は二次秘匿済み）
     - **最初の意見すべてに投票するまでは `locked`（残り件数）を返す**。全体の傾向に投票が左右されないようにするため。最初の意見が増えれば（公開の前の下書きでだけ起きる）再びロックされる
     - 分析を見られるか・投稿できるかのルールは `backend/src/process/progress.rs`（`Progress::analysis_unlocked`・`post_permission`）の1か所だけ。画面は `progress`・`posting` を見る（ルールを写さない）

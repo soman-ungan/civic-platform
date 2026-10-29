@@ -114,6 +114,8 @@ async fn analysis_and_progress_use_the_rule() {
     let json = next(&state, &cookie).await;
     assert_eq!(json["progress"]["analysis_unlocked"], false);
     assert_eq!(json["progress"]["analysis_remaining"], 3);
+    assert_eq!(json["progress"]["seeds_voted"], 0);
+    assert_eq!(json["progress"]["seeds_total"], 3);
     let analysis = request(
         &state,
         "GET",
