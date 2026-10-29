@@ -99,3 +99,84 @@ pub async fn load(pool: &SqlitePool, id: &str) -> Result<Option<Detail>, sqlx::E
         pass: count(0),
     }))
 }
+
+/// 意見が属するトピックと自治体（運営者の API で、別の自治体の意見を操作させないため）
+pub async fn owner(
+    pool: &SqlitePool,
+    statement_id: &str,
+) -> Result<Option<(String, String)>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT t.id, t.municipality_id FROM statements s JOIN topics t ON t.id = s.topic_id
+         WHERE s.id = $1",
+    )
+    .bind(statement_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// 確認待ちの1件（管理画面）。投稿者が誰かは持たない
+#[derive(Debug, sqlx::FromRow)]
+pub struct QueueItem {
+    #[sqlx(flatten)]
+    pub statement: Statement,
+    pub topic_title: String,
+    /// トピックの状態（下書き・公開済み）
+    pub topic_status: String,
+    pub seed: bool,
+    /// 市民の投稿か（いなければ、議会の主張か運営者が足したもの）
+    pub posted: bool,
+    /// 根拠の発言（「発言12 〇〇議員」）。会議録から足した意見だけ
+    #[sqlx(skip)]
+    pub basis: Vec<String>,
+    /// 根拠の会議録
+    #[sqlx(skip)]
+    pub document: Option<BasisDocument>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct BasisDocument {
+    pub title: String,
+    pub held_on: Option<String>,
+    pub url: Option<String>,
+}
+
+/// 自治体の確認待ち（flagged）と判定待ち（pending）の意見（古い順）
+pub async fn queue_in(
+    pool: &SqlitePool,
+    municipality_id: &str,
+) -> Result<Vec<QueueItem>, sqlx::Error> {
+    let mut items: Vec<QueueItem> = sqlx::query_as(
+        "SELECT s.id, s.topic_id, s.status, s.body, s.moderation_note, s.created_at,
+                t.title AS topic_title, t.status AS topic_status,
+                s.is_seed AS seed, s.user_id IS NOT NULL AS posted
+         FROM statements s JOIN topics t ON t.id = s.topic_id
+         WHERE t.municipality_id = $1 AND s.status IN ('flagged', 'pending')
+         ORDER BY s.created_at, s.id",
+    )
+    .bind(municipality_id)
+    .fetch_all(pool)
+    .await?;
+    #[derive(sqlx::FromRow)]
+    struct BasisRow {
+        utterance_no: i64,
+        speaker_label: String,
+        #[sqlx(flatten)]
+        document: BasisDocument,
+    }
+    for item in &mut items {
+        let rows: Vec<BasisRow> = sqlx::query_as(
+            "SELECT ss.utterance_no, ss.speaker_label, d.title, d.held_on, d.url
+             FROM statement_sources ss JOIN documents d ON d.id = ss.document_id
+             WHERE ss.statement_id = $1 ORDER BY ss.utterance_no",
+        )
+        .bind(&item.statement.id)
+        .fetch_all(pool)
+        .await?;
+        for row in rows {
+            item.basis
+                .push(format!("発言{} {}", row.utterance_no, row.speaker_label));
+            item.document.get_or_insert(row.document);
+        }
+    }
+    Ok(items)
+}

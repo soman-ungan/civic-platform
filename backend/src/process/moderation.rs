@@ -465,16 +465,29 @@ pub async fn retry_pending(
     .await?;
     let mut decided = 0;
     for (id, topic_id, body) in rows {
-        let context = context_for_topic(pool, &topic_id, Some(&id)).await?;
-        let review = moderation.review(pool, &body, &context).await;
-        if review.verdict == Verdict::Pending {
+        if retry_one(pool, moderation, &id, &topic_id, &body).await? == Verdict::Pending {
             // まだ判定できない（上限・通信の失敗）。次の機会に回す
             break;
         }
-        save(pool, &id, &review).await?;
         decided += 1;
     }
     Ok(decided)
+}
+
+/// 1件の意見を判定し直す（管理画面の「AI でやり直す」も使う）。判定できなければ保存せず Pending を返す
+pub async fn retry_one(
+    pool: &SqlitePool,
+    moderation: &Moderation,
+    statement_id: &str,
+    topic_id: &str,
+    body: &str,
+) -> Result<Verdict, sqlx::Error> {
+    let context = context_for_topic(pool, topic_id, Some(statement_id)).await?;
+    let review = moderation.review(pool, body, &context).await;
+    if review.verdict != Verdict::Pending {
+        save(pool, statement_id, &review).await?;
+    }
+    Ok(review.verdict)
 }
 
 pub fn spawn_retry_worker(pool: SqlitePool, moderation: Moderation, interval: Duration) {

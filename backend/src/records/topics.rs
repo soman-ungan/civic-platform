@@ -27,6 +27,26 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<DraftSummary>, sqlx::Error> {
     .await
 }
 
+/// 自治体のトピックの ID（状態で絞る。下書きは古い順、ほかは新しい順）。管理画面の一覧に使う
+pub async fn ids_in(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    status: Publication,
+) -> Result<Vec<String>, sqlx::Error> {
+    let order = if status == Publication::Draft {
+        "created_at, id"
+    } else {
+        "created_at DESC, id DESC"
+    };
+    sqlx::query_scalar(&format!(
+        "SELECT id FROM topics WHERE municipality_id = $1 AND status = $2 ORDER BY {order}"
+    ))
+    .bind(municipality_id)
+    .bind(status.as_str())
+    .fetch_all(pool)
+    .await
+}
+
 #[derive(Debug, sqlx::FromRow)]
 pub struct TopicSummary {
     pub id: String,
@@ -61,9 +81,14 @@ pub struct SourceLine {
 #[derive(Debug)]
 pub struct DraftDetail {
     pub id: String,
+    pub municipality_id: String,
     pub status: String,
     pub title: String,
     pub description: String,
+    pub created_at: String,
+    pub published_at: Option<String>,
+    /// 投票の期限（NULL は期限なし）
+    pub closes_at: Option<String>,
     pub sources: Vec<SourceLine>,
     /// (意見の ID, 本文, 状態)
     pub statements: Vec<(String, String, String)>,
@@ -74,11 +99,24 @@ pub struct DraftDetail {
 }
 
 pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetail>, sqlx::Error> {
-    let Some((id, status, title, description)): Option<(String, String, String, String)> =
-        sqlx::query_as("SELECT id, status, title, description FROM topics WHERE id = $1")
-            .bind(topic_id)
-            .fetch_optional(pool)
-            .await?
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        id: String,
+        municipality_id: String,
+        status: String,
+        title: String,
+        description: String,
+        created_at: String,
+        published_at: Option<String>,
+        closes_at: Option<String>,
+    }
+    let Some(row): Option<Row> = sqlx::query_as(
+        "SELECT id, municipality_id, status, title, description, created_at, published_at, closes_at
+         FROM topics WHERE id = $1",
+    )
+    .bind(topic_id)
+    .fetch_optional(pool)
+    .await?
     else {
         return Ok(None);
     };
@@ -120,10 +158,14 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
     .fetch_all(pool)
     .await?;
     Ok(Some(DraftDetail {
-        id,
-        status,
-        title,
-        description,
+        id: row.id,
+        municipality_id: row.municipality_id,
+        status: row.status,
+        title: row.title,
+        description: row.description,
+        created_at: row.created_at,
+        published_at: row.published_at,
+        closes_at: row.closes_at,
         sources,
         statements,
         basis,
