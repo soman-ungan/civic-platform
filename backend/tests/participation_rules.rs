@@ -7,7 +7,7 @@ mod common;
 
 use axum::http::StatusCode;
 use backend::interface::api::AppState;
-use backend::process::progress::{ANALYSIS_UNLOCK_VOTES, Progress};
+use backend::process::progress::Progress;
 use common::{cookie_for, insert_vote, request, seed_fixture, test_pool, test_state};
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
@@ -86,24 +86,23 @@ async fn post(state: &AppState, cookie: &str, body: &str) -> common::TestRespons
 }
 
 #[test]
-fn unlock_needs_all_seeds_and_the_fixed_number() {
+fn unlock_needs_all_seeds_only() {
     let p = |voted, total, seeds_voted, seeds_total| Progress {
         voted,
         total,
         seeds_voted,
         seeds_total,
     };
-    assert_eq!(ANALYSIS_UNLOCK_VOTES, 15);
-    // 最初の意見が残っていれば、15件に投票していても開かない
+    // 最初の意見が残っていれば、ほかの意見に何件投票していても開かない
     assert_eq!(p(15, 30, 2, 3).analysis_remaining(), 1);
-    // 最初の意見を終えても、15件に届くまで開かない
-    assert_eq!(p(10, 30, 3, 3).analysis_remaining(), 5);
-    assert!(p(15, 30, 3, 3).analysis_unlocked());
-    // 意見が15件より少なければ、全部で開く
-    assert_eq!(p(4, 6, 2, 2).analysis_remaining(), 2);
-    assert!(p(6, 6, 2, 2).analysis_unlocked());
-    // 意見が無いトピックは、すぐに開く（最初の投稿もできる）
+    // 最初の意見すべてで開く（市民の意見は数えない）
+    assert!(p(3, 30, 3, 3).analysis_unlocked());
+    // 市民の意見が増えても閉じない
+    assert!(p(3, 4, 3, 3).analysis_unlocked());
+    assert!(p(3, 40, 3, 3).analysis_unlocked());
+    // 最初の意見が無いトピックは、すぐに開く（最初の投稿もできる）
     assert!(p(0, 0, 0, 0).analysis_unlocked());
+    assert!(p(0, 5, 0, 0).analysis_unlocked());
 }
 
 #[tokio::test]
@@ -162,25 +161,44 @@ async fn posting_waits_for_the_analysis_and_is_one_per_topic() {
     let (pool, state) = setup(2, 20).await;
     let cookie = participant(&pool, &state, "p1").await;
 
-    votes(&pool, "p1", &ids("seed", 0..2)).await;
+    // 市民の意見にいくら投票しても、最初の意見が残っていれば投稿できない
+    votes(&pool, "p1", &ids("seed", 0..1)).await;
     votes(&pool, "p1", &ids("c", 0..10)).await;
     assert_eq!(
         next(&state, &cookie).await["posting"],
-        json!({"status": "votes_required", "remaining": 3})
+        json!({"status": "votes_required", "remaining": 1})
     );
     let res = post(&state, &cookie, "公園を増やしてほしい").await;
     assert_eq!(res.status, StatusCode::FORBIDDEN);
     assert_eq!(res.json["error"]["code"], "votes_required");
 
-    votes(&pool, "p1", &ids("c", 10..13)).await;
+    // 最初の意見すべてに投票すれば投稿できる（市民の意見が残っていても）
+    votes(&pool, "p1", &ids("seed", 1..2)).await;
     assert_eq!(
         next(&state, &cookie).await["posting"],
         json!({"status": "allowed"})
     );
-    assert_eq!(
-        post(&state, &cookie, "公園を増やしてほしい").await.status,
-        StatusCode::CREATED
-    );
+    let res = post(&state, &cookie, "公園を増やしてほしい").await;
+    assert_eq!(res.status, StatusCode::CREATED);
+
+    // 自分の意見には賛成したものとし、次の意見に出さない。意見が増えても分析は閉じない
+    let mine = res.json["id"].as_str().unwrap().to_owned();
+    let my_vote: i64 = sqlx::query_scalar(
+        "SELECT vote_value FROM votes WHERE user_id = 'p1' AND statement_id = $1",
+    )
+    .bind(&mine)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(my_vote, 1);
+    for _ in 0..10 {
+        let json = next(&state, &cookie).await;
+        assert_eq!(json["progress"]["analysis_unlocked"], true);
+        let id = json["statement"]["id"].as_str().unwrap().to_owned();
+        assert_ne!(id, mine, "自分の意見は出ない");
+        insert_vote(&pool, "p1", &id, 0, AT).await;
+    }
+    assert!(next(&state, &cookie).await["statement"].is_null());
 
     // 2件目はできない
     assert_eq!(

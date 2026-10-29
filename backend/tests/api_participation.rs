@@ -265,9 +265,10 @@ async fn next_statement_for_new_visitor() {
     let (_pool, state) = setup().await;
     let json = next(&state, None).await;
     assert_eq!(json["needs_relation"], true);
+    // この seed の t1 には最初の意見が無いので、分析は投票の前から開いている
     assert_eq!(
         json["progress"],
-        json!({ "voted": 0, "total": 3, "analysis_unlocked": false, "analysis_remaining": 3 })
+        json!({ "voted": 0, "total": 3, "analysis_unlocked": true, "analysis_remaining": 0 })
     );
     let id = json["statement"]["id"].as_str().unwrap();
     assert!(

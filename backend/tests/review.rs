@@ -165,6 +165,59 @@ async fn duplicates_are_not_saved_and_point_to_the_existing_statement() {
 }
 
 #[tokio::test]
+async fn authors_agree_with_their_saved_statements() {
+    let (state, fake) = setup().await;
+    let author_votes = |id: String| {
+        let pool = state.pool.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT v.vote_value FROM votes v
+                 JOIN statements s ON s.id = v.statement_id AND s.user_id = v.user_id
+                 WHERE s.id = $1",
+            )
+            .bind(id)
+            .fetch_all(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    // 保存した意見（承認・確認待ち）には、書いた人の賛成を入れる
+    for (answer, status) in [
+        (common::approved_reply(), "approved"),
+        (reply("ok", "unsure", "ok", 0, ""), "flagged"),
+    ] {
+        fake.push_json(answer);
+        let cookie = account_ready_to_post(&state.pool, &state, "t1").await;
+        let res = post(&state, &cookie, "夜の便も増やしてほしい").await;
+        assert_eq!(res.json["status"], status);
+        assert_eq!(
+            author_votes(res.json["id"].as_str().unwrap().to_owned()).await,
+            [1]
+        );
+    }
+    // 非公開には入れない
+    fake.push_json(reply("reject", "ok", "ok", 0, ""));
+    let cookie = account_ready_to_post(&state.pool, &state, "t1").await;
+    let res = post(&state, &cookie, "投稿").await;
+    assert_eq!(res.json["status"], "rejected");
+    assert!(
+        author_votes(res.json["id"].as_str().unwrap().to_owned())
+            .await
+            .is_empty()
+    );
+    // 似た意見は保存しないので、票も増えない
+    fake.push_json(reply("ok", "ok", "ok", 1, ""));
+    let cookie = account_ready_to_post(&state.pool, &state, "t1").await;
+    let before = count(&state.pool, "SELECT count(*) FROM votes").await;
+    let res = post(&state, &cookie, "通学の時間帯のバスを増やして").await;
+    assert_eq!(res.json["status"], "duplicate");
+    assert_eq!(
+        count(&state.pool, "SELECT count(*) FROM votes").await,
+        before
+    );
+}
+
+#[tokio::test]
 async fn ai_receives_the_topic_and_its_statements_but_no_ids() {
     let (state, fake) = setup().await;
     let cookie = account_ready_to_post(&state.pool, &state, "t1").await;

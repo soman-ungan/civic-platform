@@ -131,9 +131,9 @@ pub struct ResidencyRow {
 #[derive(Debug, Serialize)]
 #[serde(tag = "status", rename_all = "lowercase")]
 pub enum AnalysisView {
-    /// 未投票の意見が残っているので見せない（全体の傾向に投票が左右されないようにするため）
+    /// 未投票の最初の意見が残っているので見せない（全体の傾向に投票が左右されないようにするため）
     Locked {
-        /// 残りの未投票の意見の数
+        /// 残りの未投票の最初の意見の数
         remaining: i64,
         total: i64,
     },
@@ -454,7 +454,7 @@ pub async fn topic_analysis(
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
     super::ensure_topic(&state.pool, &municipality.id, &topic_id).await?;
 
-    // 決まった数に投票するまでは見せない（ルールは progress::Progress::analysis_unlocked）
+    // 最初の意見すべてに投票するまでは見せない（ルールは progress::Progress::analysis_unlocked）
     let p = progress::progress(&state.pool, &topic_id, user_id.as_deref()).await?;
     if !p.analysis_unlocked() {
         return Ok(Json(AnalysisView::Locked {
@@ -608,7 +608,8 @@ pub async fn municipality_consensus(
         let Some(p) = progress.get(&topic_id) else {
             continue;
         };
-        if p.total == 0 || !p.analysis_unlocked() {
+        // 投票していないトピックは出さない（最初の意見が無いトピックは、投票しなくても分析が開くため）
+        if p.voted == 0 || !p.analysis_unlocked() {
             continue;
         }
         let Some(Stored::Ready { result, .. }) = store::load(&state.pool, &topic_id).await? else {

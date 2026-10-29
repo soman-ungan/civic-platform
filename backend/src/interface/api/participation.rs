@@ -324,7 +324,7 @@ pub async fn post_statement(
         PostPermission::VotesRequired { remaining } => {
             return Err(ApiError::forbidden(
                 "votes_required",
-                format!("ほかの人の意見にあと{remaining}件投票すると、意見を投稿できます"),
+                format!("最初の意見にあと{remaining}件投票すると、意見を投稿できます"),
             ));
         }
         PostPermission::LimitReached => {
@@ -390,6 +390,19 @@ pub async fn post_statement(
     }
 
     moderation::save(&state.pool, &id, &review).await?;
+    // 書いた人は自分の意見に賛成したものとする（Polis と同じ。自分の意見が次の意見に出ず、立場が意見マップに入る）
+    if !matches!(review.verdict, Verdict::Rejected { .. }) {
+        sqlx::query(
+            "INSERT INTO votes (id, user_id, statement_id, vote_value, created_at)
+             VALUES ($1, $2, $3, 1, $4)",
+        )
+        .bind(new_id())
+        .bind(&participant.user_id)
+        .bind(&id)
+        .bind(now_iso())
+        .execute(&state.pool)
+        .await?;
+    }
     let (rejection, suggestion) = match &review.verdict {
         Verdict::Rejected { reason, suggestion } => (Some(reason.as_str()), suggestion.clone()),
         _ => (None, None),

@@ -13,8 +13,6 @@ use sqlx::SqlitePool;
 /// このまちとの関わり方（ADR 0002。市民を分けてよいのは、これだけ）
 pub const RESIDENCY_TYPES: [&str; 4] = ["resident", "neighbor", "commuter", "related"];
 
-/// 分析を見られるようになるまでに投票する数（最初の意見を含めて。意見がこれより少なければ全部。ADR 0005）
-pub const ANALYSIS_UNLOCK_VOTES: i64 = 15;
 /// 1人が1つのトピックに投稿できる意見の数（ADR 0005。市民提案のトピックの提案者は 6d で別に決める）
 pub const STATEMENTS_PER_TOPIC: i64 = 1;
 
@@ -30,21 +28,14 @@ pub struct Progress {
 }
 
 impl Progress {
-    /// 分析を見られるようになるまでに投票する数
-    fn required(&self) -> i64 {
-        ANALYSIS_UNLOCK_VOTES.min(self.total)
-    }
-
-    /// 分析を見られるようになるまでの残りの件数。
-    /// 最初の意見すべてと、合わせて `ANALYSIS_UNLOCK_VOTES` 件（意見が少なければ全部）に投票する（ADR 0005）。
-    /// 次の意見は最初の意見から出すので、残りはこの数で尽きる
+    /// 分析を見られるようになるまでの残りの件数: 未投票の最初の意見の数（ADR 0005）。
+    /// 市民の意見は数えない（増えるたびに分析が閉じないように。公開中に足す意見は最初の意見にならない）
     pub fn analysis_remaining(&self) -> i64 {
-        let seeds_left = self.seeds_total - self.seeds_voted;
-        seeds_left.max(self.required() - self.voted).max(0)
+        (self.seeds_total - self.seeds_voted).max(0)
     }
 
     /// 分析（意見マップ・グループ・合意点）を見られるか。
-    /// 全体の傾向を見る前に、自分の考えで投票してもらうため（最初の意見が増えれば、また投票が要る）
+    /// 全体の傾向を見る前に、最初の意見（議会での主張など）に自分の考えで投票してもらうため
     pub fn analysis_unlocked(&self) -> bool {
         self.analysis_remaining() == 0
     }
@@ -132,7 +123,7 @@ pub enum PostPermission {
     Allowed,
     /// パスキーの登録が要る
     RegistrationRequired,
-    /// 分析を見られるようになるまで投票する（残りの件数）。ほかの人の意見を読んでから書いてもらうため
+    /// 分析を見られるようになるまで（最初の意見すべてに）投票する（残りの件数）。ほかの人の意見を読んでから書いてもらうため
     VotesRequired {
         remaining: i64,
     },

@@ -11,7 +11,7 @@ export type Progress = {
   total: number;
   /** 分析を見られるか（ルールは backend の1か所。画面は写さない） */
   analysis_unlocked: boolean;
-  /** 分析を見られるようになるまでの残りの件数（最初の意見すべてと、合わせて15件） */
+  /** 分析を見られるようになるまでの残りの件数（未投票の最初の意見の数） */
   analysis_remaining: number;
 };
 
