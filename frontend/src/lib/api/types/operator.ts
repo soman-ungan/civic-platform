@@ -23,6 +23,8 @@ export type OperatorStatement = {
 export type OperatorTopic = {
   id: string;
   status: "draft" | "published" | "archived";
+  /** 会議録から / 市民の提案（提案した人は返らない） */
+  source_type: "assembly" | "citizen";
   title: string;
   description: string;
   created_at: string;
