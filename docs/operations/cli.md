@@ -71,6 +71,8 @@ Claude API を呼ぶのは、段階1では **`extract` だけ**です（`fetch` 
 
 使った量と推定の費用は、DB の `llm_usage` に記録されます。
 
+使うモデルは `MODERATION_MODEL`（意見の審査）・`TAGGING_MODEL`（タグ付け）・`EXTRACTION_MODEL`（資料の読み取り）で変えられます。既定は `.env.example` にあります。
+
 ## コマンドの一覧
 
 「無」は何もせずに通す組み合わせです。
