@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-mod common;
+//! 参加の API: 関わり方（地区は集めない。ADR 0002）、投票（あとから変えられない）、次の意見、
+//! 投稿にはパスキーの登録が要ること、不正なリクエストで参加者を作らないこと
 
+use crate::common::{assert_no_key, request};
 use axum::http::StatusCode;
 use backend::interface::api::AppState;
-use common::{assert_no_key, request};
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
 
@@ -12,8 +13,8 @@ const T1: &str = "/api/municipalities/otawara/topics/t1";
 
 /// fixture に加えて、t1 に承認済みの意見 a1〜a3 と未承認の p1、t2 に承認済みの b1 を入れる
 async fn setup() -> (SqlitePool, AppState) {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     sqlx::raw_sql(
         "
         INSERT INTO statements (id, topic_id, body, status, created_at) VALUES
@@ -27,7 +28,7 @@ async fn setup() -> (SqlitePool, AppState) {
     .execute(&pool)
     .await
     .unwrap();
-    let state = common::test_state(pool.clone());
+    let state = crate::common::test_state(pool.clone());
     (pool, state)
 }
 
@@ -50,7 +51,7 @@ async fn vote(
     cookie: Option<&str>,
     statement_id: &str,
     value: i64,
-) -> common::TestResponse {
+) -> crate::common::TestResponse {
     request(
         state,
         "POST",
@@ -207,7 +208,7 @@ async fn vote_value_is_validated() {
 #[tokio::test]
 async fn vote_on_pending_or_other_topic_statement_is_404() {
     let (pool, state) = setup().await;
-    common::activate_second_municipality(&pool).await;
+    crate::common::activate_second_municipality(&pool).await;
     let cookie = registered(&state).await;
 
     // 未承認の意見
@@ -235,7 +236,7 @@ async fn vote_on_pending_or_other_topic_statement_is_404() {
 #[tokio::test]
 async fn relation_is_per_municipality() {
     let (pool, state) = setup().await;
-    common::activate_second_municipality(&pool).await;
+    crate::common::activate_second_municipality(&pool).await;
     let cookie = registered(&state).await;
 
     // 大田原で登録しただけでは、那須塩原では投票できない
@@ -306,7 +307,7 @@ async fn next_statement_skips_voted_and_ends_with_null() {
 #[tokio::test]
 async fn next_statement_of_other_municipality_topic_is_404() {
     let (pool, state) = setup().await;
-    common::activate_second_municipality(&pool).await;
+    crate::common::activate_second_municipality(&pool).await;
     let res = request(
         &state,
         "GET",
@@ -344,7 +345,7 @@ async fn posting_requires_a_passkey_but_voting_does_not() {
     assert_eq!(count, 0);
 }
 
-async fn post(state: &AppState, cookie: Option<&str>, body: &str) -> common::TestResponse {
+async fn post(state: &AppState, cookie: Option<&str>, body: &str) -> crate::common::TestResponse {
     request(
         state,
         "POST",
@@ -363,7 +364,7 @@ async fn posted_statement_is_auto_approved_and_appears_in_cards() {
         vote(&state, Some(&cookie), id, 1).await;
     }
 
-    let account = common::account_ready_to_post(&pool, &state, "t1").await;
+    let account = crate::common::account_ready_to_post(&pool, &state, "t1").await;
     let res = post(&state, Some(&account), "  公園をもっと増やしてほしい  ").await;
     assert_eq!(res.status, StatusCode::CREATED);
     assert_eq!(res.json["status"], "approved");
@@ -389,13 +390,13 @@ async fn statement_length_is_counted_in_characters() {
     let (pool, state) = setup().await;
     // 絵文字は UTF-8 で 4 バイトだが 1 文字として数える（DB の length() と一致）
     for body in ["😀".repeat(140), "あ".repeat(140)] {
-        let account = common::account_ready_to_post(&pool, &state, "t1").await;
+        let account = crate::common::account_ready_to_post(&pool, &state, "t1").await;
         assert_eq!(
             post(&state, Some(&account), &body).await.status,
             StatusCode::CREATED
         );
     }
-    let account = common::account_ready_to_post(&pool, &state, "t1").await;
+    let account = crate::common::account_ready_to_post(&pool, &state, "t1").await;
 
     let too_long = post(&state, Some(&account), &"😀".repeat(141)).await;
     assert_eq!(too_long.status, StatusCode::UNPROCESSABLE_ENTITY);
@@ -410,7 +411,7 @@ async fn statement_length_is_counted_in_characters() {
 #[tokio::test]
 async fn statement_to_other_municipality_topic_is_404() {
     let (pool, state) = setup().await;
-    common::activate_second_municipality(&pool).await;
+    crate::common::activate_second_municipality(&pool).await;
     let res = request(
         &state,
         "POST",

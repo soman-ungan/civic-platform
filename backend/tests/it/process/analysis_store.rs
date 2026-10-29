@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-mod common;
+//! 分析の計算と保存（`process::analysis::store`）: 2つのグループに分かれる投票を保存し、入力が変わらなければ計算し直さない、
+//! 投票・判定・アカウントのまとめで計算し直す、人数が足りなければ insufficient
 
 use backend::process::analysis::store::{RunOutcome, Stored, load, run_all, run_topic};
 
-use common::{insert_vote, seed_polarized as polarized};
+use crate::common::{insert_vote, seed_polarized as polarized};
 
 #[tokio::test]
 async fn computes_and_stores_two_groups() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     polarized(&pool).await;
 
     assert_eq!(
@@ -36,7 +37,7 @@ async fn computes_and_stores_two_groups() {
 
 #[tokio::test]
 async fn unchanged_input_is_not_recomputed_and_new_votes_carry_state() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     polarized(&pool).await;
 
     assert_eq!(
@@ -66,7 +67,7 @@ async fn unchanged_input_is_not_recomputed_and_new_votes_carry_state() {
 
 #[tokio::test]
 async fn moderation_change_triggers_recompute() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     polarized(&pool).await;
     run_topic(&pool, "t1", false).await.unwrap();
 
@@ -86,8 +87,8 @@ async fn moderation_change_triggers_recompute() {
 
 #[tokio::test]
 async fn insufficient_data_is_stored() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     // fixture には意見 s1（未承認）があるだけで、投票はない
     assert_eq!(
         run_topic(&pool, "t1", false).await.unwrap(),
@@ -101,7 +102,7 @@ async fn insufficient_data_is_stored() {
 
 #[tokio::test]
 async fn run_all_only_computes_changed_topics() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     polarized(&pool).await;
     // t1 と t2 の2トピック
     assert_eq!(run_all(&pool, false).await.unwrap(), 2);
@@ -110,8 +111,8 @@ async fn run_all_only_computes_changed_topics() {
 
 #[tokio::test]
 async fn insufficient_then_enough_votes_is_computed() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     run_topic(&pool, "t1", false).await.unwrap();
     assert!(matches!(
         load(&pool, "t1").await.unwrap(),
@@ -155,7 +156,7 @@ async fn insufficient_then_enough_votes_is_computed() {
 
 #[tokio::test]
 async fn merging_an_anonymous_voter_into_an_account_triggers_recompute() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     polarized(&pool).await;
     run_topic(&pool, "t1", false).await.unwrap();
 

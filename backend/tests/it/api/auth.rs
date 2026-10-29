@@ -8,12 +8,10 @@
 //! - 登録: 端末の側に持つ形を求める指示を外してから渡す（サーバーは登録の確認でこの指示を見ない）
 //! - ログイン: 登録したパスキーを指定してから渡し、応答に利用者の ID を入れる（利用者の ID は署名の対象ではない）
 
-mod common;
-
+use crate::common::{TestResponse, request};
 use axum::http::StatusCode;
 use backend::interface::api::AppState;
 use backend::records::accounts;
-use common::{TestResponse, request};
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
 use webauthn_authenticator_rs::WebauthnAuthenticator;
@@ -26,8 +24,8 @@ const ORIGIN: &str = "http://localhost:3000";
 const OTAWARA: &str = "/api/municipalities/otawara";
 
 async fn setup() -> (SqlitePool, AppState) {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     sqlx::raw_sql(
         "INSERT INTO statements (id, topic_id, body, status, created_at) VALUES
             ('a1', 't1', '承認済み1', 'approved', '2026-10-26T00:00:00Z'),
@@ -36,7 +34,7 @@ async fn setup() -> (SqlitePool, AppState) {
     .execute(&pool)
     .await
     .unwrap();
-    let state = common::test_state(pool.clone());
+    let state = crate::common::test_state(pool.clone());
     (pool, state)
 }
 
@@ -225,8 +223,8 @@ async fn registering_keeps_votes_and_allows_posting() {
     );
     assert_eq!(res.json, json!({"registered": true, "operator": false}));
     // 利用者の ID はどこにも返さない
-    common::assert_no_key(&res.json, "id");
-    common::assert_no_key(&me(&state, Some(&cookie)).await, "user_id");
+    crate::common::assert_no_key(&res.json, "id");
+    crate::common::assert_no_key(&me(&state, Some(&cookie)).await, "user_id");
 
     // 投票はそのまま引き継がれ、分析を見られるまで（最初の意見すべてに）投票すると投稿できる
     let account = only_registered_user(&pool).await;

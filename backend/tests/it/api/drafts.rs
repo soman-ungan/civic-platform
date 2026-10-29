@@ -2,13 +2,11 @@
 
 //! 下書きのトピックは、運営者が公開するまで API のどこからも見えない。
 
-mod common;
-
+use crate::common::{request, seed_polarized, test_pool, test_state};
 use axum::http::StatusCode;
 use backend::process::analysis::store::run_all;
 use backend::records::topics;
 use backend::shared::status::Publication;
-use common::{request, seed_polarized, test_pool, test_state};
 use serde_json::json;
 
 const T1: &str = "/api/municipalities/otawara/topics/t1";

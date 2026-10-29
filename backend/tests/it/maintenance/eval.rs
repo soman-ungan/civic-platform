@@ -2,8 +2,6 @@
 
 //! 評価用データ（evals/*.jsonl）の形式と、評価の集計。実際の API は呼ばない。
 
-mod common;
-
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -15,7 +13,7 @@ use serde_json::json;
 use sqlx::SqlitePool;
 
 async fn seeded_pool() -> SqlitePool {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     backend::maintenance::seed::run(&pool, Path::new("../data/seeds"))
         .await
         .unwrap();
@@ -109,8 +107,8 @@ async fn tagging_cases_use_vocabulary_and_own_districts() {
 async fn moderation_report_counts_misses() {
     let pool = seeded_pool().await;
     let (llm, fake) = Llm::fake(1.0);
-    fake.push_json(common::approved_reply());
-    fake.push_json(common::approved_reply());
+    fake.push_json(crate::common::approved_reply());
+    fake.push_json(crate::common::approved_reply());
     fake.push_reply("refusal", None);
     let cases = vec![
         case("a", "approved"),

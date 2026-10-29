@@ -3,8 +3,6 @@
 //! LLM の共通基盤: 応答の解釈、使用量の記録、1日の上限、HTTP の呼び出し。
 //! 実際の API は呼ばない（偽の LLM と、手元の偽のサーバーを使う）。
 
-mod common;
-
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -38,7 +36,7 @@ async fn usage_rows(pool: &SqlitePool) -> Vec<(String, String, i64)> {
 
 #[tokio::test]
 async fn returns_json_and_records_usage() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     let (llm, fake) = Llm::fake(1.0);
     fake.push_json(json!({"verdict": "approved"}));
 
@@ -54,7 +52,7 @@ async fn returns_json_and_records_usage() {
 
 #[tokio::test]
 async fn refusal_and_max_tokens_are_errors_but_recorded() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     let (llm, fake) = Llm::fake(1.0);
     fake.push_reply("refusal", None);
     fake.push_reply("max_tokens", Some("{\"verdict\":".into()));
@@ -79,7 +77,7 @@ async fn refusal_and_max_tokens_are_errors_but_recorded() {
 
 #[tokio::test]
 async fn transport_error_is_not_recorded() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     let (llm, fake) = Llm::fake(1.0);
     fake.push_transport_error("timeout");
     assert!(matches!(
@@ -91,7 +89,7 @@ async fn transport_error_is_not_recorded() {
 
 #[tokio::test]
 async fn stops_calling_after_daily_budget() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     // 上限 0.005 ドル。1回 0.003 ドルなので、2回目までは呼び、3回目は呼ばない
     let (llm, fake) = Llm::fake(0.005);
     for _ in 0..3 {
@@ -146,7 +144,7 @@ async fn mock_api(fail_first: usize) -> (String, Arc<AtomicUsize>) {
 
 #[tokio::test]
 async fn http_client_sends_headers_and_retries_once() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     let (url, calls) = mock_api(1).await;
     let client = AnthropicClient::with_base_url("test-key".into(), url).unwrap();
     let llm = Llm::anthropic(client, 1.0);
@@ -158,7 +156,7 @@ async fn http_client_sends_headers_and_retries_once() {
 
 #[tokio::test]
 async fn http_client_gives_up_after_retry() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     let (url, calls) = mock_api(usize::MAX).await;
     let client = AnthropicClient::with_base_url("test-key".into(), url).unwrap();
     let llm = Llm::anthropic(client, 1.0);

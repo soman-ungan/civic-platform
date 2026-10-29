@@ -4,6 +4,9 @@
 //! - その対象には要らない処理が、何もせずに終了コード 0 で通ること
 //! - 予算の fetch → import で、取得の記録が documents に入り、置き場の原本が消えること
 
+// 共通の部品は統合テスト（it/）と同じものを使う。cli では使わない関数もある
+#[allow(dead_code)]
+#[path = "it/common.rs"]
 mod common;
 
 use std::path::{Path, PathBuf};

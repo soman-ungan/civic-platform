@@ -3,8 +3,6 @@
 //! 決算カードの取得と取り込みの流れ全体（一覧 → 年度のページ → Excel → 置き場 → 保存 → 原本を消す）。
 //! 実物のページと Excel（data/private/soumu/）を手元のサーバーから返して確かめる
 
-mod common;
-
 use axum::Router;
 use axum::http::header;
 use axum::routing::get;
@@ -93,8 +91,8 @@ async fn collects_real_card_into_db() {
         return;
     };
     let base = serve(index, year, excel).await;
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     add_source(&pool, "otawara", "092100", &base).await;
     add_source(&pool, "nasushiobara", "092134", &base).await;
     let options = Options {
@@ -180,8 +178,8 @@ async fn collects_real_card_into_db() {
 
 #[tokio::test]
 async fn sources_without_terms_record_do_not_run() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     sqlx::query(
         "INSERT INTO collector_sources (id, municipality_id, kind, adapter, base_url, config, is_enabled)
          VALUES ('s', '092100', 'settlement_card', 'soumu_settlement_card', 'http://127.0.0.1:9/', '{}', TRUE)",

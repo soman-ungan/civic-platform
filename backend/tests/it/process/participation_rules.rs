@@ -3,12 +3,10 @@
 //! 参加の決まり（フェーズ6b。ADR 0005）: 分析を見られる条件、次の意見は最初の意見から、
 //! 投稿は分析を見られてから・1トピック1件まで。ルールは `process::progress`
 
-mod common;
-
+use crate::common::{cookie_for, insert_vote, request, seed_fixture, test_pool, test_state};
 use axum::http::StatusCode;
 use backend::interface::api::AppState;
 use backend::process::progress::Progress;
-use common::{cookie_for, insert_vote, request, seed_fixture, test_pool, test_state};
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
 
@@ -74,7 +72,7 @@ async fn next(state: &AppState, cookie: &str) -> Value {
     .json
 }
 
-async fn post(state: &AppState, cookie: &str, body: &str) -> common::TestResponse {
+async fn post(state: &AppState, cookie: &str, body: &str) -> crate::common::TestResponse {
     request(
         state,
         "POST",
@@ -154,7 +152,7 @@ async fn seeds_come_first() {
     let json = next(&state, &cookie).await;
     assert!(json["statement"]["id"].as_str().unwrap().starts_with('c'));
     // API では最初の意見かどうかを返さない
-    common::assert_no_key(&json, "is_seed");
+    crate::common::assert_no_key(&json, "is_seed");
 }
 
 #[tokio::test]

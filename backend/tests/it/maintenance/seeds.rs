@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-mod common;
+//! seed（`data/seeds/`・`data/dev-seeds/`）: マイグレーションに当たること、何度入れても同じこと、サンプルで分析が出ること
 
 use std::path::Path;
 
@@ -20,7 +20,7 @@ async fn count(pool: &SqlitePool, table: &str) -> i64 {
 
 #[tokio::test]
 async fn seeds_apply_to_schema() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     let files = seed::run(&pool, seeds_dir()).await.unwrap();
     assert!(!files.is_empty());
 
@@ -50,7 +50,7 @@ async fn seeds_apply_to_schema() {
 
 #[tokio::test]
 async fn seeds_are_idempotent() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     seed::run(&pool, seeds_dir()).await.unwrap();
     seed::run(&pool, seeds_dir()).await.unwrap();
 
@@ -65,7 +65,7 @@ fn dev_seeds_dir() -> &'static Path {
 
 #[tokio::test]
 async fn dev_seeds_apply_after_master_seeds() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     seed::run(&pool, seeds_dir()).await.unwrap();
     seed::run(&pool, dev_seeds_dir()).await.unwrap();
     // 冪等性
@@ -112,12 +112,12 @@ async fn dev_seeds_are_enough_for_analysis() {
     use axum::http::StatusCode;
     use backend::process::analysis::store::run_all;
 
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     seed::run(&pool, seeds_dir()).await.unwrap();
     seed::run(&pool, dev_seeds_dir()).await.unwrap();
     assert_eq!(run_all(&pool, false).await.unwrap(), 3);
 
-    let state = common::test_state(pool.clone());
+    let state = crate::common::test_state(pool.clone());
     let topics: Vec<String> = sqlx::query_scalar("SELECT id FROM topics ORDER BY id")
         .fetch_all(&pool)
         .await
@@ -136,8 +136,8 @@ async fn dev_seeds_are_enough_for_analysis() {
         .fetch_one(&pool)
         .await
         .unwrap();
-        let cookie = common::cookie_for(&state, &voter);
-        let res = common::request(
+        let cookie = crate::common::cookie_for(&state, &voter);
+        let res = crate::common::request(
             &state,
             "GET",
             &format!("/api/municipalities/otawara/topics/{topic}/analysis"),
@@ -162,11 +162,11 @@ async fn dev_seeds_are_enough_for_analysis() {
             !j["residency"].as_array().unwrap().is_empty(),
             "{topic}: 居住地属性の集計がある"
         );
-        common::assert_no_key(j, "user_id");
+        crate::common::assert_no_key(j, "user_id");
     }
 
     // タイムラインのピン留めにも出る
-    let pins = common::request(
+    let pins = crate::common::request(
         &state,
         "GET",
         "/api/municipalities/otawara/consensus",

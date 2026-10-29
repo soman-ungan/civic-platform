@@ -9,7 +9,6 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 /// マイグレーション済みのインメモリ DB を用意する。
 /// インメモリ DB は接続ごとに別物になるので、接続数を 1 に固定する。
-#[allow(dead_code)] // テストクレートごとに使う関数が異なるため
 pub async fn test_pool() -> SqlitePool {
     let options = SqliteConnectOptions::from_str("sqlite::memory:")
         .unwrap()
@@ -26,7 +25,6 @@ pub async fn test_pool() -> SqlitePool {
 /// テスト用の署名鍵（32 バイト以上）
 pub const TEST_SECRET: &str = "test-secret-test-secret-test-secret-0123456789";
 
-#[allow(dead_code)] // テストクレートごとに使う関数が異なるため
 pub fn test_state(pool: SqlitePool) -> AppState {
     AppState::new(pool, TEST_SECRET, false).unwrap()
 }
@@ -36,7 +34,6 @@ pub fn test_state(pool: SqlitePool) -> AppState {
 /// - 092100 大田原市（地区 092100-kurobane, トピック t1）
 /// - 092134 那須塩原市（地区 092134-shiobara, トピック t2）
 /// - ユーザー u1, u2 / ステートメント s1（t1 内）
-#[allow(dead_code)] // テストクレートごとに使う関数が異なるため
 pub async fn seed_fixture(pool: &SqlitePool) {
     sqlx::raw_sql(
         "
@@ -63,7 +60,6 @@ pub async fn seed_fixture(pool: &SqlitePool) {
 }
 
 /// 那須塩原市も公開状態にする（自治体の取り違えを試すテスト用）
-#[allow(dead_code)]
 pub async fn activate_second_municipality(pool: &SqlitePool) {
     sqlx::query("UPDATE municipalities SET is_active = TRUE WHERE id = '092134'")
         .execute(pool)
@@ -71,7 +67,6 @@ pub async fn activate_second_municipality(pool: &SqlitePool) {
         .unwrap();
 }
 
-#[allow(dead_code)]
 pub struct TestResponse {
     pub status: axum::http::StatusCode,
     pub json: serde_json::Value,
@@ -80,7 +75,6 @@ pub struct TestResponse {
 }
 
 /// アプリにリクエストを1つ送る。`body` があれば JSON として送る。
-#[allow(dead_code)]
 pub async fn request(
     state: &AppState,
     method: &str,
@@ -133,7 +127,6 @@ pub async fn request(
 }
 
 /// JSON のどの階層にも `key` が無いことを確かめる（投稿者情報の漏れ防止）
-#[allow(dead_code)]
 pub fn assert_no_key(value: &serde_json::Value, key: &str) {
     match value {
         serde_json::Value::Object(map) => {
@@ -152,7 +145,6 @@ const POLARIZED_NOW: &str = "2026-10-26T00:00:00.000Z";
 
 /// fixture に加えて、t1 に承認済みの意見 a0〜a5 と「全員が賛成する」common を入れ、
 /// 賛成派 10 人（v00〜v09）と反対派 10 人（v10〜v19）が投票する
-#[allow(dead_code)]
 pub async fn seed_polarized(pool: &SqlitePool) {
     seed_fixture(pool).await;
     for i in 0..6 {
@@ -193,7 +185,6 @@ pub async fn seed_polarized(pool: &SqlitePool) {
     }
 }
 
-#[allow(dead_code)]
 pub async fn insert_vote(pool: &SqlitePool, uid: &str, sid: &str, value: i64, at: &str) {
     sqlx::query(
         "INSERT INTO votes (id, user_id, statement_id, vote_value, created_at) VALUES ($1, $2, $3, $4, $5)",
@@ -209,7 +200,6 @@ pub async fn insert_vote(pool: &SqlitePool, uid: &str, sid: &str, value: i64, at
 }
 
 /// 既存のユーザーの、署名付き参加者 Cookie（`name=value`）を作る
-#[allow(dead_code)]
 pub fn cookie_for(state: &AppState, user_id: &str) -> String {
     let mut jar = cookie::CookieJar::new();
     jar.signed_mut(&state.cookie_key).add(cookie::Cookie::new(
@@ -224,7 +214,6 @@ pub fn cookie_for(state: &AppState, user_id: &str) -> String {
 
 /// パスキーを登録し、トピックの承認済みの意見すべてに投票した（分析を見られ、投稿できる）参加者の Cookie。
 /// 投票は DB に直接入れる（関わり方の登録を省くため）
-#[allow(dead_code)]
 pub async fn account_ready_to_post(pool: &SqlitePool, state: &AppState, topic_id: &str) -> String {
     let user_id = backend::shared::util::new_id();
     sqlx::query("INSERT INTO users (id, created_at, registered_at) VALUES ($1, $2, $2)")
@@ -247,22 +236,7 @@ pub async fn account_ready_to_post(pool: &SqlitePool, state: &AppState, topic_id
     cookie_for(state, &user_id)
 }
 
-/// パスキーを登録済みの参加者を作り、その Cookie を返す（投稿にはパスキーの登録が要る。ADR 0006）。
-/// パスキーそのものは作らず、登録済みの印だけを付ける（パスキーのやりとりは tests/auth.rs で確かめる）
-#[allow(dead_code)]
-pub async fn registered_account(pool: &SqlitePool, state: &AppState) -> String {
-    let id = backend::shared::util::new_id();
-    sqlx::query("INSERT INTO users (id, created_at, registered_at) VALUES ($1, $2, $2)")
-        .bind(&id)
-        .bind("2026-10-28T00:00:00Z")
-        .execute(pool)
-        .await
-        .unwrap();
-    cookie_for(state, &id)
-}
-
 /// 偽の LLM が返す、意見の審査の答え（ADR 0007 の4つの観点）
-#[allow(dead_code)]
 pub fn review_reply(
     harm: &str,
     person: &str,
@@ -280,7 +254,6 @@ pub fn review_reply(
 }
 
 /// 偽の LLM が返す「公開」の答え
-#[allow(dead_code)]
 pub fn approved_reply() -> serde_json::Value {
     review_reply("ok", "ok", "ok", 0)
 }

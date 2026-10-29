@@ -2,7 +2,7 @@
 
 //! 状態の値（DB の CHECK と同じ文字列）。Rust のコードではこの型で扱い、文字列の書き間違いを防ぐ。
 //! SQL の絞り込み（`WHERE status = 'approved'` など）は読みやすさのため文字列のまま書き、
-//! 値が CHECK とずれていないことはテスト（`tests/schema.rs`）で確かめる
+//! 値が CHECK とずれていないことはテスト（`tests/it/shared/schema.rs`）で確かめる
 
 use serde::Serialize;
 

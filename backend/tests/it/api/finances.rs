@@ -2,15 +2,13 @@
 
 //! まちのお金の API（決算カード）
 
-mod common;
-
+use crate::common::request;
 use axum::http::StatusCode;
 use backend::interface::api::AppState;
-use common::request;
 
 async fn setup() -> (sqlx::SqlitePool, AppState) {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     // 2自治体・2年度。那須塩原市の値は、取り違えたら分かるように桁を変える
     sqlx::raw_sql(
         "
@@ -43,11 +41,11 @@ async fn setup() -> (sqlx::SqlitePool, AppState) {
     .execute(&pool)
     .await
     .unwrap();
-    let state = common::test_state(pool.clone());
+    let state = crate::common::test_state(pool.clone());
     (pool, state)
 }
 
-async fn get(state: &AppState, path: &str) -> common::TestResponse {
+async fn get(state: &AppState, path: &str) -> crate::common::TestResponse {
     request(state, "GET", path, None, None).await
 }
 
@@ -95,7 +93,7 @@ async fn other_years_and_municipalities() {
     // 公開前の自治体は 404。公開すると、その自治体の数字だけが返る
     let res = get(&state, "/api/municipalities/nasushiobara/finances").await;
     assert_eq!(res.status, StatusCode::NOT_FOUND);
-    common::activate_second_municipality(&pool).await;
+    crate::common::activate_second_municipality(&pool).await;
     let res = get(&state, "/api/municipalities/nasushiobara/finances").await;
     assert_eq!(res.json["settlement"]["expenditure_total"], 99000);
     assert_eq!(res.json["years"].as_array().unwrap().len(), 1);
@@ -115,9 +113,9 @@ async fn topic_detail_shows_related_items() {
 
 #[tokio::test]
 async fn no_finances_without_data() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
-    let state = common::test_state(pool);
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
+    let state = crate::common::test_state(pool);
     assert_eq!(
         get(&state, "/api/municipalities/otawara/finances")
             .await

@@ -2,13 +2,11 @@
 
 //! トピックの自動タグ付け。偽の LLM で確かめる（実際の API は呼ばない）。
 
-mod common;
-
 use std::sync::Arc;
 
+use crate::common::{seed_fixture, test_pool};
 use backend::process::tagging::{Outcome, Tagger, run_untagged, tag_topic};
 use backend::shared::llm::{Fake, Llm};
-use common::{seed_fixture, test_pool};
 use serde_json::json;
 use sqlx::SqlitePool;
 

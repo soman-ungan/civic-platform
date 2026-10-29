@@ -2,8 +2,6 @@
 
 //! 取得の共通処理（robots.txt・間隔・条件付き取得・大きさの上限）を、手元の HTTP サーバーで確かめる
 
-mod common;
-
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -78,8 +76,8 @@ async fn serve() -> (String, Log) {
 }
 
 async fn pool_with_source() -> sqlx::SqlitePool {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     sqlx::query(
         "INSERT INTO collector_sources (id, municipality_id, kind, adapter, base_url)
          VALUES ('src1', '092100', 'settlement_card', 'test', 'http://localhost/')",

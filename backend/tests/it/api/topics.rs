@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-mod common;
+//! 自治体とトピックの API: 公開中の自治体だけ、自治体で絞る（別の自治体のものは 404）、
+//! 承認済みの意見と投票した人の数、タグの絞り込み、投稿者の ID を返さない、参加状態
 
+use crate::common::{assert_no_key, request};
 use axum::http::StatusCode;
 use backend::interface::api::AppState;
-use common::{assert_no_key, request};
 use serde_json::json;
 
 async fn setup() -> (sqlx::SqlitePool, AppState) {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
-    let state = common::test_state(pool.clone());
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
+    let state = crate::common::test_state(pool.clone());
     (pool, state)
 }
 
-async fn get(state: &AppState, path: &str) -> common::TestResponse {
+async fn get(state: &AppState, path: &str) -> crate::common::TestResponse {
     request(state, "GET", path, None, None).await
 }
 
@@ -28,7 +29,7 @@ async fn lists_only_active_municipalities() {
         json!([{ "id": "092100", "slug": "otawara", "name": "大田原市", "prefecture_name": "栃木県" }])
     );
 
-    common::activate_second_municipality(&pool).await;
+    crate::common::activate_second_municipality(&pool).await;
     let res = get(&state, "/api/municipalities").await;
     assert_eq!(res.json.as_array().unwrap().len(), 2);
 }
@@ -36,7 +37,7 @@ async fn lists_only_active_municipalities() {
 #[tokio::test]
 async fn municipality_detail_has_only_its_districts() {
     let (pool, state) = setup().await;
-    common::activate_second_municipality(&pool).await;
+    crate::common::activate_second_municipality(&pool).await;
 
     let res = get(&state, "/api/municipalities/otawara").await;
     assert_eq!(res.status, StatusCode::OK);
@@ -65,7 +66,7 @@ async fn inactive_or_unknown_municipality_is_404() {
 #[tokio::test]
 async fn topic_list_is_scoped_to_municipality() {
     let (pool, state) = setup().await;
-    common::activate_second_municipality(&pool).await;
+    crate::common::activate_second_municipality(&pool).await;
 
     let otawara = get(&state, "/api/municipalities/otawara/topics").await;
     let ids: Vec<&str> = otawara.json["topics"]
@@ -84,7 +85,7 @@ async fn topic_list_is_scoped_to_municipality() {
 #[tokio::test]
 async fn topic_of_other_municipality_is_404() {
     let (pool, state) = setup().await;
-    common::activate_second_municipality(&pool).await;
+    crate::common::activate_second_municipality(&pool).await;
 
     // 大田原市の URL で那須塩原市のトピックを指定する
     let res = get(&state, "/api/municipalities/otawara/topics/t2").await;
