@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-mod common;
+//! 参加者の識別（署名付き Cookie `cp_uid`）: 初めて書き込むときに作る、改ざん・別の鍵の Cookie は無いものとみなす、
+//! 読むだけでは作らない、Secure 属性
 
 use axum::Router;
 use axum::body::Body;
@@ -79,8 +80,8 @@ async fn user_count(pool: &SqlitePool) -> i64 {
 
 #[tokio::test]
 async fn first_write_creates_user_and_sets_cookie() {
-    let pool = common::test_pool().await;
-    let state = common::test_state(pool.clone());
+    let pool = crate::common::test_pool().await;
+    let state = crate::common::test_state(pool.clone());
 
     let res = send(&state, "POST", "/write", None).await;
     assert_eq!(res.status, StatusCode::OK);
@@ -98,8 +99,8 @@ async fn first_write_creates_user_and_sets_cookie() {
 
 #[tokio::test]
 async fn valid_cookie_reuses_user() {
-    let pool = common::test_pool().await;
-    let state = common::test_state(pool.clone());
+    let pool = crate::common::test_pool().await;
+    let state = crate::common::test_state(pool.clone());
 
     let first = send(&state, "POST", "/write", None).await;
     let cookie = cookie_pair(first.set_cookie.as_deref().unwrap()).to_owned();
@@ -115,8 +116,8 @@ async fn valid_cookie_reuses_user() {
 
 #[tokio::test]
 async fn tampered_cookie_is_treated_as_absent() {
-    let pool = common::test_pool().await;
-    let state = common::test_state(pool.clone());
+    let pool = crate::common::test_pool().await;
+    let state = crate::common::test_state(pool.clone());
 
     let first = send(&state, "POST", "/write", None).await;
     // 署名部分を残したまま ID を別の値に差し替える
@@ -136,8 +137,8 @@ async fn tampered_cookie_is_treated_as_absent() {
 
 #[tokio::test]
 async fn cookie_signed_with_other_key_is_rejected() {
-    let pool = common::test_pool().await;
-    let state = common::test_state(pool.clone());
+    let pool = crate::common::test_pool().await;
+    let state = crate::common::test_state(pool.clone());
     let other = AppState::new(
         pool.clone(),
         "another-secret-another-secret-0123456789",
@@ -154,8 +155,8 @@ async fn cookie_signed_with_other_key_is_rejected() {
 
 #[tokio::test]
 async fn read_does_not_create_user() {
-    let pool = common::test_pool().await;
-    let state = common::test_state(pool.clone());
+    let pool = crate::common::test_pool().await;
+    let state = crate::common::test_state(pool.clone());
 
     let res = send(&state, "GET", "/read", None).await;
     assert_eq!(res.body, "none");
@@ -165,8 +166,8 @@ async fn read_does_not_create_user() {
 
 #[tokio::test]
 async fn secure_flag_follows_config() {
-    let pool = common::test_pool().await;
-    let state = AppState::new(pool, common::TEST_SECRET, true).unwrap();
+    let pool = crate::common::test_pool().await;
+    let state = AppState::new(pool, crate::common::TEST_SECRET, true).unwrap();
 
     let res = send(&state, "POST", "/write", None).await;
     assert!(res.set_cookie.unwrap().contains("Secure"));

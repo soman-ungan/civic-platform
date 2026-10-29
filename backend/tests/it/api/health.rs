@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-mod common;
+//! ヘルスチェック（DB 込み）、知らない経路の JSON の 404、短すぎる `SESSION_SECRET` で起動しないこと
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -11,8 +11,8 @@ use tower::ServiceExt;
 
 #[tokio::test]
 async fn health_returns_ok_with_db() {
-    let pool = common::test_pool().await;
-    let res = app(common::test_state(pool))
+    let pool = crate::common::test_pool().await;
+    let res = app(crate::common::test_state(pool))
         .oneshot(Request::get("/api/health").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -25,9 +25,9 @@ async fn health_returns_ok_with_db() {
 
 #[tokio::test]
 async fn health_returns_503_when_db_closed() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     pool.close().await;
-    let res = app(common::test_state(pool))
+    let res = app(crate::common::test_state(pool))
         .oneshot(Request::get("/api/health").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -37,8 +37,8 @@ async fn health_returns_503_when_db_closed() {
 
 #[tokio::test]
 async fn unknown_api_route_returns_json_404() {
-    let pool = common::test_pool().await;
-    let res = app(common::test_state(pool))
+    let pool = crate::common::test_pool().await;
+    let res = app(crate::common::test_state(pool))
         .oneshot(Request::get("/api/nope").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -51,6 +51,6 @@ async fn unknown_api_route_returns_json_404() {
 
 #[tokio::test]
 async fn short_session_secret_is_rejected() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     assert!(backend::interface::api::AppState::new(pool, "too-short", false).is_err());
 }

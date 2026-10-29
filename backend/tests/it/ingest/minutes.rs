@@ -2,15 +2,13 @@
 
 //! 会議録の手動取り込み。架空の会議録と偽の LLM で確かめる（実際の API は呼ばない）。
 
-mod common;
-
 use std::sync::Arc;
 
+use crate::common::{seed_fixture, test_pool};
 use backend::ingest::extraction::Extraction;
 use backend::ingest::minutes::{ADDITION_NOTE, Input, Outcome, import, prepare};
 use backend::process::moderation::Moderation;
 use backend::shared::llm::{Fake, Llm};
-use common::{seed_fixture, test_pool};
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
 
@@ -93,7 +91,7 @@ fn extraction_reply() -> Value {
 }
 
 fn approve() -> Value {
-    common::approved_reply()
+    crate::common::approved_reply()
 }
 
 #[tokio::test]
@@ -143,7 +141,7 @@ async fn imports_checked_topics_as_drafts() {
     let (pool, llm, fake, moderation) = setup(true).await;
     fake.push_json(extraction_reply());
     // 確かめたあとに残る意見3件をモデレーション。1件目は非公開にする
-    fake.push_json(common::review_reply("reject", "ok", "ok", 0));
+    fake.push_json(crate::common::review_reply("reject", "ok", "ok", 0));
     fake.push_json(approve());
     fake.push_json(approve());
 
@@ -370,8 +368,8 @@ async fn published_topic_shows_sources() {
     .await
     .unwrap();
 
-    let state = common::test_state(pool);
-    let res = common::request(
+    let state = crate::common::test_state(pool);
+    let res = crate::common::request(
         &state,
         "GET",
         &format!("/api/municipalities/otawara/topics/{topic_id}"),
@@ -385,8 +383,8 @@ async fn published_topic_shows_sources() {
     assert_eq!(sources[2]["speaker"], "保健福祉部長");
     assert_eq!(sources[0]["held_on"], "2025-09-05");
     assert_eq!(res.json["source_type"], "assembly");
-    common::assert_no_key(&res.json, "official_id");
-    common::assert_no_key(&res.json, "basis");
+    crate::common::assert_no_key(&res.json, "official_id");
+    crate::common::assert_no_key(&res.json, "basis");
     assert!(!res.json.to_string().contains("佐藤"));
 }
 

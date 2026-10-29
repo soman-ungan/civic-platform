@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-mod common;
+//! 分析の API: グループ・合意点・意見マップ、自分のグループ、関わり方の集計の二次秘匿（ADR 0002）、
+//! 人数が足りないとき、別の自治体のトピック、合意点のピン留め、最初の意見すべてに投票するまでのロック
 
+use crate::common::{assert_no_key, request};
 use axum::http::StatusCode;
 use backend::interface::api::AppState;
 use backend::process::analysis::store::run_topic;
-use common::{assert_no_key, request};
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
 
 const T1: &str = "/api/municipalities/otawara/topics/t1";
 
 async fn setup() -> (SqlitePool, AppState) {
-    let pool = common::test_pool().await;
-    common::seed_polarized(&pool).await;
-    let state = common::test_state(pool.clone());
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_polarized(&pool).await;
+    let state = crate::common::test_state(pool.clone());
     (pool, state)
 }
 
-async fn get(state: &AppState, path: &str, cookie: Option<&str>) -> common::TestResponse {
+async fn get(state: &AppState, path: &str, cookie: Option<&str>) -> crate::common::TestResponse {
     request(state, "GET", path, cookie, None).await
 }
 
@@ -28,7 +29,7 @@ async fn pending_before_first_computation() {
     let res = get(
         &state,
         &format!("{T1}/analysis"),
-        Some(&common::cookie_for(&state, "v00")),
+        Some(&crate::common::cookie_for(&state, "v00")),
     )
     .await;
     assert_eq!(res.status, StatusCode::OK);
@@ -43,7 +44,7 @@ async fn ready_analysis_has_groups_consensus_and_map() {
     let res = get(
         &state,
         &format!("{T1}/analysis"),
-        Some(&common::cookie_for(&state, "v00")),
+        Some(&crate::common::cookie_for(&state, "v00")),
     )
     .await;
     assert_eq!(res.status, StatusCode::OK);
@@ -172,7 +173,7 @@ async fn residency_cells_use_secondary_suppression() {
     let j = get(
         &state,
         &format!("{T1}/analysis"),
-        Some(&common::cookie_for(&state, "v00")),
+        Some(&crate::common::cookie_for(&state, "v00")),
     )
     .await
     .json;
@@ -223,7 +224,7 @@ async fn group_composition_shows_relations_per_group() {
     let j = get(
         &state,
         &format!("{T1}/analysis"),
-        Some(&common::cookie_for(&state, "v00")),
+        Some(&crate::common::cookie_for(&state, "v00")),
     )
     .await
     .json;
@@ -248,14 +249,14 @@ async fn group_composition_shows_relations_per_group() {
 
 #[tokio::test]
 async fn too_few_participants_is_insufficient() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
-    let state = common::test_state(pool.clone());
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
+    let state = crate::common::test_state(pool.clone());
     run_topic(&pool, "t1", false).await.unwrap();
     let j = get(
         &state,
         &format!("{T1}/analysis"),
-        Some(&common::cookie_for(&state, "v00")),
+        Some(&crate::common::cookie_for(&state, "v00")),
     )
     .await
     .json;
@@ -266,7 +267,7 @@ async fn too_few_participants_is_insufficient() {
 #[tokio::test]
 async fn analysis_of_other_municipality_topic_is_404() {
     let (pool, state) = setup().await;
-    common::activate_second_municipality(&pool).await;
+    crate::common::activate_second_municipality(&pool).await;
     let res = get(
         &state,
         "/api/municipalities/otawara/topics/t2/analysis",
@@ -284,7 +285,7 @@ async fn municipality_consensus_lists_pinned_statements() {
     let anonymous = get(&state, "/api/municipalities/otawara/consensus", None).await;
     assert_eq!(anonymous.json, json!([]));
 
-    let v00 = common::cookie_for(&state, "v00");
+    let v00 = crate::common::cookie_for(&state, "v00");
     let res = get(&state, "/api/municipalities/otawara/consensus", Some(&v00)).await;
     assert_eq!(res.status, StatusCode::OK);
     assert_eq!(
@@ -298,7 +299,7 @@ async fn municipality_consensus_lists_pinned_statements() {
         }])
     );
     // 別の自治体の合意点は混ざらない
-    common::activate_second_municipality(&pool).await;
+    crate::common::activate_second_municipality(&pool).await;
     let nasu = get(
         &state,
         "/api/municipalities/nasushiobara/consensus",
@@ -332,7 +333,7 @@ async fn best_agree_is_shown_as_agree() {
     let j = get(
         &state,
         &format!("{T1}/analysis"),
-        Some(&common::cookie_for(&state, "v00")),
+        Some(&crate::common::cookie_for(&state, "v00")),
     )
     .await
     .json;
@@ -357,7 +358,7 @@ async fn statements_by_group_lists_every_approved_statement() {
     let j = get(
         &state,
         &format!("{T1}/analysis"),
-        Some(&common::cookie_for(&state, "v00")),
+        Some(&crate::common::cookie_for(&state, "v00")),
     )
     .await
     .json;

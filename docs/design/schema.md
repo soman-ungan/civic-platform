@@ -8,7 +8,7 @@
 - ID は TEXT。UUID v7（`shared::util::new_id`）。行政区分は公的なコード（自治体は総務省の全国地方公共団体コード6桁）
 - 日時は ISO8601 の文字列（UTC、ミリ秒まで。`shared::util::now_iso`）。文字列のまま比べて期限などを決めるので、形をそろえる
 - 金額は千円の整数、比率は1000倍の整数（浮動小数点の誤差を避ける）
-- 状態の値は DB の CHECK と `backend/src/shared/status.rs` の型が同じ（`tests/schema.rs` で確かめる）
+- 状態の値は DB の CHECK と `backend/src/shared/status.rs` の型が同じ（`backend/tests/it/shared/schema.rs` で確かめる）
 - 自治体に属するデータは `municipality_id` を持ち、API・クエリは必ずそれで絞る
 - main にマージしたマイグレーションは書き換えない。変更は新しいマイグレーションで
 

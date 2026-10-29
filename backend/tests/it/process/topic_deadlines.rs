@@ -3,12 +3,12 @@
 //! トピックの期限（フェーズ6c。ADR 0005）: 締め切ったら投票と投稿を止め、結果は誰でも見られる。
 //! ルールは `process::progress`
 
-mod common;
-
+use crate::common::{
+    account_ready_to_post, cookie_for, request, seed_polarized, test_pool, test_state,
+};
 use axum::http::StatusCode;
 use backend::process::analysis::store::run_topic;
 use backend::process::progress::{default_closes_at, is_closed, normalize_closes_at};
-use common::{account_ready_to_post, cookie_for, request, seed_polarized, test_pool, test_state};
 use serde_json::json;
 use sqlx::SqlitePool;
 
@@ -100,7 +100,7 @@ async fn closed_topics_stop_votes_and_posts_but_show_results_to_everyone() {
 #[tokio::test]
 async fn open_topics_come_before_closed_ones() {
     let pool = test_pool().await;
-    common::seed_fixture(&pool).await;
+    crate::common::seed_fixture(&pool).await;
     sqlx::raw_sql(
         "INSERT INTO topics (id, municipality_id, title, source_type, created_at) VALUES
             ('t-old', '092100', '古い受付中', 'citizen', '2026-10-01T00:00:00Z'),

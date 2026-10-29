@@ -89,7 +89,7 @@ civic-platform/
   - マイグレーションは `backend/migrations/` に sqlx migrate 形式で置く。
   - main にマージ済みのマイグレーションは書き換えない（コメント1文字でも sqlx のチェックサムが変わり、既存の DB が起動時に弾かれる）。変更は新しいマイグレーションで行う。
 - テーブルの一覧と中身は `docs/design/schema.md`（正はマイグレーション）。テーブルを足したり変えたりしたら、そこと `docs/operations/data-flow.md` の「テーブルの一覧」を直す
-  - 状態の値（`statements.status`・`topics.status` など）は DB の CHECK と `backend/src/shared/status.rs` の型が同じ（`tests/schema.rs`）
+  - 状態の値（`statements.status`・`topics.status` など）は DB の CHECK と `backend/src/shared/status.rs` の型が同じ（`backend/tests/it/shared/schema.rs`）
   - `votes` は `(user_id, statement_id)` に UNIQUE。`statements.body` は 140 文字以内（API 側でも検証）
 - 投稿者情報は API レスポンスに絶対に含めない（匿名性の担保。運営者の API でも）。下書きは運営者の API 以外のどこにも出さない。
 - 外部 API キー（LLM 等）は `.env` で管理し、コミットしない。`.env.example` を用意する。
@@ -118,12 +118,12 @@ civic-platform/
 - backend（`cd backend`）
   - `cargo run` — API サーバー（起動時にマイグレーションを自動で適用。`GET /api/health`）。分析・判定待ちの再判定・自動のタグ付けがバックグラウンドで動く
   - `cargo run -- seed [--dev]` — `data/seeds/*.sql`（冪等）。`--dev` は `data/dev-seeds/`（【サンプル】の架空データ。参加者120人と投票つきで、すぐ分析を確かめられる。本番では使わない）
-    - 投票データ `110_sample_votes_092100_otawara.sql` は `python3 scripts/generate_sample_votes.py > data/dev-seeds/110_sample_votes_092100_otawara.sql` で生成する（手で編集しない）。サンプルで分析が出ることは `cargo test --test seeds`
+    - 投票データ `110_sample_votes_092100_otawara.sql` は `python3 scripts/generate_sample_votes.py > data/dev-seeds/110_sample_votes_092100_otawara.sql` で生成する（手で編集しない）。サンプルで分析が出ることは `cargo test --test it maintenance::seeds`
   - **運営のコマンドは `cargo run -- <動詞> <対象> [オプション]`**（`docs/operations/cli.md`）。動詞は段階ごと: 資料を DB に入れる `fetch`/`extract`/`import`、DB を見る・直す `list`/`show`/`edit`/`add`/`remove`/`publish`/`archive`、判定・計算 `moderate`/`classify`/`analyze`
     - コマンドを足すときは、段階を決めてから `src/interface/cli/{ingest,records,process}.rs` のどれかに置き、中身（SQL・処理）は同じ段階の `src/{ingest,records,process}/` に置く。その対象に要らない処理は「何もしません」で終了コード 0
   - **費用がかかるのは AI を呼ぶコマンド**（`extract`（`--manual`・`--dry-run` を除く）・`moderate`・`classify`・`eval`）。`eval` はユーザーの了承を得てから。資料の取り込みは API を使わない共同作業（`--manual`。`.claude/commands/import-minutes.md`・`import-budget.md`）でもできる
   - 確認待ちの意見の採否・下書きの公開・期限の変更は、管理画面（`/operator`）でも同じことができる（中身は同じ処理）
-  - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト（`data/seeds/` の適用テストも含む）
+  - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト（`data/seeds/` の適用テストも含む）。統合テストは `tests/it/`（1つのバイナリ。まとまりは `src/` の階層にそろえる。絞るなら `cargo test --test it api::operator` のようにモジュールの名前で）、ほかに `tests/cli.rs`（実際のバイナリ）と `tests/polis_parity.rs`
   - `sqlx migrate add <name>` / `sqlx migrate run` / `sqlx migrate info`。`migrations/` の変更は `build.rs` により自動で再ビルドされる
 - frontend（`cd frontend`）
   - `npm run dev` / `npm run lint` / `npm run typecheck` / `npm run build`

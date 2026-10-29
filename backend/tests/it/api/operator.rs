@@ -3,10 +3,8 @@
 //! 運営者の API（フェーズ6c）: 運営者でなければ 404、別の自治体のものは操作できない、
 //! 投稿者の ID は返さない。中身は CLI と同じ `records`・`process` の関数
 
-mod common;
-
+use crate::common::{assert_no_key, cookie_for, request, seed_fixture, test_pool, test_state};
 use axum::http::StatusCode;
-use common::{assert_no_key, cookie_for, request, seed_fixture, test_pool, test_state};
 use serde_json::json;
 use sqlx::SqlitePool;
 

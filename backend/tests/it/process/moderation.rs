@@ -2,15 +2,13 @@
 
 //! LLM によるモデレーション。偽の LLM で各経路を確かめる（実際の API は呼ばない）。
 
-mod common;
-
 use std::sync::Arc;
 
+use crate::common::{request, seed_fixture, test_pool, test_state};
 use axum::http::StatusCode;
 use backend::interface::api::AppState;
 use backend::process::moderation::{self, Moderation};
 use backend::shared::llm::{Fake, Llm};
-use common::{request, seed_fixture, test_pool, test_state};
 use serde_json::json;
 use sqlx::SqlitePool;
 
@@ -33,8 +31,8 @@ async fn setup() -> (AppState, Arc<Fake>) {
 }
 
 /// パスキーを登録済みの参加者として投稿する（投稿にはパスキーの登録が要る。ADR 0006）
-async fn post(state: &AppState, body: &str) -> common::TestResponse {
-    let cookie = common::account_ready_to_post(&state.pool, state, "t1").await;
+async fn post(state: &AppState, body: &str) -> crate::common::TestResponse {
+    let cookie = crate::common::account_ready_to_post(&state.pool, state, "t1").await;
     request(
         state,
         "POST",
@@ -66,8 +64,8 @@ async fn approved_is_published() {
     assert_eq!(status, "approved");
     assert_eq!(note.as_deref(), Some("問題なし"));
     // 判定の理由は運営者向けで、API では返さない
-    common::assert_no_key(&res.json, "moderation_note");
-    common::assert_no_key(&res.json, "reason");
+    crate::common::assert_no_key(&res.json, "moderation_note");
+    crate::common::assert_no_key(&res.json, "reason");
 }
 
 #[tokio::test]
@@ -177,7 +175,7 @@ async fn budget_exceeded_stays_pending() {
 #[tokio::test]
 async fn only_body_is_sent_to_llm() {
     let (state, fake) = setup().await;
-    fake.push_json(common::approved_reply());
+    fake.push_json(crate::common::approved_reply());
     let res = post(&state, "送る本文").await;
     let (_, _, user_id) = stored(&state.pool, res.json["id"].as_str().unwrap()).await;
 

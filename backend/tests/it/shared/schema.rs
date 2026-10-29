@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-mod common;
+//! DB の形（マイグレーション）: テーブル、一意・外部キー・CHECK の制約、状態の値が `shared::status` の型と同じこと
 
 use sqlx::SqlitePool;
 
@@ -64,7 +64,7 @@ async fn insert_relation(
 
 #[tokio::test]
 async fn all_tables_exist() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     let tables: Vec<String> = sqlx::query_scalar(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite%' ORDER BY name",
     )
@@ -110,8 +110,8 @@ async fn all_tables_exist() {
 
 #[tokio::test]
 async fn municipality_slug_is_unique() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     let res = exec(
         &pool,
         "INSERT INTO municipalities (id, prefecture_code, name, name_kana, slug, created_at) VALUES ('092011', '09', '宇都宮市', 'うつのみやし', 'otawara', '2026-10-26T00:00:00Z')",
@@ -122,7 +122,7 @@ async fn municipality_slug_is_unique() {
 
 #[tokio::test]
 async fn municipality_requires_existing_prefecture() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     let res = exec(
         &pool,
         "INSERT INTO municipalities (id, prefecture_code, name, name_kana, slug, created_at) VALUES ('092100', '09', '大田原市', 'おおたわらし', 'otawara', '2026-10-26T00:00:00Z')",
@@ -133,8 +133,8 @@ async fn municipality_requires_existing_prefecture() {
 
 #[tokio::test]
 async fn district_name_is_unique_within_municipality_only() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     // 同じ自治体に同名の地区は入らない
     let dup = exec(
         &pool,
@@ -155,8 +155,8 @@ async fn district_name_is_unique_within_municipality_only() {
 
 #[tokio::test]
 async fn relation_accepts_district_of_same_municipality() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     assert!(
         insert_relation(&pool, "092100", "resident", Some("092100-kurobane"))
             .await
@@ -166,8 +166,8 @@ async fn relation_accepts_district_of_same_municipality() {
 
 #[tokio::test]
 async fn relation_rejects_district_of_other_municipality() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     // 大田原市との関係に那須塩原市の地区は指定できない
     assert!(
         insert_relation(&pool, "092100", "resident", Some("092134-shiobara"))
@@ -178,8 +178,8 @@ async fn relation_rejects_district_of_other_municipality() {
 
 #[tokio::test]
 async fn relation_residency_type_is_restricted() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     assert!(
         insert_relation(&pool, "092100", "commuter", None)
             .await
@@ -195,8 +195,8 @@ async fn relation_residency_type_is_restricted() {
 
 #[tokio::test]
 async fn relation_is_unique_per_user_and_municipality() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     assert!(
         insert_relation(&pool, "092100", "resident", None)
             .await
@@ -219,8 +219,8 @@ async fn relation_is_unique_per_user_and_municipality() {
 
 #[tokio::test]
 async fn topic_requires_existing_municipality() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     let missing = exec(
         &pool,
         "INSERT INTO topics (id, municipality_id, title, source_type, created_at) VALUES ('t9', '999999', 'x', 'citizen', '2026-10-26T00:00:00Z')",
@@ -239,8 +239,8 @@ async fn topic_requires_existing_municipality() {
 
 #[tokio::test]
 async fn statement_defaults_to_pending() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     let status: String = sqlx::query_scalar("SELECT status FROM statements WHERE id = 's1'")
         .fetch_one(&pool)
         .await
@@ -250,8 +250,8 @@ async fn statement_defaults_to_pending() {
 
 #[tokio::test]
 async fn statement_body_is_limited_to_140_chars() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     // マルチバイト文字でバイト数ではなく文字数で数えていることを確認する
     assert!(
         insert_statement(&pool, "ok", &"あ".repeat(140), "approved")
@@ -272,8 +272,8 @@ async fn statement_body_is_limited_to_140_chars() {
 
 #[tokio::test]
 async fn statement_status_is_restricted() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     assert!(insert_statement(&pool, "bad", "意見", "foo").await.is_err());
 }
 
@@ -281,8 +281,8 @@ async fn statement_status_is_restricted() {
 #[tokio::test]
 async fn status_enums_match_check_constraints() {
     use backend::shared::status::{Publication, StatementStatus};
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     for (i, status) in StatementStatus::ALL.into_iter().enumerate() {
         insert_statement(&pool, &format!("st{i}"), "意見", status.as_str())
             .await
@@ -320,7 +320,7 @@ async fn status_enums_match_check_constraints() {
 
 #[tokio::test]
 async fn statement_requires_existing_topic() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     let res = exec(
         &pool,
         "INSERT INTO statements (id, topic_id, body, created_at) VALUES ('s', 'missing', '意見', '2026-10-26T00:00:00Z')",
@@ -331,16 +331,16 @@ async fn statement_requires_existing_topic() {
 
 #[tokio::test]
 async fn vote_is_unique_per_user_and_statement() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     assert!(insert_vote(&pool, "v1", "s1", 1).await.is_ok());
     assert!(insert_vote(&pool, "v2", "s1", -1).await.is_err());
 }
 
 #[tokio::test]
 async fn vote_value_is_restricted() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     assert!(insert_vote(&pool, "v1", "s1", 2).await.is_err());
 }
 
@@ -348,7 +348,7 @@ async fn vote_value_is_restricted() {
 
 #[tokio::test]
 async fn field_tag_name_is_unique() {
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     assert!(
         exec(
             &pool,
@@ -369,8 +369,8 @@ async fn field_tag_name_is_unique() {
 
 #[tokio::test]
 async fn district_tag_requires_district_and_is_unique_per_district() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     // 地区タグには district_id が必須
     assert!(
         exec(
@@ -401,8 +401,8 @@ async fn district_tag_requires_district_and_is_unique_per_district() {
 
 #[tokio::test]
 async fn topic_tag_is_unique_per_topic_and_tag() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     exec(
         &pool,
         "INSERT INTO tags (id, kind, name) VALUES ('g1', 'field', '子育て')",
@@ -439,7 +439,7 @@ async fn topic_tag_is_unique_per_topic_and_tag() {
 #[tokio::test]
 async fn users_have_no_personal_attribute_columns() {
     // 本人の属性は集めない（ADR 0002）。パスキーで保存するのも公開鍵と ID と日時だけ（ADR 0006）
-    let pool = common::test_pool().await;
+    let pool = crate::common::test_pool().await;
     let columns: Vec<String> =
         sqlx::query_scalar("SELECT name FROM pragma_table_info('users') ORDER BY cid")
             .fetch_all(&pool)

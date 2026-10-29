@@ -39,3 +39,17 @@ tests/
 - `cargo test` で、テストの数がまとめる前と同じ（185）で、すべて通る
 - clippy の警告なし
 - まとめる前と後で、`src/` を触ったあとのテストのビルドの時間と、テストのバイナリの大きさを比べる
+
+## 結果
+| | 前 | 後 |
+|---|---|---|
+| テストのバイナリ | 26 | 3（`it`・`cli`・`polis_parity`） |
+| テストの数 | 253 passed・8 ignored（lib の単体テストを含む） | 同じ |
+| `src/` を触ったあとのテストのビルド | 12〜13秒 | 約4秒 |
+| テストのバイナリの大きさ（1回のビルド） | 約4.9GB（約190MB × 26） | 約0.57GB（234MB・175MB・165MB） |
+
+## 実装時の変更点
+- `common.rs` の `allow(dead_code)` を外したら、どこからも使われていない `registered_account` が見つかったので消した（バイナリが分かれていたため、警告が隠れていた）
+- 冒頭の説明が無かった8ファイルに `//!` を足した
+- 古いテストのパス（`tests/schema.rs`・`tests/auth.rs`）を指していた CLAUDE.md・docs/design・`shared/status.rs` のコメントを直した
+- 絞り込みの例は `cargo test --test it seeds` だと名前に seeds を含むほかのテストも動くので、CLAUDE.md ではモジュールの名前（`maintenance::seeds`・`api::operator`）で書いた

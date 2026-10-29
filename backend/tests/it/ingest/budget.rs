@@ -2,8 +2,6 @@
 
 //! 予算の概要からの抽出の確かめる処理と、下書きの保存
 
-mod common;
-
 use std::collections::HashMap;
 
 use backend::ingest::budget::{self, Input, Raw, RawItem, RawProject};
@@ -197,8 +195,8 @@ fn same_project_on_a_detail_page_is_dropped() {
 
 #[tokio::test]
 async fn draft_is_saved_replaced_and_published() {
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
     sqlx::raw_sql(
         "INSERT INTO tags (id, kind, name) VALUES ('field-kankyou', 'field', '環境・ごみ'), ('field-nourin', 'field', '農林水産業');",
     )
@@ -303,12 +301,15 @@ async fn real_manual_extraction_matches_check() {
     ) else {
         return;
     };
-    let pool = common::test_pool().await;
-    common::seed_fixture(&pool).await;
-    sqlx::raw_sql(include_str!("../../data/seeds/020_field_tags.sql"))
-        .execute(&pool)
-        .await
-        .unwrap();
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
+    sqlx::raw_sql(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../data/seeds/020_field_tags.sql"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
     let value: serde_json::Value = serde_json::from_str(&json).unwrap();
     let input = Input {
         municipality_id: "092100".into(),

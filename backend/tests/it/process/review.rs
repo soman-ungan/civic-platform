@@ -3,15 +3,15 @@
 //! 意見の審査（ADR 0007）: 公人の氏名の確かめ、4つの観点のまとめ方、似た意見の案内、AI に送るもの。
 //! 偽の LLM で確かめる（実際の API は呼ばない）
 
-mod common;
-
 use std::sync::Arc;
 
+use crate::common::{
+    account_ready_to_post, request, review_reply, seed_fixture, test_pool, test_state,
+};
 use axum::http::StatusCode;
 use backend::interface::api::AppState;
 use backend::process::moderation::{self, Moderation};
 use backend::shared::llm::{Fake, Llm};
-use common::{account_ready_to_post, request, review_reply, seed_fixture, test_pool, test_state};
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
 
@@ -41,7 +41,7 @@ async fn setup() -> (AppState, Arc<Fake>) {
     (state, fake)
 }
 
-async fn post(state: &AppState, cookie: &str, body: &str) -> common::TestResponse {
+async fn post(state: &AppState, cookie: &str, body: &str) -> crate::common::TestResponse {
     request(
         state,
         "POST",
@@ -131,7 +131,7 @@ async fn aspects_are_combined_in_order() {
     let cookie = account_ready_to_post(&state.pool, &state, "t1").await;
     let res = post(&state, &cookie, "市長には辞任してほしい").await;
     assert_eq!(res.json["suggestion"], "路線の見直しに反対");
-    common::assert_no_key(&res.json, "reason");
+    crate::common::assert_no_key(&res.json, "reason");
 }
 
 #[tokio::test]
@@ -158,7 +158,7 @@ async fn duplicates_are_not_saved_and_point_to_the_existing_statement() {
     );
 
     // 上限に数えない（言い直して出し直せる）
-    fake.push_json(common::approved_reply());
+    fake.push_json(crate::common::approved_reply());
     let res = post(&state, &cookie, "夜の便も増やしてほしい").await;
     assert_eq!(res.status, StatusCode::CREATED);
     assert_eq!(res.json["status"], "approved");
@@ -183,7 +183,7 @@ async fn authors_agree_with_their_saved_statements() {
     };
     // 保存した意見（承認・確認待ち）には、書いた人の賛成を入れる
     for (answer, status) in [
-        (common::approved_reply(), "approved"),
+        (crate::common::approved_reply(), "approved"),
         (reply("ok", "unsure", "ok", 0, ""), "flagged"),
     ] {
         fake.push_json(answer);
@@ -221,7 +221,7 @@ async fn authors_agree_with_their_saved_statements() {
 async fn ai_receives_the_topic_and_its_statements_but_no_ids() {
     let (state, fake) = setup().await;
     let cookie = account_ready_to_post(&state.pool, &state, "t1").await;
-    fake.push_json(common::approved_reply());
+    fake.push_json(crate::common::approved_reply());
     let res = post(&state, &cookie, "送る本文").await;
     let id = res.json["id"].as_str().unwrap();
     let user_id: String = sqlx::query_scalar("SELECT user_id FROM statements WHERE id = $1")
