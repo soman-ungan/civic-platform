@@ -8,6 +8,8 @@ import type {
   StatementByGroup,
 } from "@/lib/api/types/analysis";
 
+import { STICKY_PANEL_HEADING } from "./sticky";
+
 /** 自分のグループの列を囲む枠線の色（凡例の色見本用） */
 const MY_BORDER = "border-sky-500 dark:border-sky-400";
 /** 自分の列: 左右は青い枠、行の区切りは他の列と同じ灰色 */
@@ -98,15 +100,19 @@ export function GroupTable({
 
   return (
     <div>
-      <h3 className="mb-1 font-semibold">グループごとの特徴</h3>
-      <p className="mb-2 text-xs text-zinc-500">表は横にスクロールできます。</p>
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+      <h3 className={`mb-1 ${STICKY_PANEL_HEADING}`}>グループごとの特徴</h3>
+      <p className="mb-2 text-xs text-zinc-500">
+        表は縦にも横にもスクロールできます。
+      </p>
+      {/* 枠の中で縦横にスクロールする。見出しの行は上に、意見の列は左に固定する。
+          枠は画面の7割まで（表の端まで行けばページのスクロールに移れ、凡例まで進めるように） */}
+      <div className="max-h-[70dvh] overflow-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
         <table className="w-max min-w-full border-separate border-spacing-0 text-left text-xs">
           <thead>
             <tr>
               <th
                 scope="col"
-                className={`sticky left-0 z-10 w-40 min-w-40 bg-background px-3 py-2 font-normal text-zinc-500 ${headerLine}`}
+                className={`sticky top-0 left-0 z-30 w-40 min-w-40 bg-background px-3 py-2 font-normal text-zinc-500 ${headerLine}`}
               >
                 意見
               </th>
@@ -116,7 +122,7 @@ export function GroupTable({
                   <th
                     key={g.id}
                     scope="col"
-                    className={`w-24 min-w-24 px-2 py-2 text-center align-bottom ${
+                    className={`sticky top-0 z-20 w-24 min-w-24 bg-background px-2 py-2 text-center align-bottom ${
                       mine
                         ? // 青い枠は列の外側だけ
                           `${MY_SIDES} ${MY_TOP} ${headerLine}`

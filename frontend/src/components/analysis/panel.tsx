@@ -8,6 +8,7 @@ import { GroupCompositionChart } from "./group-composition";
 import { GroupTable } from "./group-table";
 import { OpinionMap } from "./opinion-map";
 import { ResidencyDotPlot } from "./residency-dot-plot";
+import { STICKY_TITLE } from "./sticky";
 import { BUTTON_SECONDARY, ERROR_TEXT } from "@/components/ui/styles";
 import { topicApi } from "@/lib/api/paths";
 import { useApi } from "@/lib/api/use-api";
@@ -52,7 +53,7 @@ export function AnalysisPanel({
       aria-labelledby="analysis-title"
       className="mt-10 border-t border-zinc-200 pt-6 dark:border-zinc-800"
     >
-      <div className="mb-4 flex items-center justify-between">
+      <div className={`mb-2 ${STICKY_TITLE}`}>
         <h2 id="analysis-title" className="text-lg font-bold">
           みんなの意見
         </h2>
