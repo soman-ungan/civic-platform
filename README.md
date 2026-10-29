@@ -3,7 +3,7 @@
 自治体の議事録・予算・決算を可視化し、Polis の思想に基づく合意形成の場を提供する Web アプリです。
 栃木県大田原市をパイロット自治体として、多自治体に対応した構成で開発しています。
 
-- 設計: [docs/grand-design.md](docs/grand-design.md)
+- 文書の入口: [docs/README.md](docs/README.md)（今の全体像は [docs/overview.md](docs/overview.md)）
 - 運営のコマンド（データの投入・会議録と予算の取り込み・意見の確認など）: [docs/operations/cli.md](docs/operations/cli.md)
 - データの流れ（資料・コマンド・DB。サーバー管理者向け）: [docs/operations/data-flow.md](docs/operations/data-flow.md)
 - 開発の指針: [CLAUDE.md](CLAUDE.md)
