@@ -37,7 +37,7 @@
 ### 下書きと運営者の確認
 
 - AI が作ったトピックは下書き（`topics.status = 'draft'`）にし、運営者が内容・出典・発言者を確かめてから公開する。下書きは API のどこにも出ない
-- 運営者は `show topic` で確かめ、`edit topic` / `add|edit|remove statement` / `add|remove tag` で手直しし、`publish topic` で公開する（コマンドの名前は 2026-10-28 に改めた。docs/cli.md）
+- 運営者は `show topic` で確かめ、`edit topic` / `add|edit|remove statement` / `add|remove tag` で手直しし、`publish topic` で公開する（コマンドの名前は 2026-10-28 に改めた。docs/operations/cli.md）
 
 ### 原本は保持しない
 

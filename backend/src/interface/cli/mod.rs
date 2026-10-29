@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! 運営のコマンド（`cargo run -- <動詞> <対象> [オプション]`）。使い方の全体は `docs/cli.md`、各コマンドは `--help`。
+//! 運営のコマンド（`cargo run -- <動詞> <対象> [オプション]`）。使い方の全体は `docs/operations/cli.md`、各コマンドは `--help`。
 //! コマンドの処理はここに置き、中身（取り込み・判定・公開など）はライブラリのモジュールに任せる。
 //!
 //! 動詞は段階ごとに分ける（docs/plans/2026-10-28-cli-verbs.md）:
@@ -30,7 +30,7 @@ use sqlx::SqlitePool;
 #[derive(Debug, Parser)]
 #[command(
     name = "backend",
-    about = "civic-platform の API サーバーと、運営のコマンド。引数なしで API サーバーを起動する（docs/cli.md）"
+    about = "civic-platform の API サーバーと、運営のコマンド。引数なしで API サーバーを起動する（docs/operations/cli.md）"
 )]
 pub struct Cli {
     #[command(subcommand)]

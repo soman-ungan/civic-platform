@@ -1,7 +1,8 @@
 # CLAUDE.md — 地方行政可視化＆市民参加プラットフォーム（多自治体対応）
 
 このファイルは Claude Code がこのリポジトリで作業する際の指針です。
-詳細な設計は `docs/grand-design.md` を参照すること（設計判断で迷ったら必ず読み直す）。
+docs の入口は `docs/README.md`。**設計判断で迷ったら、`docs/overview.md`（今の全体像）→ 該当する ADR（`docs/adr/`）→ `docs/design/schema.md`（テーブル）・`docs/design/api.md`（API）を読み直す。**
+`docs/grand-design.md` は当初の構想（v2）の記録で、今の実装とは違うところがある。
 
 ## プロジェクト概要
 - 自治体の議事録・予算・決算を可視化し、Polis の思想に基づく合意形成の場を提供する Web アプリ。
@@ -26,7 +27,7 @@
 civic-platform/
 ├── backend/              Rust / axum / sqlx（API サーバー＋運営のコマンド）
 │   ├── src/shared/       システム内で共通に使うもの（config・db・status（意見と公開の状態の型。DB の CHECK と同じ値）・util・llm）
-│   ├── src/interface/    外とのやりとり。api/（HTTP API: 自治体・トピック・投票・分析・まちのお金）と cli/（運営のコマンド。clap。<動詞> <対象>。docs/cli.md）
+│   ├── src/interface/    外とのやりとり。api/（HTTP API: 自治体・トピック・投票・分析・まちのお金）と cli/（運営のコマンド。clap。<動詞> <対象>。docs/operations/cli.md）
 │   ├── src/ingest/       段階1 資料を DB に入れる（collect: 取得と置き場・決算カード、budget、minutes、extraction）
 │   ├── src/records/      段階2 DB を見る・直す（topics・budget・settlement・minutes・statements・tags）
 │   ├── src/process/      段階3 判定・計算（moderation・tagging・analysis（Polis の数理）・progress（参加のルール。ルールはここだけで変える））
@@ -38,7 +39,7 @@ civic-platform/
 │       ファイル名はディレクトリ名と重なる部分を外す（components/finances/bars.tsx など）。型をまとめて export し直すファイルは作らない（docs/plans/2026-10-28-frontend-layout.md）
 ├── data/                 SQLite ファイル（*.db は git 管理しない）
 │   └── seeds/            自治体・地区マスタの初期データ（git 管理する）
-└── docs/                 設計書・ADR
+└── docs/                 入口は docs/README.md。overview（今の全体像）・design/（テーブル・API・収集）・operations/（運営者向け）・adr/・plans/
 ```
 
 ## 多自治体対応の原則（最重要）
@@ -87,17 +88,10 @@ civic-platform/
   - ID は TEXT（UUID v7 推奨。ただし行政区分マスタは公的コードを使用）。日時は ISO8601 文字列（UTC）。
   - マイグレーションは `backend/migrations/` に sqlx migrate 形式で置く。
   - main にマージ済みのマイグレーションは書き換えない（コメント1文字でも sqlx のチェックサムが変わり、既存の DB が起動時に弾かれる）。変更は新しいマイグレーションで行う。
-- テーブル（定義は docs/grand-design.md §3）:
-  - 行政区分: `prefectures` / `municipalities` / `districts` / `municipality_stats`
-  - ユーザー: `users` / `user_municipality_relations`（居住地属性は自治体ごとにこちらで持つ）
-  - Polis コア: `topics`（`municipality_id` 必須）/ `statements` / `votes`
-  - タグ: `tags`（kind = `field` | `district`）/ `topic_tags`
-  - 収集: `collector_sources`
-- 制約:
-  - `votes` は `(user_id, statement_id)` に UNIQUE。
-  - `statements.status` は `pending` / `approved` / `rejected` / `flagged`。
-  - `statements.body` は 140 文字以内（API 側でも検証）。
-- 投稿者情報は API レスポンスに絶対に含めない（匿名性の担保）。
+- テーブルの一覧と中身は `docs/design/schema.md`（正はマイグレーション）。テーブルを足したり変えたりしたら、そこと `docs/operations/data-flow.md` の「テーブルの一覧」を直す
+  - 状態の値（`statements.status`・`topics.status` など）は DB の CHECK と `backend/src/shared/status.rs` の型が同じ（`tests/schema.rs`）
+  - `votes` は `(user_id, statement_id)` に UNIQUE。`statements.body` は 140 文字以内（API 側でも検証）
+- 投稿者情報は API レスポンスに絶対に含めない（匿名性の担保。運営者の API でも）。下書きは運営者の API 以外のどこにも出さない。
 - 外部 API キー（LLM 等）は `.env` で管理し、コミットしない。`.env.example` を用意する。
 - フロントは「コメント欄・リプライ」機能を作らない（Polis の原則）。
 - フロントのルーティング: `/[municipality]` がトップ、`/[municipality]/topics/[id]` が詳細。
@@ -110,90 +104,44 @@ civic-platform/
   - 承認された計画は、実装を始める前に `docs/plans/YYYY-MM-DD-<topic>.md` として保存し、最初にコミットする（あとから計画と実装を突き合わせて検証できるようにするため）。
   - 実装中に計画から外れた点は、完了時にその md の末尾に「実装時の変更点」として追記する。
 - 新しい依存クレート / npm パッケージを追加する場合は理由を一言添える。
+- docs の置き場所（`docs/README.md`）: 運営者向けは `docs/operations/`、開発者向けの今の設計は `docs/design/` と `docs/overview.md`、決めたことは ADR、計画は `docs/plans/`（記録なので、あとから中身を直さない。索引は `docs/plans/README.md`）
+  - マイグレーションのコメントが参照している docs のファイル（`grand-design.md`・`polis-math.md`・`design/collection.md`・`design/tagging-criteria.md`・`adr/`・`plans/`）は動かさない
 - テスト: backend は `cargo test`、frontend は lint と型チェックを通す。
   - 自治体の取り違えを防ぐため、テスト用 seed には最低2自治体を入れる。
 
-## よく使うコマンド（整備され次第更新する）
-- 運営のコマンドの全体（利用する人向け）は `docs/cli.md`、資料・コマンド・DB のデータの流れは `docs/data-flow.md`。コマンドやテーブルを足したり変えたりしたら、そちらも直す
+## よく使うコマンド
+- 運営のコマンドの全体は `docs/operations/cli.md`、資料・コマンド・DB のデータの流れは `docs/operations/data-flow.md`。コマンドやテーブルを足したり変えたりしたら、そちらも直す
 - 初回: `cp .env.example .env`（`.env` はルートに1つ。backend / sqlx-cli は親ディレクトリを遡って読み、frontend は `next.config.ts` でルートの `.env` を読む）
   - `.env.example` に変数が増えたら手元の `.env` にも追記する（`NEXT_PUBLIC_SOURCE_URL` が無いと本番ビルドが失敗する）
   - `SESSION_SECRET`（参加者 Cookie の署名鍵）は必須。`openssl rand -hex 32` で作る。未設定・32 バイト未満なら backend は起動しない
   - `API_INTERNAL_URL`: Next.js のサーバー側から backend を呼ぶ URL（既定 `http://127.0.0.1:8080`）。ブラウザは同一オリジンの `/api` を呼び、開発時は `next.config.ts` の rewrites で backend に転送する
 - backend（`cd backend`）
-  - `cargo run` — 起動時にマイグレーションも自動適用。`GET /api/health` で DB 込みの疎通確認
-  - `cargo run -- seed` — `data/seeds/*.sql` をファイル名順に投入して終了（冪等。初回とマスタ更新時に実行）
-  - `cargo run -- seed --dev` — 続けて `data/dev-seeds/`（【サンプル】の架空データ）も投入する。開発用で、本番では使わない
-    - 架空の参加者120人と投票も入るので、DB を初期化した直後から分析（意見マップ・グループ・合意点）を確認できる。`cargo run` で起動すると、ワーカーがすぐに分析を計算する
-    - 投票データ `110_sample_votes_092100_otawara.sql` は `python3 scripts/generate_sample_votes.py > data/dev-seeds/110_sample_votes_092100_otawara.sql` で生成する（手で編集しない。シード固定で毎回同じ出力）
-    - サンプルで分析が出ることは `cargo test --test seeds` で確かめている
-  - **運営のコマンドは `cargo run -- <動詞> <対象> [オプション]`**（`docs/plans/2026-10-28-cli-verbs.md`）。動詞は段階ごと: 資料を DB に入れる `fetch`/`extract`/`import`（対象 settlement・budget・minutes）、DB を見る・直す `list`/`show`/`edit`/`add`/`remove`/`publish`/`archive`（budget・settlement・minutes・topic・statement・tag・source）、判定・計算 `moderate`/`classify`/`analyze`（topic・statement）。どれを指すかはすべてオプション（`-m <slug>`・`-y <年度>`・`--id`・`--file`・`--topic`）
-    - その対象には要らない処理（`extract settlement`・`fetch minutes` など）は「何もしません」と出して終了コード 0。段階に無い対象は clap が弾く
-    - コマンドを足すときは、段階を決めてから `src/interface/cli/{ingest,records,process}.rs` のどれかに置き、中身（SQL・処理）は同じ段階の `src/{ingest,records,process}/` に置く
-  - `cargo run -- analyze topic [--id <id>] [--force]` — 分析を今すぐ再計算する（通常は `ANALYSIS_INTERVAL_SECS`（既定 10 秒）ごとにバックグラウンドで、投票が変わったトピックだけ再計算される）
-  - AI（`ANTHROPIC_API_KEY` があるときだけ。モデルは `MODERATION_MODEL` / `TAGGING_MODEL`、1日の費用の上限は `LLM_DAILY_BUDGET_USD`。使用量と推定費用は `llm_usage`）
-    - `cargo run -- list statement` / `moderate statement [--id <id> --approve|--reject]` — 確認待ち（flagged / pending）の意見の一覧と判定（`--id` が無ければ判定待ちを AI でやり直す。認証のフェーズ6までは CLI）
-    - `cargo run -- classify topic [--id <id>] [--force]` — 自動タグ付け（通常は60秒ごとにバックグラウンドで、タグの無いトピックを処理）。`--force` は AI のタグだけを付け直す
-    - `cargo run -- eval moderation|tagging [--model <id>] [--limit <n>]` — `evals/*.jsonl` で評価する。**実際の API を呼ぶので費用がかかる**
-    - 分野タグの共通語彙は `data/seeds/020_field_tags.sql`（定義は `tags.description`、判断基準は `docs/design/tagging-criteria.md`）
-  - 資料の取り込み（`fetch` → `extract` → `import`。`EXTRACTION_MODEL`、既定 Opus 5.5。抽出の1日の上限は `LLM_EXTRACTION_DAILY_BUDGET_USD` で別枠）
-    - **API を呼ぶのは `extract` だけ**（`--manual`・`--dry-run` を付けなければ呼ぶ。会議録1日分 0.3〜0.4 ドル、予算 40ページ約 0.8 ドル）。`import` は `extract` が書いた `<名前>.extraction.json` を検査して保存し、API を呼ばない
-    - `fetch` は原本を `PRIVATE_DIR/fetched/<slug>/<対象>/`（既定 `data/private/fetched/`）に置き、`import` が保存を終えたら消す（`--keep` で残す）。手でコピーした原本は消さない。3つは原本の隣の `<名前>.meta.json`（URL・取得の記録・会議名・作り方）でつなぐ
-    - 共同作業で取り込む（API を使わない）: `extract minutes|budget ... --manual` で指示文を書き出し、Claude Code が JSON を作って `import`。手順は `.claude/commands/import-minutes.md`・`import-budget.md`。どちらで作ったかは `documents.extraction`
-    - 会議録: `extract minutes -m <slug> --file <path> --title <会議名> --held-on <YYYY-MM-DD> [--url] [--dry-run | --manual]` → `import minutes -m <slug> --file <path> [--dry-run] [--again] [--force]`。`extract --dry-run` は AI を呼ばずに発言者・名簿に無い人・議事日程を出す。一般質問・代表質問の無い会議録は飛ばす（`--force` で取り込む）
-    - 下書きの確認と公開: `list topic --drafts` / `show topic --id` / `publish|archive topic --id`。手直し: `edit topic --id [--title] [--description]`・`add|edit|remove statement`・`add|remove tag --topic <id> --id <tag_id>`
-    - 公人の名簿は `data/seeds/030_officials_<団体コード>_<slug>.sql`
-  - 収集（`docs/design/collection.md`。User-Agent に入れる連絡先 `COLLECTOR_CONTACT` が `fetch` に必須）
-    - `cargo run -- list source` — 収集先・規約の確認日・最後の取得
-  - 運営者（ADR 0006）: `add operator`（1回だけ使える招待のリンクを出す。リンクの先 `/operator/join` でパスキーを登録したアカウントが運営者になる）/ `list operator` / `remove operator --id <id>`。画面からは運営者を増やせない
-    - `cargo run -- fetch settlement|budget [-m <slug>] [-y <n>] [--source <id>] [--dry-run]` — 有効な収集先から原本を取得する。取得はすべて `collect::fetch::Fetcher` を通す（robots.txt・間隔・条件付き取得）。規約の確認の記録（`terms_url`・`terms_checked_at`）が無い収集先は動かない
-    - 決算カード: `fetch settlement` → `import settlement`（`settlement_items` と `municipality_stats`。AI を使わない。下書きを持たず、取り込んだら公開）
-  - 予算（当初予算の概要の PDF。`docs/plans/2026-10-27-phase5c-budget.md`。**poppler-utils（`pdftotext`）が要る**）
-    - `fetch budget -m <slug> -y <n>`（または手で取った PDF を `--file`）→ `extract budget -m <slug> -y <n> [--manual]` → `import budget -m <slug> -y <n> [--dry-run] [--again]`
-    - `list budget` / `show budget -m <slug> -y <n>` / `publish|archive budget -m <slug> -y <n>` — 下書きの確認と公開。下書きは API のどこにも出ない
-    - 款別・性質別・歳入は合計で検算し、事業は名前と金額がそのページの本文にあるものだけを残す。事業の説明の文章は持たない（市の著作物のため。原本のページへリンクする）
-    - 費目と分野タグの対応は `data/seeds/025_settlement_item_tags.sql`（おおまか。画面でも注記する）
+  - `cargo run` — API サーバー（起動時にマイグレーションを自動で適用。`GET /api/health`）。分析・判定待ちの再判定・自動のタグ付けがバックグラウンドで動く
+  - `cargo run -- seed [--dev]` — `data/seeds/*.sql`（冪等）。`--dev` は `data/dev-seeds/`（【サンプル】の架空データ。参加者120人と投票つきで、すぐ分析を確かめられる。本番では使わない）
+    - 投票データ `110_sample_votes_092100_otawara.sql` は `python3 scripts/generate_sample_votes.py > data/dev-seeds/110_sample_votes_092100_otawara.sql` で生成する（手で編集しない）。サンプルで分析が出ることは `cargo test --test seeds`
+  - **運営のコマンドは `cargo run -- <動詞> <対象> [オプション]`**（`docs/operations/cli.md`）。動詞は段階ごと: 資料を DB に入れる `fetch`/`extract`/`import`、DB を見る・直す `list`/`show`/`edit`/`add`/`remove`/`publish`/`archive`、判定・計算 `moderate`/`classify`/`analyze`
+    - コマンドを足すときは、段階を決めてから `src/interface/cli/{ingest,records,process}.rs` のどれかに置き、中身（SQL・処理）は同じ段階の `src/{ingest,records,process}/` に置く。その対象に要らない処理は「何もしません」で終了コード 0
+  - **費用がかかるのは AI を呼ぶコマンド**（`extract`（`--manual`・`--dry-run` を除く）・`moderate`・`classify`・`eval`）。`eval` はユーザーの了承を得てから。資料の取り込みは API を使わない共同作業（`--manual`。`.claude/commands/import-minutes.md`・`import-budget.md`）でもできる
+  - 確認待ちの意見の採否・下書きの公開・期限の変更は、管理画面（`/operator`）でも同じことができる（中身は同じ処理）
   - `cargo test` — インメモリ SQLite にマイグレーションを当ててテスト（`data/seeds/` の適用テストも含む）
-  - `sqlx migrate add <name>` / `sqlx migrate run` / `sqlx migrate info`
-  - `migrations/` の変更は `build.rs` により自動で再ビルドされる
+  - `sqlx migrate add <name>` / `sqlx migrate run` / `sqlx migrate info`。`migrations/` の変更は `build.rs` により自動で再ビルドされる
 - frontend（`cd frontend`）
   - `npm run dev` / `npm run lint` / `npm run typecheck` / `npm run build`
   - Next.js 16 系。書く前に `frontend/AGENTS.md` の指示どおり `node_modules/next/dist/docs/` を確認する
   - `globals.css` を変えても開発サーバーが古い CSS を配り続けることがある（Turbopack のキャッシュ。WSL で確認）。そのときは `npm run dev` を止めて `.next/dev` を消してから起動し直す
-- API（すべて `/api` 配下。エラーは `{"error": {"code", "message"}}`）
-  - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）
-  - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}` — Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count` を返す（承認済みの意見だけで数える）。期限 `closes_at`（null は期限なし）と締め切ったか `closed`。一覧は締め切ったものを後ろに
-  - `PUT /municipalities/{slug}/relation` — このまちとの関わり方（投票の前に必要）。地区は受け取らない
-  - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件（最初の意見が残っていればその中から。Polis の優先度で重み付けした抽選）、進捗 `progress`（`voted`・`total`・`analysis_unlocked`・`analysis_remaining`）、投稿できるか `posting`（`status`: allowed / registration_required / votes_required（`remaining`）/ limit_reached）
-  - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・`statements_by_group`・`group_composition`（グループごとの関わり方の構成）・関わり方ごとの集計（分析対象が5人未満なら insufficient。関わり方の集計は二次秘匿済み）
-    - **最初の意見すべてに投票するまでは `locked`（残り件数）を返す**。全体の傾向に投票が左右されないようにするため。最初の意見が増えれば（公開の前の下書きでだけ起きる）再びロックされる
-    - 分析を見られるか・投稿できるかのルールは `backend/src/process/progress.rs`（`Progress::analysis_unlocked`・`post_permission`）の1か所だけ。画面は `progress`・`posting` を見る（ルールを写さない）
-  - `GET /municipalities/{slug}/finances?year=` — まちのお金。年度ごとに `settlement`（決算カード）と `budget`（公開済みの当初予算。主な事業つき）。金額は千円、`per_capita` は円。年度を省くと最新（予算だけの年度を含む）。`trend` は決算の年度と、決算がまだ無く予算だけがある年度（`kind`: settlement / budget）。トピックの詳細の `finances` は、分野タグに対応する目的別歳出と、今年度の主な事業（5件まで）
-  - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。分析を見られて、1件以上投票したトピックの分だけを返す（Cookie が無ければ空）
-  - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`。票はあとから変えられない（投票済みは 409 `already_voted`。分析を見てから票を合わせ直すことを防ぐ）
-  - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）。判定の結果 `status`（approved / rejected / flagged / pending / duplicate）。rejected は理由の種類 `rejection`（harm / person / official_name / not_votable）と言い換えの提案 `suggestion`、duplicate は保存せず案内する意見 `similar`（投票済みならその票 `your_vote`）。保存した意見（rejected 以外）には投稿者の賛成の票を入れる。分析の前は 403 `votes_required`（未登録でも先にこちら）、未登録は 401 `registration_required`、2件目は 409 `statement_limit`
-  - 締め切ったトピック（`closes_at` を過ぎた。ADR 0005）への投票・投稿は 409 `topic_closed`。分析はロックせず誰にでも見せる
-  - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別。**読む・投票はログインなし、投稿はパスキーの登録が要る**（ADR 0006。未登録なら 401 `registration_required`）。CI は `.github/workflows/ci.yml`
-  - `GET /auth/me`（`registered`・`operator`。利用者の ID は返さない）/ `POST /auth/register/start`→`finish`（今の参加者にパスキーを付ける。投票はそのまま。運営者の招待のトークンを start にも渡すと、パスキーの名前に「運営者」と入る）/ `POST /auth/login/start`→`finish`（名前を入力しないパスキー。その端末の匿名の投票をアカウントに移す）/ `POST /auth/logout`
-  - 運営者の API（`/api/operator/...`。`backend/src/interface/api/operator.rs`）: 運営者でなければすべて 404。パスの自治体のトピック・意見だけを操作できる。中身は CLI と同じ `records`・`process` の関数。投稿者の ID は運営者にも返さない
-    - `GET /operator/municipalities`（準備中の自治体も）・`GET .../{slug}/tags`・`GET .../{slug}/topics?status=draft|published|archived&after=&limit=`・`GET|PATCH .../topics/{id}`・`POST .../topics/{id}/publish|archive`・`PUT .../topics/{id}/closes-at`（`{closes_at?}`。省くと今。公開中だけ）・`POST .../topics/{id}/statements`・`PUT|DELETE .../topics/{id}/tags/{tag_id}`
-    - `GET .../{slug}/statements?after=&limit=`（flagged・pending）・`PATCH .../statements/{id}`・`POST .../statements/{id}/approve|reject|retry`（retry は pending を1件 AI でやり直す。キーが無ければ 409）
-    - 一覧は `{items, next}` で分けて返す（`next` を `after` に渡して続きを読む。件数ではなく ID で続けるので、公開・採否で一覧から抜けても読み飛ばさない）。画面は無限スクロール（`frontend/src/lib/api/use-paged.ts`・`components/ui/load-more.tsx`）
-    - 画面は `/operator`（`?m=<slug>&tab=drafts|queue|published`。`frontend/src/components/operator/`）。運営者にはヘッダー（自治体のトップ・トピックの詳細）に「管理画面」のリンクが出る（`components/auth/operator-link.tsx`）。管理画面からは「通常の画面へ」で `/` に戻る
-  - パスキーは webauthn-rs（`backend/src/interface/api/auth.rs`）、アカウントの処理は `backend/src/records/accounts.rs`。保存するのは公開鍵・ID・日時だけ。設定は `WEBAUTHN_RP_ID`・`WEBAUTHN_ORIGIN`（既定は localhost）。テストはソフトウェアのパスキー（`tests/auth.rs`）
-    - 画面の流れ（投票の前の「ログインして投票しますか」・端末の印・アカウントが2つになる限界）は `docs/plans/2026-10-28-phase6a-passkeys.md` の「ログインの流れ」。選択肢の部品は `frontend/src/components/auth/passkey-choices.tsx`
+- API は `docs/design/api.md`（すべて `/api` 配下。エラーは `{"error": {"code", "message"}}`）。API を足したり変えたりしたら、そこを直す
+  - 分析を見られるか・投稿できるかのルールは `backend/src/process/progress.rs` の1か所だけ。画面は API の `progress`・`posting` を見る（ルールを写さない）
+  - 参加者は署名付き HttpOnly Cookie `cp_uid`。読む・投票はログインなし、投稿はパスキーの登録が要る（ADR 0006）
+  - 運営者の API（`/api/operator/...`）は運営者でなければすべて 404。中身は CLI と同じ `records`・`process` の関数（ロジックを写さない）
 - 自治体の追加: `data/seeds/010_municipality_<団体コード>_<slug>.sql` を1ファイル追加し、`cargo run -- seed`
   - 書式は `010_municipality_092100_otawara.sql` に倣う。全 INSERT に `ON CONFLICT DO NOTHING` を付ける
   - 地区 ID は `<団体コード>-<ローマ字>`
   - 決算カードの収集先（`soumu_settlement_card`）を1行足して `fetch settlement -m <slug>` → `import settlement -m <slug>` すると、人口（`municipality_stats`）も決算カードから入る。設定は全市町村で同じ（大田原市の行をそのまま写し、id と municipality_id だけ変える）
+- CI は `.github/workflows/ci.yml`（PostgreSQL へのマイグレーションと seed の互換も確かめる）
 
 ## 開発フェーズ
-1. 土台: モノレポ雛形、DB マイグレーション（行政区分マスタ含む）、大田原市の seed、ヘルスチェック API、フロント雛形
-2. コア: 自治体別トピック一覧・詳細、ステートメント投稿、投票 API、Polis 風投票 UI
-   - 開始時: CI（GitHub Actions）で PostgreSQL へのマイグレーション・seed 互換チェック
-3. 分析: 投票行列からの PCA / クラスタリング、コンセンサス判定（全グループ賛成率 80% 以上）
-4. AI: モデレーション、自動タグ付け（分野は共通語彙、地区はその自治体の districts から選択）
-5. 収集: `Collector` trait と大田原市用アダプタ、決算カード共通パーサー（robots.txt と利用規約を確認してから）
-   - 収集バッチは backend のサブコマンドとして作る（本番での定期実行はリリース準備で整える）
-6. 認証（ADR 0006。パスキーだけで始め、SNS ログインは使わない）: 6a 認証の土台（パスキー・運営者）→ 6b 参加の決まり（投稿の上限・分析を開く条件・似た意見の案内）→ 6c 管理画面（下書きのトピック・確認待ちの意見・市民からの提案）→ 6d 市民からのトピックの提案 → 6e 1人を見分ける目印（乱用が見えたら。SNS か SMS を1回だけ確かめ、鍵付きのハッシュだけを持つ）
-7. リリース準備: 全機能がそろってから、デプロイ先の選定・契約、Dockerfile / 本番用 compose / Caddy / バックアップ、ドメイン、リポジトリの Public 化、本番公開をまとめて行う（`docs/adr/0001-docker-adoption.md` の改訂を参照）
-8. 展開: 自治体選択 UI の有効化、近隣自治体の追加、自治体追加手順のドキュメント化
+- 1 土台 → 2 コア → 3 分析 → 4 AI → 5 収集 → 6a パスキー・運営者 → 6b 参加の決まり → 6c 管理画面とトピックの期限 は済み（状況は `docs/overview.md`、各計画は `docs/plans/README.md`）
+- 6d 市民からのトピックの提案（提案として受け、運営者の確認を通ったものだけを公開。1人週1件。提案した本人は意見3件まで。ADR 0005）。提案の確認は管理画面に足す
+- 6e 1人を見分ける目印（乱用が見えたら。SNS か SMS を1回だけ確かめ、鍵付きのハッシュだけを持つ。ADR 0006）
+- 7 リリース準備: 全機能がそろってから、デプロイ先の選定・契約、Dockerfile / 本番用 compose / Caddy / バックアップ、ドメイン、リポジトリの Public 化、本番公開をまとめて行う（`docs/adr/0001-docker-adoption.md` の改訂を参照）。収集の定期実行もここで整える
+- 8 展開: 自治体選択 UI の有効化、近隣自治体の追加、自治体追加手順のドキュメント化
