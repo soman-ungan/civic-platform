@@ -6,7 +6,7 @@
 use clap::{Args, ValueEnum};
 
 use crate::ingest::{budget, collect};
-use crate::process::moderation;
+use crate::process::{moderation, progress};
 use crate::records::{self, accounts, topics};
 use crate::shared::status::Publication;
 
@@ -596,7 +596,7 @@ pub async fn publish(ctx: &Ctx, args: PublishArgs, publish: bool) -> anyhow::Res
         }
         Target::Topic => {
             let id = required(&args.id, &format!("{verb} topic --id <id>"))?;
-            if !topics::set_status(pool, id, status).await? {
+            if !topics::set_status(pool, id, status, &progress::default_closes_at()).await? {
                 anyhow::bail!("トピックが見つかりません: {id}");
             }
             println!("{id}: {}", status.as_str());

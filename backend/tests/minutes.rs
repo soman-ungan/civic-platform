@@ -365,6 +365,7 @@ async fn published_topic_shows_sources() {
         &pool,
         topic_id,
         backend::shared::status::Publication::Published,
+        &backend::process::progress::default_closes_at(),
     )
     .await
     .unwrap();

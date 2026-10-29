@@ -268,7 +268,7 @@ async fn next_statement_for_new_visitor() {
     // この seed の t1 には最初の意見が無いので、分析は投票の前から開いている
     assert_eq!(
         json["progress"],
-        json!({ "voted": 0, "total": 3, "analysis_unlocked": true, "analysis_remaining": 0 })
+        json!({ "voted": 0, "total": 3, "closed": false, "analysis_unlocked": true, "analysis_remaining": 0 })
     );
     let id = json["statement"]["id"].as_str().unwrap();
     assert!(
@@ -299,7 +299,7 @@ async fn next_statement_skips_voted_and_ends_with_null() {
     assert_eq!(json["statement"], Value::Null);
     assert_eq!(
         json["progress"],
-        json!({ "voted": 3, "total": 3, "analysis_unlocked": true, "analysis_remaining": 0 })
+        json!({ "voted": 3, "total": 3, "closed": false, "analysis_unlocked": true, "analysis_remaining": 0 })
     );
 }
 

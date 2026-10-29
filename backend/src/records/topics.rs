@@ -175,17 +175,46 @@ impl DraftDetail {
     }
 }
 
-/// 公開する・保管する（公開をやめる）。下書き・公開済みのトピックが対象。見つからなければ false
+/// 公開する・保管する（公開をやめる）。下書き・公開済みのトピックが対象。見つからなければ false。
+/// 初めて公開するときに、公開の日時と投票の期限 `closes_at`（決まりは `process::progress::default_closes_at`）を付ける（ADR 0005）。
+/// 保管するときは `closes_at` を使わない
 pub async fn set_status(
     pool: &SqlitePool,
     topic_id: &str,
     status: Publication,
+    closes_at: &str,
 ) -> Result<bool, sqlx::Error> {
     let result = sqlx::query("UPDATE topics SET status = $1 WHERE id = $2")
         .bind(status.as_str())
         .bind(topic_id)
         .execute(pool)
         .await?;
+    if status == Publication::Published {
+        sqlx::query(
+            "UPDATE topics SET published_at = $1, closes_at = $2
+             WHERE id = $3 AND published_at IS NULL",
+        )
+        .bind(crate::shared::util::now_iso())
+        .bind(closes_at)
+        .bind(topic_id)
+        .execute(pool)
+        .await?;
+    }
+    Ok(result.rows_affected() > 0)
+}
+
+/// 投票の期限を変える（早めに締め切るなら今の日時。ADR 0005）。公開済みのトピックが対象。見つからなければ false
+pub async fn set_closes_at(
+    pool: &SqlitePool,
+    topic_id: &str,
+    closes_at: &str,
+) -> Result<bool, sqlx::Error> {
+    let result =
+        sqlx::query("UPDATE topics SET closes_at = $1 WHERE id = $2 AND status = 'published'")
+            .bind(closes_at)
+            .bind(topic_id)
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected() > 0)
 }
 
