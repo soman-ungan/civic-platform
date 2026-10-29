@@ -9,7 +9,7 @@ import { TopicFinances } from "@/components/topics/finances";
 import { TopicSources } from "@/components/topics/sources";
 import { municipalityApi, topicApi } from "@/lib/api/paths";
 import { apiGet, requestCookie } from "@/lib/api/server";
-import { SOURCE_LABELS } from "@/lib/labels";
+import { deadlineLabel, SOURCE_LABELS } from "@/lib/labels";
 import type { AnalysisView } from "@/lib/api/types/analysis";
 import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
 import type { NextStatement } from "@/lib/api/types/participation";
@@ -49,6 +49,7 @@ async function TopicView({
   if (!municipality || !topic) {
     notFound();
   }
+  const deadline = deadlineLabel(topic);
 
   return (
     <>
@@ -62,6 +63,7 @@ async function TopicView({
           </Link>
           <p className="mb-0.5 text-xs text-zinc-500">
             {SOURCE_LABELS[topic.source_type]}
+            {deadline && ` ・ ${deadline}`}
           </p>
           <h1 className="text-lg leading-snug font-bold">{topic.title}</h1>
           {topic.tags.length > 0 && (

@@ -190,16 +190,27 @@ export function VotingPanel({
         </>
       ) : (
         <div className="rounded-3xl border border-zinc-200 p-6 text-center dark:border-zinc-800">
-          <p className="font-semibold">
-            {progress.total === 0
-              ? "まだ意見がありません"
-              : "すべての意見に投票しました"}
-          </p>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            {progress.total === 0
-              ? "最初の意見を投稿してみませんか？"
-              : "ありがとうございます。新しい意見が増えたら、また投票できます。"}
-          </p>
+          {progress.closed ? (
+            <>
+              <p className="font-semibold">このトピックは締め切りました</p>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                投票と投稿は終わりました。結果は「みんなの意見」で見られます。
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">
+                {progress.total === 0
+                  ? "まだ意見がありません"
+                  : "すべての意見に投票しました"}
+              </p>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                {progress.total === 0
+                  ? "最初の意見を投稿してみませんか？"
+                  : "ありがとうございます。新しい意見が増えたら、また投票できます。"}
+              </p>
+            </>
+          )}
         </div>
       )}
 

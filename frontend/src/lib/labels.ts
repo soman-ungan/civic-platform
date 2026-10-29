@@ -15,6 +15,21 @@ export const SOURCE_LABELS: Record<Topic["source_type"], string> = {
   citizen: "市民提案",
 };
 
+/**
+ * トピックの期限の表示（「あと N 日」「締め切りました」）。期限なしなら null。
+ * 締め切ったかは backend の `closed` を使う（ルールを写さない）。日数は表示のための目安
+ */
+export function deadlineLabel(
+  topic: Pick<Topic, "closes_at" | "closed">,
+): string | null {
+  if (topic.closed) return "締め切りました";
+  if (!topic.closes_at) return null;
+  const days = Math.ceil(
+    (Date.parse(topic.closes_at) - Date.now()) / (24 * 60 * 60 * 1000),
+  );
+  return `あと ${Math.max(days, 1)} 日`;
+}
+
 /** 居住地属性の短い表記（表の見出し用） */
 export const RESIDENCY_SHORT_LABELS: Record<ResidencyType, string> = {
   resident: "住民",
