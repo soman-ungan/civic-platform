@@ -161,7 +161,7 @@ civic-platform/
   - `globals.css` を変えても開発サーバーが古い CSS を配り続けることがある（Turbopack のキャッシュ。WSL で確認）。そのときは `npm run dev` を止めて `.next/dev` を消してから起動し直す
 - API（すべて `/api` 配下。エラーは `{"error": {"code", "message"}}`）
   - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）
-  - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}` — Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count` を返す（承認済みの意見だけで数える）
+  - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}` — Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count` を返す（承認済みの意見だけで数える）。期限 `closes_at`（null は期限なし）と締め切ったか `closed`。一覧は締め切ったものを後ろに
   - `PUT /municipalities/{slug}/relation` — このまちとの関わり方（投票の前に必要）。地区は受け取らない
   - `GET /municipalities/{slug}/topics/{id}/next-statement` — 未投票の承認済み意見1件（最初の意見が残っていればその中から。Polis の優先度で重み付けした抽選）、進捗 `progress`（`voted`・`total`・`analysis_unlocked`・`analysis_remaining`）、投稿できるか `posting`（`status`: allowed / registration_required / votes_required（`remaining`）/ limit_reached）
   - `GET /municipalities/{slug}/topics/{id}/analysis` — 意見マップ・グループと代表意見・合意点・`statements_by_group`・`group_composition`（グループごとの関わり方の構成）・関わり方ごとの集計（分析対象が5人未満なら insufficient。関わり方の集計は二次秘匿済み）
@@ -171,8 +171,13 @@ civic-platform/
   - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。分析を見られて、1件以上投票したトピックの分だけを返す（Cookie が無ければ空）
   - `POST /municipalities/{slug}/topics/{id}/statements/{sid}/votes` — `{value: 1 | -1 | 0}`。票はあとから変えられない（投票済みは 409 `already_voted`。分析を見てから票を合わせ直すことを防ぐ）
   - `POST /municipalities/{slug}/topics/{id}/statements` — `{body}`（1〜140文字）。判定の結果 `status`（approved / rejected / flagged / pending / duplicate）。rejected は理由の種類 `rejection`（harm / person / official_name / not_votable）と言い換えの提案 `suggestion`、duplicate は保存せず案内する意見 `similar`（投票済みならその票 `your_vote`）。保存した意見（rejected 以外）には投稿者の賛成の票を入れる。分析の前は 403 `votes_required`（未登録でも先にこちら）、未登録は 401 `registration_required`、2件目は 409 `statement_limit`
+  - 締め切ったトピック（`closes_at` を過ぎた。ADR 0005）への投票・投稿は 409 `topic_closed`。分析はロックせず誰にでも見せる
   - 参加者は署名付き HttpOnly Cookie `cp_uid` で識別。**読む・投票はログインなし、投稿はパスキーの登録が要る**（ADR 0006。未登録なら 401 `registration_required`）。CI は `.github/workflows/ci.yml`
   - `GET /auth/me`（`registered`・`operator`。利用者の ID は返さない）/ `POST /auth/register/start`→`finish`（今の参加者にパスキーを付ける。投票はそのまま）/ `POST /auth/login/start`→`finish`（名前を入力しないパスキー。その端末の匿名の投票をアカウントに移す）/ `POST /auth/logout`
+  - 運営者の API（`/api/operator/...`。`backend/src/interface/api/operator.rs`）: 運営者でなければすべて 404。パスの自治体のトピック・意見だけを操作できる。中身は CLI と同じ `records`・`process` の関数。投稿者の ID は運営者にも返さない
+    - `GET /operator/municipalities`（準備中の自治体も）・`GET .../{slug}/tags`・`GET .../{slug}/topics?status=draft|published|archived`・`GET|PATCH .../topics/{id}`・`POST .../topics/{id}/publish|archive`・`PUT .../topics/{id}/closes-at`（`{closes_at?}`。省くと今。公開中だけ）・`POST .../topics/{id}/statements`・`PUT|DELETE .../topics/{id}/tags/{tag_id}`
+    - `GET .../{slug}/statements`（flagged・pending）・`PATCH .../statements/{id}`・`POST .../statements/{id}/approve|reject|retry`（retry は pending を1件 AI でやり直す。キーが無ければ 409）
+    - 画面は `/operator`（`?m=<slug>&tab=drafts|queue|published`。`frontend/src/components/operator/`）。運営者にはフッターにリンクが出る
   - パスキーは webauthn-rs（`backend/src/interface/api/auth.rs`）、アカウントの処理は `backend/src/records/accounts.rs`。保存するのは公開鍵・ID・日時だけ。設定は `WEBAUTHN_RP_ID`・`WEBAUTHN_ORIGIN`（既定は localhost）。テストはソフトウェアのパスキー（`tests/auth.rs`）
     - 画面の流れ（投票の前の「ログインして投票しますか」・端末の印・アカウントが2つになる限界）は `docs/plans/2026-10-28-phase6a-passkeys.md` の「ログインの流れ」。選択肢の部品は `frontend/src/components/auth/passkey-choices.tsx`
 - 自治体の追加: `data/seeds/010_municipality_<団体コード>_<slug>.sql` を1ファイル追加し、`cargo run -- seed`

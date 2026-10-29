@@ -93,7 +93,7 @@ flowchart LR
 | `import` | Excel を読んで保存 | JSON を検査して下書きに | JSON を検査して下書きに |
 | 検査 | 表の形 | 款別・性質別・歳入の合計、事業の名前と金額がそのページの本文にあるか | 引用が原文どおりか、意見に氏名が無いか、根拠の発言があるか、名簿 |
 | 入る先 | `settlement_items` `municipality_stats` `documents` | `budgets` `budget_items` `budget_projects` `budget_project_tags` `documents` | `topics` `statements` `topic_sources` `statement_sources` `documents` |
-| 公開の前の確認 | なし（そのまま公開） | `show budget` → `publish budget` | `show topic` → `publish topic` |
+| 公開の前の確認 | なし（そのまま公開） | `show budget` → `publish budget` | `show topic` → `publish topic`（または管理画面の「下書き」） |
 | 頻度 | 年1回 | 年1回（2〜3月） | 定例会のあと（年4回、1回に数日分） |
 | 費用 | 0 | API なら約 0.8 ドル、共同作業なら 0 | API なら1日分 0.3〜0.4 ドル、共同作業なら 0 |
 
@@ -188,7 +188,7 @@ API サーバー（引数なしで起動）は、次の処理をバックグラ�
 | トピックの自動のタグ付け | 60秒 | タグの無いトピック | `topic_tags` | 要る |
 
 - 市民の投稿は、届いたその場で AI が判定します（承認・非公開・人が確かめる）。判定できなかった（通信の失敗・費用の上限）ものは pending のまま残り、上の処理でやり直します
-- 人が確かめる（flagged）ものは `list statement` → `moderate statement --id <id> --approve` / `--reject`
+- 人が確かめる（flagged）ものは、管理画面（`/operator`）の「確認待ち」か、`list statement` → `moderate statement --id <id> --approve` / `--reject`
 - AI の使用量と推定の費用は `llm_usage` に記録され、1日の上限（`LLM_DAILY_BUDGET_USD`・`LLM_EXTRACTION_DAILY_BUDGET_USD`）を超えると呼びません
 
 ## 状態の移り変わり
@@ -227,7 +227,7 @@ stateDiagram-v2
 | 資料の出典 | `documents`（URL・ハッシュ・作り方 `extraction`。原本は持たない） | `import` |
 | 決算 | `settlement_items` | `import settlement` |
 | 予算 | `budgets` `budget_items` `budget_projects` `budget_project_tags` | `import budget`・`publish budget` |
-| トピック | `topics` `topic_sources`（引用） | `import minutes`・`edit topic`・`publish topic` など |
+| トピック | `topics`（公開の日時 `published_at`・投票の期限 `closes_at`）`topic_sources`（引用） | `import minutes`・`edit topic`・`publish topic` など・管理画面 |
 | 意見 | `statements` | `import minutes`（最初の意見）・市民の投稿 |
 | | `statement_sources`（最初の意見の根拠の発言。API では返さない） | `import minutes` |
 | 参加者 | `users` `user_municipality_relations`（関わり方） | 市民（API） |

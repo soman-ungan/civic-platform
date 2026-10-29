@@ -134,3 +134,4 @@
 - 寄付の受け付けの仕組み（外部のサービス）と収支の公開の方法は、フェーズ7（リリース準備）で選ぶ
 - 2026-10-28（フェーズ6b）: 投稿の上限・分析を開く条件・投稿できる条件（分析を見られてから）は `backend/src/process/progress.rs`、似た意見の案内は意見の審査（ADR 0007、`backend/src/process/moderation.rs`）で実装した。市民提案のトピックの3件は 6d、トピックの期限と締め切りは 6c
 - 2026-10-29: 分析と投稿を開く条件を最初の意見すべてにし（`Progress::analysis_remaining`）、投稿した人の賛成の票を投稿の API（`backend/src/interface/api/participation.rs` の `post_statement`）で入れる
+- 2026-10-29（フェーズ6c）: 期限は `topics.closes_at` で持ち、過ぎたかで締め切りを決める（`status` に 'closed' は足さない。期限で自然に締め切れ、定期の処理が要らないため）。公開したときに `published_at` と90日後の `closes_at` を付ける。それより前に公開したトピックは期限なし（NULL）。運営者が早めに締め切るときは、管理画面で `closes_at` を今にする。締め切ったトピックの分析は、投票していない人にも見せる（ロックは投票が全体の傾向に左右されないためのもので、投票が終われば理由がない）。ルールは `backend/src/process/progress.rs`

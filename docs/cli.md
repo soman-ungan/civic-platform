@@ -2,7 +2,7 @@
 
 backend（Rust）は、API サーバーとしてだけでなく、運営のためのコマンドとしても使います。
 自治体のデータの投入、会議録・予算の取り込み、AI の判定の確認などは、すべてこのコマンドで行います。
-管理画面は、認証（開発フェーズ6）ができるまではありません。
+下書きのトピックの確認と公開、確認待ちの意見の採否、公開中のトピックの期限は、管理画面（`/operator`。運営者のパスキーでログインした端末）でも行えます。中身はこのコマンドと同じ処理です。トピックの期限の変更は管理画面だけでできます。
 資料がどのコマンドで DB のどこに入るかの全体は、[docs/data-flow.md](data-flow.md) にあります。
 
 - 開発中は `backend/` で `cargo run -- <コマンド>` として実行します
@@ -264,13 +264,14 @@ cargo run -- remove operator --id <アカウントの id>               # 運営
 ### publish / archive
 
 ```sh
-cargo run -- publish topic --id <id>              # 公開する
+cargo run -- publish topic --id <id>              # 公開する（初めてなら、公開から90日の期限が付く）
 cargo run -- archive topic --id <id>              # 取り下げる（画面から消える。データは残る）
 cargo run -- publish budget -m otawara -y 2026
 cargo run -- archive budget -m otawara -y 2026
 ```
 
 - 会議録から作ったトピックは、1つずつ公開します（`show minutes` で一覧）
+- 期限を過ぎたトピックは、投票と投稿だけが止まり、結果は誰でも見られます（ADR 0005）。期限の変更・早めの締め切りは管理画面の「公開中」で行います
 - 意見の公開・非公開は、判定として [`moderate`](#moderate) で行います
 
 ## 3. DB の中身を判定・計算する
@@ -283,7 +284,7 @@ cargo run -- moderate statement --id <id> --approve    # 人が公開する
 cargo run -- moderate statement --id <id> --reject     # 人が非公開にする
 ```
 
-- 確認待ちの一覧は `list statement` です
+- 確認待ちの一覧は `list statement` です。管理画面の「確認待ち」でも同じ一覧を見て、公開・非公開を選べます（pending は1件ずつ AI でやり直せる）
 - AI は、主張や政治的な立場では判断しません。公人の公務への批判は公開し、人格攻撃や私生活に触れるものは非公開にします（`docs/adr/0003-llm-operations.md`）
 - 通信の失敗や費用の上限で判定できなかった意見は、自動で承認せず pending のまま残します
 
