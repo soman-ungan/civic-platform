@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import Link from "next/link";
+
 import { ChipLink } from "@/components/ui/chip";
 import { SegmentedSwitch } from "@/components/ui/segmented-switch";
 import type { Municipality } from "@/lib/api/types/municipalities";
@@ -23,7 +25,16 @@ export function OperatorConsole({
   const slug = municipality.slug;
   return (
     <div className="mx-auto w-full max-w-md px-4 pt-4 pb-8">
-      <h1 className="text-lg font-semibold">管理画面</h1>
+      <div className="flex items-baseline justify-between gap-4">
+        <h1 className="text-lg font-semibold">管理画面</h1>
+        {/* 準備中の自治体には公開の画面が無いので、トップ（公開中の自治体へ振り分ける）に戻る */}
+        <Link
+          href="/"
+          className="text-sm text-zinc-600 underline underline-offset-2 dark:text-zinc-400"
+        >
+          通常の画面へ
+        </Link>
+      </div>
       {municipalities.length > 1 ? (
         <nav aria-label="自治体" className="mt-2 flex flex-wrap gap-2">
           {municipalities.map((m) => (
