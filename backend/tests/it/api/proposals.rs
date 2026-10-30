@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 //! 市民からのトピックの提案（フェーズ6d。ADR 0005）: 下書きとして保存し、外には出さない。
-//! 自治体ごとに1人週1件、提案した本人は意見3件まで、公開したら本人の賛成の票。提案した人は API に出さない
+//! 自治体ごとに1人週1件、提案した本人は意見3件まで、本人の票は自動で入れない（Polis の seed と同じ）。提案した人は API に出さない
 
 use crate::common::{
     activate_second_municipality, assert_no_key, cookie_for, request, seed_fixture, test_pool,
@@ -290,7 +290,7 @@ async fn proposal_input_is_checked() {
 }
 
 #[tokio::test]
-async fn publishing_adds_the_proposers_votes_and_allows_three_statements() {
+async fn proposer_votes_on_their_own_seeds_and_posts_up_to_three() {
     let pool = test_pool().await;
     setup(&pool).await;
     let state = test_state(pool);
@@ -324,21 +324,35 @@ async fn publishing_adds_the_proposers_votes_and_allows_three_statements() {
     )
     .await;
     assert!(res.status.is_success(), "{}", res.json);
-    let votes: Vec<i64> = sqlx::query_scalar(
-        "SELECT v.vote_value FROM votes v JOIN statements s ON s.id = v.statement_id
-         WHERE s.topic_id = $1 AND v.user_id = 'u2'",
-    )
-    .bind(&id)
-    .fetch_all(&state.pool)
-    .await
-    .unwrap();
-    assert_eq!(votes, vec![1, 1]);
+    // 公開しても、提案した人の票は入らない（Polis の seed と同じ。反対の立場の意見も書けるように）
+    let votes: i64 = sqlx::query_scalar("SELECT count(*) FROM votes")
+        .fetch_one(&state.pool)
+        .await
+        .unwrap();
+    assert_eq!(votes, 0);
 
     let res = request(&state, "GET", OTAWARA, Some(&u2), None).await;
     assert_eq!(res.json["items"][0]["state"], "published");
 
-    // 提案した本人は、最初の意見とあわせて3件まで（分析は自分の意見への賛成で開いている）
+    // 提案した本人も、ほかの人と同じく最初の意見に投票してから投稿する（反対・パスも選べる）
     let path = format!("/api/municipalities/otawara/topics/{id}/next-statement");
+    let res = request(&state, "GET", &path, Some(&u2), None).await;
+    assert_eq!(res.json["posting"]["status"], "votes_required");
+    for value in [1, -1] {
+        let res = request(&state, "GET", &path, Some(&u2), None).await;
+        let sid = res.json["statement"]["id"].as_str().unwrap().to_owned();
+        let res = request(
+            &state,
+            "POST",
+            &format!("/api/municipalities/otawara/topics/{id}/statements/{sid}/votes"),
+            Some(&u2),
+            Some(json!({"value": value})),
+        )
+        .await;
+        assert_eq!(res.status, StatusCode::OK, "{}", res.json);
+    }
+
+    // 提案した本人は、最初の意見とあわせて3件まで
     let res = request(&state, "GET", &path, Some(&u2), None).await;
     assert_eq!(res.json["posting"]["status"], "allowed");
     let post = format!("/api/municipalities/otawara/topics/{id}/statements");

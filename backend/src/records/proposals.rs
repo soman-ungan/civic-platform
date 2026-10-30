@@ -10,6 +10,7 @@ use sqlx::SqlitePool;
 use crate::shared::util::{new_id, now_iso};
 
 /// 提案を保存する。意見は提案した人の意見として承認済みの最初の意見にする（運営者が下書きで確かめる）。
+/// 提案した人の票は入れない（Polis の seed と同じ。反対の立場の意見も書けるように。公開のあと、ほかの人と同じく投票する）。
 /// 入力の確かめ（文字数・公人の氏名）は呼ぶ側で済ませておく。戻り値はトピックの ID
 pub async fn create(
     pool: &SqlitePool,
@@ -79,31 +80,4 @@ pub async fn mine(
     .bind(municipality_id)
     .fetch_all(pool)
     .await
-}
-
-/// 公開したときに、提案した人の賛成の票を、その人の承認済みの意見に入れる（投稿したら賛成とみなす。ADR 0005）。
-/// 提出のときに入れないのは、投票のある意見は運営者が直せないため。何度呼んでも同じ
-pub async fn add_proposer_votes(pool: &SqlitePool, topic_id: &str) -> Result<(), sqlx::Error> {
-    let statements: Vec<(String, String)> = sqlx::query_as(
-        "SELECT s.id, s.user_id FROM statements s
-         JOIN topics t ON t.id = s.topic_id
-         WHERE s.topic_id = $1 AND s.status = 'approved' AND s.user_id = t.proposed_by",
-    )
-    .bind(topic_id)
-    .fetch_all(pool)
-    .await?;
-    for (statement_id, user_id) in statements {
-        sqlx::query(
-            "INSERT INTO votes (id, user_id, statement_id, vote_value, created_at)
-             VALUES ($1, $2, $3, 1, $4)
-             ON CONFLICT (user_id, statement_id) DO NOTHING",
-        )
-        .bind(new_id())
-        .bind(&user_id)
-        .bind(&statement_id)
-        .bind(now_iso())
-        .execute(pool)
-        .await?;
-    }
-    Ok(())
 }

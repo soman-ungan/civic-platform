@@ -249,7 +249,6 @@ pub fn source_mark(source_type: &str) -> &'static str {
 
 /// 公開する・保管する（公開をやめる）。下書き・公開済みのトピックが対象。見つからなければ false。
 /// 初めて公開するときに、公開の日時と投票の期限 `closes_at`（決まりは `process::progress::default_closes_at`）を付ける（ADR 0005）。
-/// 市民の提案なら、提案した人の賛成の票も入れる（`proposals::add_proposer_votes`）。
 /// 保管するときは `closes_at` を使わない
 pub async fn set_status(
     pool: &SqlitePool,
@@ -272,7 +271,6 @@ pub async fn set_status(
         .bind(topic_id)
         .execute(pool)
         .await?;
-        super::proposals::add_proposer_votes(pool, topic_id).await?;
     }
     Ok(result.rows_affected() > 0)
 }

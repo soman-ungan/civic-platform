@@ -28,7 +28,7 @@ import {
   countChars,
 } from "@/lib/statement";
 
-/** 提案に含められる意見の数（提案した本人の上限と同じ。ADR 0005） */
+/** 提案した本人がそのトピックに出せる意見の数（提案に含めた最初の意見も数える。ADR 0005） */
 const MAX_PROPOSAL_STATEMENTS = 3;
 
 const INPUT =
@@ -171,6 +171,8 @@ function ProposalForm({
   const titleCount = countChars(title.trim());
   const descriptionCount = countChars(description.trim());
   const filled = statements.filter((s) => s.trim() !== "");
+  // 提案した人の上限は、最初の意見とあわせた数（ADR 0005）
+  const remaining = MAX_PROPOSAL_STATEMENTS - Math.max(filled.length, 1);
   const ready =
     titleCount > 0 &&
     titleCount <= MAX_TITLE_CHARS &&
@@ -241,11 +243,13 @@ function ProposalForm({
       </Field>
 
       <fieldset className="mt-5">
-        <legend className="text-sm font-medium">
-          最初の意見（{MAX_PROPOSAL_STATEMENTS}件まで）
-        </legend>
+        <legend className="text-sm font-medium">最初の意見（1件以上）</legend>
         <p className="mt-1 text-xs leading-5 text-zinc-500">
-          ほかの人が賛成・反対できる意見を、1件に1つずつ書いてください。人ではなく、政策や事業についての意見にしてください。参加する人は、まずこの意見に投票します。公開すると、あなたはこの意見に賛成したことになります。
+          参加する人が、まず投票する意見です。ほかの人が賛成・反対できる意見を、1件に1つずつ書いてください。あなたと違う立場の意見も書けます（その立場の人が読んで納得できる書き方で）。人ではなく、政策や事業についての意見にしてください。
+        </p>
+        <p className="mt-1 text-xs leading-5 text-zinc-500">
+          提案した人が出せる意見は、このトピック全体で{MAX_PROPOSAL_STATEMENTS}
+          件までです。ここで書いた分も数えます。公開されたら、あなたもほかの人と同じように、この意見に賛成・反対・パスで投票します。
         </p>
         {statements.map((body, i) => (
           <div key={i} className="mt-3">
@@ -291,6 +295,11 @@ function ProposalForm({
             ＋ 意見を足す
           </button>
         )}
+        <p className="mt-2 text-xs text-zinc-500">
+          {remaining > 0
+            ? `公開のあと、あと${remaining}件の意見を投稿できます。`
+            : `公開のあとは、意見を投稿できません（${MAX_PROPOSAL_STATEMENTS}件をここで使います）。`}
+        </p>
       </fieldset>
 
       <p className="mt-5 text-xs leading-5 text-zinc-500">
