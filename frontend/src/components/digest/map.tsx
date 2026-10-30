@@ -22,7 +22,7 @@ const PAD = 0.15;
 const MAX_ZOOM = 8;
 /** これより動いたら、タップではなくドラッグ（px） */
 const TAP_PX = 6;
-/** 地図の高さ（画面の高さに対する割合）。カードをスクロールすると、大きいほうから小さいほうへ縮む */
+/** 地図の高さ（画面の高さに対する割合）。カードをスクロールすると、縦横比を保ったまま大きいほうから小さいほうへ縮む */
 const MAP_HEIGHT = { large: 0.4, small: 0.18 } as const;
 
 /** いちばん近い、縦にスクロールする祖先 */
@@ -35,11 +35,11 @@ function scrollParent(el: HTMLElement | null): HTMLElement | null {
 }
 
 /**
- * 地図の高さ（px）。地図が上に固定されてから下にスクロールした分だけ縮め、上に戻すと元に戻す。
+ * 地図の大きさの倍率（1 が元の大きさ）。地図が上に固定されてから下にスクロールした分だけ縮め、上に戻すと元に戻す。
  * `sentinel` は固定する見出しの直前に置いた要素（それがどれだけ上に過ぎたかで測る）
  */
-function useShrinkingHeight(sentinel: React.RefObject<HTMLDivElement | null>) {
-  const [height, setHeight] = useState<number | null>(null);
+function useShrinkingScale(sentinel: React.RefObject<HTMLDivElement | null>) {
+  const [scale, setScale] = useState(1);
   useEffect(() => {
     const container = scrollParent(sentinel.current);
     if (!container) return;
@@ -52,7 +52,8 @@ function useShrinkingHeight(sentinel: React.RefObject<HTMLDivElement | null>) {
       const past =
         container.getBoundingClientRect().top -
         (sentinel.current?.getBoundingClientRect().top ?? 0);
-      setHeight(Math.round(Math.min(large, Math.max(small, large - past))));
+      const height = Math.min(large, Math.max(small, large - past));
+      setScale(Math.round((height / large) * 1000) / 1000);
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(update);
@@ -66,7 +67,7 @@ function useShrinkingHeight(sentinel: React.RefObject<HTMLDivElement | null>) {
       window.removeEventListener("resize", onScroll);
     };
   }, [sentinel]);
-  return height;
+  return scale;
 }
 
 /** 地図を開く前のタグの一覧 */
@@ -164,12 +165,9 @@ export function TopicMapView({
     : [...map.points].sort((a, b) => b.closes_at.localeCompare(a.closes_at));
   const popupPoint = popup ? byId.get(popup) : undefined;
   const sentinel = useRef<HTMLDivElement>(null);
-  const mapHeight = useShrinkingHeight(sentinel);
+  const mapScale = useShrinkingScale(sentinel);
   // 地図が縮んだら、吹き出しは閉じる（小さい地図を覆ってしまうため）
-  const shrunk =
-    mapHeight !== null &&
-    typeof window !== "undefined" &&
-    mapHeight < window.innerHeight * MAP_HEIGHT.large - 40;
+  const shrunk = mapScale < 0.9;
 
   return (
     <>
@@ -194,7 +192,7 @@ export function TopicMapView({
         </div>
         <div className="relative mt-2">
           <ZoomableMap
-            height={mapHeight}
+            scale={mapScale}
             map={map}
             anchor={anchor}
             near={near}
@@ -274,7 +272,7 @@ export function TopicMapView({
  * 点と線の太さは、拡大しても画面の上で同じにする
  */
 function ZoomableMap({
-  height,
+  scale,
   map,
   anchor,
   near,
@@ -282,8 +280,8 @@ function ZoomableMap({
   onPoint,
   onBackground,
 }: {
-  /** 地図の高さ（px）。測る前は null（画面の4割） */
-  height: number | null;
+  /** 大きさの倍率（1 で幅いっぱい・高さは画面の4割。縦横比を保って縮める） */
+  scale: number;
   map: TopicMap;
   anchor: string | null;
   near: Set<string>;
@@ -396,12 +394,12 @@ function ZoomableMap({
     7 + 9 * Math.sqrt(p.participants / maxParticipants);
 
   return (
-    <div className="relative">
+    <div className="relative mx-auto" style={{ width: `${scale * 100}%` }}>
       <svg
         ref={svgRef}
         viewBox={`${view.cx - hx} ${view.cy - hy} ${2 * hx} ${2 * hy}`}
-        style={height === null ? undefined : { height }}
-        className="h-[40dvh] w-full touch-none rounded-2xl bg-zinc-50 select-none dark:bg-zinc-900"
+        style={{ height: `calc(${MAP_HEIGHT.large * 100}dvh * ${scale})` }}
+        className="w-full touch-none rounded-2xl bg-zinc-50 select-none dark:bg-zinc-900"
         role="group"
         aria-label="締め切ったトピックの地図（似ているトピックほど近い）"
         data-swipe-ignore
