@@ -12,9 +12,10 @@ type Size = keyof typeof HEIGHTS;
 const STEP_PX = 60;
 
 /**
- * 合意点のページの上に重ねる、下から伸びるレイヤ（トピック詳細）。
+ * ページの上に重ねる、下から伸びるレイヤ（タイムラインや合意点のページから開いたトピック詳細）。
  * 上端のつまみを上下に引っ張ると、半分と全体の2段を行き来し、半分から下まで引っ張ると閉じる。
- * 閉じるとブラウザの「戻る」と同じく合意点のページに戻る（下のページはそのまま残っている）
+ * 閉じるとブラウザの「戻る」と同じく下のページに戻る（下のページはそのまま残っている）。
+ * レイヤの中で投票すると下のページの参加の状態や合意点が変わるので、閉じたら下のページを読み直す
  */
 export function BottomSheet({
   label,
@@ -39,6 +40,8 @@ export function BottomSheet({
   }, []);
 
   function close() {
+    // 「戻る」が済んで下のページの URL に戻ってから読み直す
+    window.addEventListener("popstate", () => router.refresh(), { once: true });
     router.back();
   }
 

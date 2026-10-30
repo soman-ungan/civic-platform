@@ -12,10 +12,12 @@ import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
 
 /**
  * 自治体のトップ（トピック・まちのお金）の共通の枠。自治体名とタブを固定のヘッダーとして常に表示し、
- * 本体は左右のスワイプで切り替える。URL はタブごとに別（共有された URL だけで開ける）
+ * 本体は左右のスワイプで切り替える。URL はタブごとに別（共有された URL だけで開ける）。
+ * `sheet` は、ここから開いたトピック詳細を上に重ねるレイヤ（`@sheet/(.)topics/[id]`。開いていなければ何も出さない）
  */
 export default function TabsLayout({
   children,
+  sheet,
   params,
 }: LayoutProps<"/[municipality]">) {
   return (
@@ -34,6 +36,7 @@ export default function TabsLayout({
         </div>
       </header>
       <SwipeNav>{children}</SwipeNav>
+      {sheet}
     </div>
   );
 }
