@@ -36,6 +36,16 @@ export type OperatorTopic = {
   sources: OperatorSource[];
   statements: OperatorStatement[];
   tags: { id: string; name: string; assigned_by: "ai" | "admin" }[];
+  /** 似ている同じ自治体のトピック（下書きだけ。同じ論点の重なりを確かめる候補） */
+  similar: SimilarTopic[];
+};
+
+/** 似ているトピック。score は文字の重なりから計算した 0〜1（同じ論点かは運営者が決める） */
+export type SimilarTopic = {
+  id: string;
+  title: string;
+  status: "draft" | "published";
+  score: number;
 };
 
 /** 付けられるタグ（分野と、その自治体の地区） */

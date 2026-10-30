@@ -21,6 +21,7 @@ use super::participant::MaybeParticipant;
 use crate::process::moderation::{self, Moderation};
 use crate::process::progress;
 use crate::process::publishing;
+use crate::process::similarity::{self, SimilarTopic};
 use crate::records::publishing::{self as queue_records, SlotError};
 use crate::records::topics::{self, DraftDetail, EditError};
 use crate::records::{accounts, statements, tags};
@@ -103,6 +104,8 @@ pub struct OperatorTopic {
     pub sources: Vec<Source>,
     pub statements: Vec<TopicStatement>,
     pub tags: Vec<TopicTag>,
+    /// 似ている同じ自治体のトピック（下書きだけ。同じ論点の重なりを確かめる候補。process::similarity）
+    pub similar: Vec<SimilarTopic>,
 }
 
 impl From<DraftDetail> for OperatorTopic {
@@ -149,8 +152,36 @@ impl From<DraftDetail> for OperatorTopic {
             published_at: d.published_at,
             queued_at: d.queued_at,
             closes_at: d.closes_at,
+            similar: Vec::new(),
         }
     }
+}
+
+/// 下書きに似ているトピックを、いくつまで見せるか
+const SIMILAR_TOPICS_SHOWN: usize = 3;
+
+/// 下書きに、似ているトピックの候補を付ける
+async fn with_similar(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    items: &mut [OperatorTopic],
+) -> Result<(), sqlx::Error> {
+    let drafts: Vec<String> = items
+        .iter()
+        .filter(|t| t.status == "draft")
+        .map(|t| t.id.clone())
+        .collect();
+    if drafts.is_empty() {
+        return Ok(());
+    }
+    let mut similar =
+        similarity::similar_topics(pool, municipality_id, &drafts, SIMILAR_TOPICS_SHOWN).await?;
+    for t in items.iter_mut() {
+        if let Some(v) = similar.remove(&t.id) {
+            t.similar = v;
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Serialize)]
@@ -366,6 +397,7 @@ pub async fn list_topics(
             items.push(detail.into());
         }
     }
+    with_similar(&state.pool, &municipality.id, &mut items).await?;
     Ok(Json(Page::new(
         items,
         ids.len() as i64 > limit,
@@ -380,11 +412,12 @@ pub async fn topic(
     Path((slug, topic_id)): Path<(String, String)>,
 ) -> Result<Json<OperatorTopic>, ApiError> {
     let municipality = municipalities::resolve_any(&state.pool, &slug).await?;
-    Ok(Json(
-        topic_in(&state.pool, &municipality, &topic_id)
-            .await?
-            .into(),
-    ))
+    let mut items = [OperatorTopic::from(
+        topic_in(&state.pool, &municipality, &topic_id).await?,
+    )];
+    with_similar(&state.pool, &municipality.id, &mut items).await?;
+    let [topic] = items;
+    Ok(Json(topic))
 }
 
 #[derive(Debug, Deserialize)]
