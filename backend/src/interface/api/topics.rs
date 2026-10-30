@@ -12,6 +12,7 @@ use crate::interface::api::error::ApiError;
 use crate::interface::api::participant::MaybeParticipant;
 use crate::interface::api::{finances, municipalities};
 use crate::process::progress::{self, Participation};
+use crate::records::minutes;
 use crate::shared::util::now_iso;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -29,9 +30,13 @@ struct TopicRow {
     source_type: String,
     source_url: Option<String>,
     created_at: String,
+    published_at: Option<String>,
     closes_at: Option<String>,
     statement_count: i64,
     participant_count: i64,
+    /// 出典の最初の会議の資料名と日（会期の表示のため）
+    session_title: Option<String>,
+    session_held_on: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -42,6 +47,12 @@ pub struct Topic {
     pub source_type: String,
     pub source_url: Option<String>,
     pub created_at: String,
+    /// 公開した日時（期限の決まりより前に公開したものは NULL）
+    pub published_at: Option<String>,
+    /// 新着（公開から3日以内で、Cookie の参加者が未投票。決まりは `progress::is_new`）
+    pub is_new: bool,
+    /// 会期（議会のトピックだけ。例「令和8年 第2回定例会（6月）」）
+    pub session: Option<String>,
     /// 投票の期限（ADR 0005。NULL は期限なし）
     pub closes_at: Option<String>,
     /// 締め切ったか（投票と投稿はできない。結果は読める）
@@ -91,7 +102,12 @@ pub struct ListQuery {
 
 /// $1 = municipality_id。$2 以降は呼び出し側で追加する。公開済みのトピックだけ（下書きは運営者の確認待ち）
 const SELECT_TOPIC: &str = "
-    SELECT t.id, t.title, t.description, t.source_type, t.source_url, t.created_at, t.closes_at,
+    SELECT t.id, t.title, t.description, t.source_type, t.source_url, t.created_at,
+        t.published_at, t.closes_at,
+        (SELECT d.title FROM topic_sources ts JOIN documents d ON d.id = ts.document_id
+          WHERE ts.topic_id = t.id ORDER BY d.held_on, ts.position LIMIT 1) AS session_title,
+        (SELECT d.held_on FROM topic_sources ts JOIN documents d ON d.id = ts.document_id
+          WHERE ts.topic_id = t.id ORDER BY d.held_on, ts.position LIMIT 1) AS session_held_on,
         (SELECT count(*) FROM statements s
           WHERE s.topic_id = t.id AND s.status = 'approved') AS statement_count,
         (SELECT count(DISTINCT v.user_id) FROM votes v
@@ -141,6 +157,12 @@ fn into_topic(row: TopicRow, tags: Vec<Tag>, voted_count: i64) -> Topic {
         source_type: row.source_type,
         source_url: row.source_url,
         created_at: row.created_at,
+        is_new: progress::is_new(row.published_at.as_deref(), voted_count),
+        session: row
+            .session_title
+            .as_deref()
+            .map(|title| minutes::session_label(title, row.session_held_on.as_deref())),
+        published_at: row.published_at,
         closed: progress::is_closed(row.closes_at.as_deref()),
         closes_at: row.closes_at,
         statement_count: row.statement_count,
@@ -149,7 +171,8 @@ fn into_topic(row: TopicRow, tags: Vec<Tag>, voted_count: i64) -> Topic {
     }
 }
 
-/// GET /api/municipalities/{slug}/topics?tag={tag_id} — 受付中を先に、それぞれ新しい順
+/// GET /api/municipalities/{slug}/topics?tag={tag_id} — 受付中を先に、それぞれ公開した日の新しい順
+/// （少しずつ公開するので、作った日ではなく公開した日。期限の決まりより前に公開したものは作った日）
 pub async fn list(
     State(state): State<AppState>,
     Path(slug): Path<String>,
@@ -164,7 +187,7 @@ pub async fn list(
            AND (CAST($2 AS TEXT) IS NULL OR EXISTS (
                 SELECT 1 FROM topic_tags tt WHERE tt.topic_id = t.id AND tt.tag_id = $2))
          ORDER BY CASE WHEN t.closes_at IS NOT NULL AND t.closes_at <= $3 THEN 1 ELSE 0 END,
-                  t.created_at DESC, t.id DESC"
+                  COALESCE(t.published_at, t.created_at) DESC, t.id DESC"
     ))
     .bind(&municipality.id)
     .bind(&query.tag)

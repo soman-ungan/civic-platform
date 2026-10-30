@@ -61,7 +61,8 @@ erDiagram
 ## トピックと意見（Polis のコア）
 | テーブル | 中身 |
 |---|---|
-| `topics` | 議論の場。`status`: draft（運営者の確認待ち。API のどこにも出さない）/ published / archived。`source_type`: assembly / citizen。`published_at`・`closes_at`（投票の期限。過ぎたら締め切り。NULL は期限なし。ADR 0005）。`tagged_at`（自動のタグ付けが済んだ）。`proposed_by`（市民の提案をした人。提案者の意見の上限と週1件に使い、API のどこにも返さない） |
+| `topics` | 議論の場。`status`: draft（運営者の確認待ち。API のどこにも出さない）/ published / archived。`source_type`: assembly / citizen。`published_at`・`closes_at`（投票の期限。過ぎたら締め切り。NULL は期限なし。ADR 0005）。`tagged_at`（自動のタグ付けが済んだ）。`proposed_by`（市民の提案をした人。提案者の意見の上限と週1件に使い、API のどこにも返さない）。`queued_at`（公開待ちに入れた日時。draft のまま、`publish_slots` の時刻に古い順に公開する） |
+| `publish_slots` | 自動公開の時刻（自治体ごと。日本時間の `time_of_day`。1つで1日1件）。`last_run_on`（最後に動いた日。同じ日に二度公開しない） |
 | `statements` | 意見（1〜140文字）。`status`: pending（判定待ち）/ approved / rejected / flagged（人が確かめる）。`user_id` は投稿者（NULL は議会の主張・運営者の意見。API では返さない）。`is_seed`: 最初の意見（分析を開く条件に使う）。`moderation_note`: 判定の理由 |
 | `votes` | 票（1 / -1 / 0）。`(user_id, statement_id)` に UNIQUE。あとから変えられない |
 | `topic_analyses` | トピックごとの分析の結果（Polis の数理。`docs/polis-math.md`）。`result` は公開してよい形、`state` は次の計算への引き継ぎ |

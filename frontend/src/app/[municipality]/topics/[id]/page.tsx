@@ -67,6 +67,7 @@ async function TopicView({
           </div>
           <p className="mb-0.5 text-xs text-zinc-500">
             {SOURCE_LABELS[topic.source_type]}
+            {topic.session && ` ・ ${topic.session}`}
             {deadline && ` ・ ${deadline}`}
           </p>
           <h1 className="text-lg leading-snug font-bold">{topic.title}</h1>

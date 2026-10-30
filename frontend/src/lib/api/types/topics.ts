@@ -18,6 +18,12 @@ export type Topic = {
   source_type: "assembly" | "citizen";
   source_url: string | null;
   created_at: string;
+  /** 公開した日時（期限の決まりより前に公開したものは null） */
+  published_at: string | null;
+  /** 新着（公開から3日以内で、まだ投票していない。決まりは backend） */
+  is_new: boolean;
+  /** 会期（議会のトピックだけ。例「令和8年 第2回定例会（6月）」） */
+  session: string | null;
   /** 投票の期限（null は期限なし。ADR 0005） */
   closes_at: string | null;
   /** 締め切ったか（投票と投稿はできない。結果は読める） */

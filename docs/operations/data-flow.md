@@ -229,7 +229,8 @@ stateDiagram-v2
 | 資料の出典 | `documents`（URL・ハッシュ・作り方 `extraction`。原本は持たない） | `import` |
 | 決算 | `settlement_items` | `import settlement` |
 | 予算 | `budgets` `budget_items` `budget_projects` `budget_project_tags` | `import budget`・`publish budget` |
-| トピック | `topics`（公開の日時 `published_at`・投票の期限 `closes_at`・市民の提案をした人 `proposed_by`）`topic_sources`（引用） | `import minutes`・`edit topic`・`publish topic` など・管理画面・市民の提案（`POST /proposals`） |
+| トピック | `topics`（公開の日時 `published_at`・投票の期限 `closes_at`・市民の提案をした人 `proposed_by`・公開待ち `queued_at`）`topic_sources`（引用） | `import minutes`・`edit topic`・`publish topic` など・管理画面・市民の提案（`POST /proposals`）・自動公開 |
+| 自動公開 | `publish_slots`（公開の時刻） | `add slot` など・管理画面 |
 | 意見 | `statements` | `import minutes`（最初の意見）・市民の投稿 |
 | | `statement_sources`（最初の意見の根拠の発言。API では返さない） | `import minutes` |
 | 参加者 | `users` `user_municipality_relations`（関わり方） | 市民（API） |

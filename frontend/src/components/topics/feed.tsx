@@ -148,8 +148,14 @@ function TopicCard({ slug, topic }: { slug: string; topic: Topic }) {
       className={`block rounded-2xl border p-4 shadow-sm ${style.card}`}
     >
       <div className="mb-1 flex items-center justify-between gap-2">
-        <p className="text-xs text-zinc-500">
+        <p className="min-w-0 text-xs text-zinc-500">
+          {topic.is_new && (
+            <span className="mr-1.5 rounded-full bg-sky-600 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white dark:bg-sky-500">
+              NEW
+            </span>
+          )}
           {SOURCE_LABELS[topic.source_type]}
+          {topic.session && ` ・ ${topic.session}`}
         </p>
         {label && style.badge && (
           <span

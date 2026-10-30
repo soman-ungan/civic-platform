@@ -48,6 +48,7 @@
 | [2026-10-28-finances-view](2026-10-28-finances-view.md) | まちのお金の表示の整理（決算と予算の切り替えなど） |
 | [2026-10-28-initial-render](2026-10-28-initial-render.md) | トピックの画面の最初の表示を速くする |
 | [2026-10-29-analysis-sticky-headers](2026-10-29-analysis-sticky-headers.md) | 「みんなの意見」の見出しと表の見出しの固定 |
+| [2026-10-30-timeline-flow](2026-10-30-timeline-flow.md) | タイムラインの流れ: 下書きの自動公開・公開した日の並び・新着の印・会期の表示 |
 
 ## コードと文書の整理
 | 計画 | 中身 |

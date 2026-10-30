@@ -3,7 +3,7 @@
 use backend::interface::api::{AppState, app};
 use backend::interface::cli;
 use backend::process::moderation::{self, Moderation};
-use backend::process::{analysis, tagging};
+use backend::process::{analysis, publishing, tagging};
 use backend::shared::{config::Config, db};
 use clap::Parser;
 use tokio::net::TcpListener;
@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-/// API サーバーと、バックグラウンドの処理（分析・判定のやり直し・タグ付け）
+/// API サーバーと、バックグラウンドの処理（分析・自動公開・判定のやり直し・タグ付け）
 async fn serve(ctx: cli::Ctx) -> anyhow::Result<()> {
     let cli::Ctx {
         pool,
@@ -49,6 +49,8 @@ async fn serve(ctx: cli::Ctx) -> anyhow::Result<()> {
             std::time::Duration::from_secs(config.analysis_interval_secs),
         );
     }
+
+    publishing::spawn_worker(pool.clone());
 
     match &moderation {
         Moderation::Llm { model, .. } => {

@@ -467,3 +467,167 @@ async fn lists_are_read_in_pages_without_skipping() {
     assert_eq!(res.json["items"][0]["id"], "d1");
     assert!(res.json["next"].is_null());
 }
+
+#[tokio::test]
+async fn drafts_are_queued_and_publish_slots_are_managed_per_municipality() {
+    let pool = test_pool().await;
+    setup(&pool).await;
+    let state = test_state(pool);
+    let op = cookie_for(&state, "u1");
+
+    // 公開待ちに入れる（下書きだけ）。別の自治体のトピックは 404
+    let res = request(
+        &state,
+        "POST",
+        &format!("{OTAWARA}/topics/t1/queue"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.json);
+    assert!(res.json["queued_at"].is_string());
+    assert_eq!(res.json["status"], "draft");
+    // 下書きの一覧からは外れる（公開待ちの一覧に出る）
+    let res = request(
+        &state,
+        "GET",
+        &format!("{OTAWARA}/topics?status=draft"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert!(!res.json.to_string().contains("\"t1\""));
+    let res = request(
+        &state,
+        "POST",
+        &format!("{OTAWARA}/topics/t2/queue"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+
+    // 時刻が無ければ予定は無い
+    let res = request(
+        &state,
+        "GET",
+        &format!("{OTAWARA}/publishing"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert_eq!(res.json["queue"][0]["id"], "t1");
+    assert!(res.json["queue"][0]["planned_at"].is_null());
+
+    // 時刻を足す・変える・消す。形が違う・同じ時刻は 422
+    let res = request(
+        &state,
+        "POST",
+        &format!("{OTAWARA}/publish-slots"),
+        Some(&op),
+        Some(json!({"time_of_day": "7:30"})),
+    )
+    .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.json);
+    assert_eq!(res.json["slots"][0]["time_of_day"], "07:30");
+    assert!(res.json["queue"][0]["planned_at"].is_string());
+    let slot = res.json["slots"][0]["id"].as_str().unwrap().to_owned();
+    for bad in ["25:00", "7時", "07:30"] {
+        let res = request(
+            &state,
+            "POST",
+            &format!("{OTAWARA}/publish-slots"),
+            Some(&op),
+            Some(json!({"time_of_day": bad})),
+        )
+        .await;
+        assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY, "{bad}");
+    }
+    let res = request(
+        &state,
+        "PATCH",
+        &format!("{OTAWARA}/publish-slots/{slot}"),
+        Some(&op),
+        Some(json!({"time_of_day": "18:00"})),
+    )
+    .await;
+    assert_eq!(res.json["slots"][0]["time_of_day"], "18:00");
+    // 別の自治体の時刻としては消せない
+    let res = request(
+        &state,
+        "DELETE",
+        &format!("{NASU}/publish-slots/{slot}"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+    let res = request(
+        &state,
+        "GET",
+        &format!("{NASU}/publishing"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert_eq!(res.json["slots"].as_array().unwrap().len(), 0);
+    assert_eq!(res.json["queue"].as_array().unwrap().len(), 0);
+    let res = request(
+        &state,
+        "DELETE",
+        &format!("{OTAWARA}/publish-slots/{slot}"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert_eq!(res.json["slots"].as_array().unwrap().len(), 0);
+
+    // 公開待ちから外す。公開すれば待ちから抜ける
+    let res = request(
+        &state,
+        "DELETE",
+        &format!("{OTAWARA}/topics/t1/queue"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert!(res.json["queued_at"].is_null());
+    request(
+        &state,
+        "POST",
+        &format!("{OTAWARA}/topics/t1/queue"),
+        Some(&op),
+        None,
+    )
+    .await;
+    let res = request(
+        &state,
+        "POST",
+        &format!("{OTAWARA}/topics/t1/publish"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert!(res.json["queued_at"].is_null());
+    let res = request(
+        &state,
+        "POST",
+        &format!("{OTAWARA}/topics/t1/queue"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert_eq!(res.status, StatusCode::CONFLICT);
+
+    // 運営者でなければ 404
+    let citizen = cookie_for(&state, "u2");
+    let res = request(
+        &state,
+        "GET",
+        &format!("{OTAWARA}/publishing"),
+        Some(&citizen),
+        None,
+    )
+    .await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+}

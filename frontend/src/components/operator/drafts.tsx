@@ -12,7 +12,7 @@ import { usePaged } from "@/lib/api/use-paged";
 
 import { DraftCard } from "./draft-card";
 
-/** 下書きのトピック（古い順。スクロールで続きを読む）。確かめて直し、公開するか取り下げる */
+/** 下書きのトピック（古い順。スクロールで続きを読む）。確かめて直し、公開待ちに入れるか、今すぐ公開するか、取り下げる */
 export function Drafts({ slug }: { slug: string }) {
   const topics = usePaged<OperatorTopic>(`${operatorApi(slug)}/topics`);
   const tags = useApi<TagChoice[]>(`${operatorApi(slug)}/tags`);
@@ -38,8 +38,8 @@ export function Drafts({ slug }: { slug: string }) {
               tagChoices={tags.data ?? []}
               onChange={(next) =>
                 topics.update((list) =>
-                  // 公開・取り下げたものは下書きの一覧から外す
-                  next.status === "draft"
+                  // 公開・取り下げ・公開待ちに入れたものは下書きの一覧から外す
+                  next.status === "draft" && !next.queued_at
                     ? list.map((t) => (t.id === next.id ? next : t))
                     : list.filter((t) => t.id !== next.id),
                 )

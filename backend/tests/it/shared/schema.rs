@@ -89,6 +89,7 @@ async fn all_tables_exist() {
             "passkeys",
             "prefectures",
             "public_officials",
+            "publish_slots",
             "settlement_item_tags",
             "settlement_items",
             "statement_sources",

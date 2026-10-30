@@ -10,6 +10,7 @@ import { OPERATOR_TABS, type OperatorTab, operatorHref } from "@/lib/operator";
 import { Drafts } from "./drafts";
 import { Published } from "./published";
 import { Queue } from "./queue";
+import { Scheduled } from "./scheduled";
 
 /**
  * 管理画面の枠: 見出し・自治体の切り替え（2つ以上のとき）・タブは固定のヘッダーにし、
@@ -70,6 +71,7 @@ export function OperatorConsole({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-md px-4 pt-4 pb-8">
           {tab === "drafts" && <Drafts key={slug} slug={slug} />}
+          {tab === "scheduled" && <Scheduled key={slug} slug={slug} />}
           {tab === "queue" && <Queue key={slug} slug={slug} />}
           {tab === "published" && <Published key={slug} slug={slug} />}
         </div>
