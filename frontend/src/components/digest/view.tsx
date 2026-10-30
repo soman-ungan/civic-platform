@@ -130,10 +130,11 @@ function TopicSection({
   return (
     <section
       className="flex flex-col gap-4 border-t border-zinc-200 dark:border-zinc-800"
-      // 2段目は1段目に1pxだけ重ねる（端数で隙間ができ、下を流れる中身が見えないように）
+      // 2段目は1段目の下端に1pxだけ重ねる（1段目は枠の上端より1px上にあるので、高さから2px引く。
+      // 端数で隙間ができ、下を流れる中身が見えないように）
       style={
         {
-          "--topic-head": `${Math.max(0, headHeight - 1)}px`,
+          "--topic-head": `${Math.max(0, headHeight - 2)}px`,
         } as React.CSSProperties
       }
     >
