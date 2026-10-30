@@ -7,6 +7,22 @@ import type {
   GroupVotes,
 } from "@/lib/api/types/digest";
 
+/** 代表的な意見の「多くが賛成／多くが反対」の見た目（色は票の棒と同じ: 賛成は青、反対は赤。色だけに頼らないよう印と文字も付ける） */
+const REPFUL_STYLES = {
+  agree: {
+    label: "多くが賛成",
+    mark: "○",
+    border: "border-sky-600",
+    badge: "bg-sky-100 text-sky-900 dark:bg-sky-900/60 dark:text-sky-100",
+  },
+  disagree: {
+    label: "多くが反対",
+    mark: "×",
+    border: "border-rose-500",
+    badge: "bg-rose-100 text-rose-900 dark:bg-rose-900/60 dark:text-rose-100",
+  },
+} as const;
+
 /** 意見を「最初の意見に使う」の切り替え（まとめから提案するとき） */
 export type UseToggle = {
   selected: Set<string>;
@@ -102,13 +118,19 @@ export function DigestGroups({
           </p>
           <ul className="mt-2 flex flex-col gap-2">
             {g.representative.map((r) => (
-              <li key={r.statement_id} className="flex items-start gap-3">
-                <p className="min-w-0 flex-1 text-sm leading-6">
-                  <span className="mr-1 text-xs text-zinc-500">
-                    {r.repful_for === "agree" ? "多くが賛成" : "多くが反対"}
+              <li
+                key={r.statement_id}
+                className={`flex items-start gap-3 border-l-4 pl-3 ${REPFUL_STYLES[r.repful_for].border}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${REPFUL_STYLES[r.repful_for].badge}`}
+                  >
+                    <span aria-hidden>{REPFUL_STYLES[r.repful_for].mark}</span>
+                    {REPFUL_STYLES[r.repful_for].label}
                   </span>
-                  {r.body}
-                </p>
+                  <p className="mt-1 text-sm leading-6">{r.body}</p>
+                </div>
                 {use && <UseButton statementId={r.statement_id} use={use} />}
               </li>
             ))}

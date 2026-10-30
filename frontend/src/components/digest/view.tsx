@@ -12,6 +12,7 @@ import { RESIDENCY_ORDER, RESIDENCY_SHORT_LABELS } from "@/lib/labels";
 
 import { DigestGroups, DigestItems, type UseToggle } from "./items";
 import { PrintButton } from "./print-button";
+import { STICKY_BLOCK, STICKY_TOPIC } from "./sticky";
 
 /** 提案の最初の意見の上限（backend の progress::PROPOSAL_SEEDS） */
 const MAX_USE = 10;
@@ -112,12 +113,13 @@ function TopicSection({
   use: UseToggle;
 }) {
   return (
-    <section className="flex flex-col gap-4 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+    <section className="flex flex-col gap-4 border-t border-zinc-200 dark:border-zinc-800">
       <div>
-        <h2 className="text-base leading-snug font-bold">
+        {/* トピックの題は、このトピックの節を見ている間は上に残す */}
+        <h2 className={STICKY_TOPIC}>
           <Link
             href={`/${slug}/topics/${t.id}`}
-            className="underline-offset-2 hover:underline"
+            className="min-w-0 truncate text-base font-bold underline-offset-2 hover:underline"
           >
             {t.title}
           </Link>
@@ -177,9 +179,12 @@ function Block({
 }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <p className="mb-2 text-xs text-zinc-500">{note}</p>
-      {children}
+      {/* 節の見出しは、節の中を見ている間はトピックの題の下に残す */}
+      <div className={STICKY_BLOCK}>
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <p className="text-xs text-zinc-500">{note}</p>
+      </div>
+      <div className="mt-2">{children}</div>
     </div>
   );
 }
