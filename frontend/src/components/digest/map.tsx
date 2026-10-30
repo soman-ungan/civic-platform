@@ -290,23 +290,34 @@ function ZoomableMap({
   onBackground: () => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [size, setSize] = useState({ w: 1, h: 1 });
+  const outerRef = useRef<HTMLDivElement>(null);
+  /** 縮める前の枠の大きさ（px）。縮めたときの大きさは、これに倍率を掛けてその場で出す
+   * （縮んだ枠を測り直すと1コマ遅れて、点やボタンが揺れるため） */
+  const [full, setFull] = useState({ w: 1, h: 1 });
   const [view, setView] = useState<View>(HOME);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef({ moved: 0, downId: null as string | null });
 
   useEffect(() => {
-    const el = svgRef.current;
+    const el = outerRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(([entry]) =>
-      setSize({ w: entry.contentRect.width, h: entry.contentRect.height }),
-    );
+    const measure = () =>
+      setFull({
+        w: el.clientWidth,
+        h: window.innerHeight * MAP_HEIGHT.large,
+      });
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
-    return () => observer.disconnect();
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, []);
+  const size = { w: full.w * scale, h: full.h * scale };
 
-  // 地図の座標で見える範囲（縦横比は箱に合わせる。-1〜1 と余白が必ず入る）
-  const aspect = size.w / Math.max(size.h, 1);
+  // 地図の座標で見える範囲（縦横比は枠に合わせる。-1〜1 と余白が必ず入る。縮めても縦横比は同じ）
+  const aspect = full.w / Math.max(full.h, 1);
   const base = 1 + PAD;
   const hx = (aspect >= 1 ? base * aspect : base) / view.k;
   const hy = (aspect >= 1 ? base : base / aspect) / view.k;
@@ -390,86 +401,115 @@ function ZoomableMap({
 
   const byId = new Map(map.points.map((p) => [p.id, p]));
   const maxParticipants = Math.max(1, ...map.points.map((p) => p.participants));
+  // 起点の近傍を、起点を中心にした薄い円で示す（半径は、いちばん遠い近傍の点まで＋少しの余白）。
+  // 地図の距離は似ている度合いをおおまかに表すだけなので、円の中に近傍でない点が入ることもある（近傍は線と色で見分ける）
+  const anchorPoint = anchor ? byId.get(anchor) : undefined;
+  const halo = anchorPoint && {
+    x: anchorPoint.x,
+    y: anchorPoint.y,
+    r:
+      Math.max(
+        0.1,
+        ...[...near].flatMap((id) => {
+          const q = byId.get(id);
+          return q
+            ? [Math.hypot(q.x - anchorPoint.x, q.y - anchorPoint.y)]
+            : [];
+        }),
+      ) +
+      14 * unit,
+  };
   const radiusPx = (p: MapPoint) =>
-    7 + 9 * Math.sqrt(p.participants / maxParticipants);
+    4 + 5 * Math.sqrt(p.participants / maxParticipants);
 
   return (
-    <div className="relative mx-auto" style={{ width: `${scale * 100}%` }}>
-      <svg
-        ref={svgRef}
-        viewBox={`${view.cx - hx} ${view.cy - hy} ${2 * hx} ${2 * hy}`}
-        style={{ height: `calc(${MAP_HEIGHT.large * 100}dvh * ${scale})` }}
-        className="w-full touch-none rounded-2xl bg-zinc-50 select-none dark:bg-zinc-900"
-        role="group"
-        aria-label="締め切ったトピックの地図（似ているトピックほど近い）"
-        data-swipe-ignore
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      >
-        {map.edges.map((e) => {
-          const a = byId.get(e.a);
-          const b = byId.get(e.b);
-          if (!a || !b) return null;
-          const lit = anchor !== null && (e.a === anchor || e.b === anchor);
-          return (
-            <line
-              key={`${e.a}-${e.b}`}
-              x1={a.x}
-              y1={-a.y}
-              x2={b.x}
-              y2={-b.y}
-              strokeWidth={(lit ? 2.5 : 1.2) * unit}
-              className={
-                lit
-                  ? "stroke-amber-500"
-                  : "stroke-zinc-300 dark:stroke-zinc-700"
-              }
-            />
-          );
-        })}
-        {map.points.map((p) => {
-          const fill =
-            p.id === anchor
-              ? "fill-zinc-900 dark:fill-zinc-100"
-              : selected.includes(p.id)
-                ? "fill-sky-600"
-                : near.has(p.id)
-                  ? "fill-amber-400"
-                  : anchor
-                    ? "fill-zinc-300 dark:fill-zinc-700"
-                    : "fill-sky-700/70 dark:fill-sky-400/70";
-          return (
+    <div ref={outerRef} className="w-full">
+      <div className="relative mx-auto" style={{ width: `${scale * 100}%` }}>
+        <svg
+          ref={svgRef}
+          viewBox={`${view.cx - hx} ${view.cy - hy} ${2 * hx} ${2 * hy}`}
+          style={{ height: `calc(${MAP_HEIGHT.large * 100}dvh * ${scale})` }}
+          className="w-full touch-none rounded-2xl bg-zinc-50 select-none dark:bg-zinc-900"
+          role="group"
+          aria-label="締め切ったトピックの地図（似ているトピックほど近い）"
+          data-swipe-ignore
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        >
+          {halo && (
             <circle
-              key={p.id}
-              data-id={p.id}
-              cx={p.x}
-              cy={-p.y}
-              r={radiusPx(p) * unit}
-              className={`cursor-pointer ${fill}`}
+              cx={halo.x}
+              cy={-halo.y}
+              r={halo.r}
+              strokeWidth={unit}
+              className="fill-amber-300/20 stroke-amber-400/60 dark:fill-amber-500/15"
+            />
+          )}
+          {map.edges.map((e) => {
+            const a = byId.get(e.a);
+            const b = byId.get(e.b);
+            if (!a || !b) return null;
+            const lit = anchor !== null && (e.a === anchor || e.b === anchor);
+            return (
+              <line
+                key={`${e.a}-${e.b}`}
+                x1={a.x}
+                y1={-a.y}
+                x2={b.x}
+                y2={-b.y}
+                strokeWidth={(lit ? 2.5 : 1.2) * unit}
+                className={
+                  lit
+                    ? "stroke-amber-500"
+                    : "stroke-zinc-300 dark:stroke-zinc-700"
+                }
+              />
+            );
+          })}
+          {map.points.map((p) => {
+            const fill =
+              p.id === anchor
+                ? "fill-zinc-900 dark:fill-zinc-100"
+                : selected.includes(p.id)
+                  ? "fill-sky-600"
+                  : near.has(p.id)
+                    ? "fill-amber-400"
+                    : anchor
+                      ? "fill-zinc-300 dark:fill-zinc-700"
+                      : "fill-sky-700/70 dark:fill-sky-400/70";
+            return (
+              <circle
+                key={p.id}
+                data-id={p.id}
+                cx={p.x}
+                cy={-p.y}
+                r={radiusPx(p) * unit}
+                className={`cursor-pointer ${fill}`}
+              >
+                <title>{p.title}</title>
+              </circle>
+            );
+          })}
+        </svg>
+        <div className="absolute top-2 right-2 flex flex-col gap-1">
+          {[
+            { label: "拡大", text: "＋", act: () => zoomAt(1.5) },
+            { label: "縮小", text: "−", act: () => zoomAt(1 / 1.5) },
+            { label: "元の大きさに戻す", text: "⟲", act: () => setView(HOME) },
+          ].map((b) => (
+            <button
+              key={b.label}
+              type="button"
+              aria-label={b.label}
+              onClick={b.act}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-sm shadow dark:bg-zinc-800/90"
             >
-              <title>{p.title}</title>
-            </circle>
-          );
-        })}
-      </svg>
-      <div className="absolute top-2 right-2 flex flex-col gap-1">
-        {[
-          { label: "拡大", text: "＋", act: () => zoomAt(1.5) },
-          { label: "縮小", text: "−", act: () => zoomAt(1 / 1.5) },
-          { label: "元の大きさに戻す", text: "⟲", act: () => setView(HOME) },
-        ].map((b) => (
-          <button
-            key={b.label}
-            type="button"
-            aria-label={b.label}
-            onClick={b.act}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-sm shadow dark:bg-zinc-800/90"
-          >
-            {b.text}
-          </button>
-        ))}
+              {b.text}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

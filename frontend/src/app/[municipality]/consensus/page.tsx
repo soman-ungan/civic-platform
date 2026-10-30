@@ -79,7 +79,9 @@ async function ConsensusView({
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      {/* スクロールの位置の自動の補正（scroll anchoring）を切る。地図が縮むとその下のカードが上に動くので、
+          補正が働くとスクロールの位置が戻って地図がまた広がり、揺れ続けるため */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none]">
         <div className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 pt-4 pb-6">
           <ConsensusToggle slug={municipality.slug} items={consensus} />
 
