@@ -6,8 +6,8 @@
 use clap::{Args, ValueEnum};
 
 use crate::ingest::{budget, collect};
-use crate::process::{moderation, progress};
-use crate::records::{self, accounts, topics};
+use crate::process::{self, moderation, progress};
+use crate::records::{self, accounts, publishing, topics};
 use crate::shared::status::Publication;
 
 use super::{Ctx, municipality_id, required, skip};
@@ -31,6 +31,10 @@ pub enum Target {
     Source,
     /// 運営者（パスキーで登録したアカウントのうち、運営者にしたもの。ADR 0006）
     Operator,
+    /// 公開待ちの下書き（決まった時刻に古い順に1件ずつ公開する。docs/plans/2026-10-30-timeline-flow.md）
+    Queue,
+    /// 自動公開の時刻（自治体ごと。1つで1日1件）
+    Slot,
 }
 
 #[derive(Debug, Args)]
@@ -67,9 +71,12 @@ pub struct ShowArgs {
 #[derive(Debug, Args)]
 pub struct EditArgs {
     target: Target,
-    /// トピック・意見の id
+    /// トピック・意見・時刻（slot）の id
     #[arg(long)]
     id: Option<String>,
+    /// 日本時間の時刻（slot。例: 07:30）
+    #[arg(long)]
+    at: Option<String>,
     /// タイトル（topic）
     #[arg(long)]
     title: Option<String>,
@@ -90,15 +97,22 @@ pub struct AddArgs {
     /// 意見の本文（statement。140文字以内）
     #[arg(long)]
     body: Option<String>,
-    /// タグの id（tag。例: field-kosodate、092100-kurobane。list tag で見られる）
+    /// タグの id（tag。例: field-kosodate、092100-kurobane。list tag で見られる）・下書きのトピックの id（queue）
     #[arg(long)]
     id: Option<String>,
+    /// 自治体の URL の名前（slot）
+    #[arg(short, long)]
+    municipality: Option<String>,
+    /// 日本時間の時刻（slot。例: 07:30）
+    #[arg(long)]
+    at: Option<String>,
 }
 
 #[derive(Debug, Args)]
 pub struct RemoveArgs {
     target: Target,
-    /// 意見の id（statement）・タグの id（tag）・運営者のアカウントの id（operator。list operator で見られる）
+    /// 意見の id（statement）・タグの id（tag）・運営者のアカウントの id（operator。list operator で見られる）・
+    /// 下書きのトピックの id（queue）・時刻の id（slot。list slot で見られる）
     #[arg(long)]
     id: Option<String>,
     /// 対象のトピックの id（tag）
@@ -250,6 +264,47 @@ pub async fn list(ctx: &Ctx, args: ListArgs) -> anyhow::Result<()> {
                     o.id,
                     o.registered_at.as_deref().unwrap_or("-"),
                     o.passkeys
+                );
+            }
+        }
+        Target::Queue => {
+            let slug = required(&args.municipality, "list queue -m <slug>")?;
+            let id = municipality_id(pool, slug).await?;
+            let queue = publishing::queue(pool, &id).await?;
+            let slots = publishing::slots(pool, Some(&id)).await?;
+            if queue.is_empty() {
+                println!("公開待ちはありません（add queue --id <topic_id> で入れる）");
+            }
+            if slots.is_empty() && !queue.is_empty() {
+                println!("公開の時刻がありません（add slot -m {slug} --at 07:00 で足す）");
+            }
+            let planned = process::publishing::planned(&slots, queue.len(), chrono::Utc::now());
+            for (i, q) in queue.iter().enumerate() {
+                println!(
+                    "{}  予定 {}  {}{}",
+                    q.id,
+                    planned.get(i).map(String::as_str).unwrap_or("-"),
+                    q.title,
+                    topics::source_mark(&q.source_type)
+                );
+            }
+        }
+        Target::Slot => {
+            let id = match &args.municipality {
+                Some(slug) => Some(municipality_id(pool, slug).await?),
+                None => None,
+            };
+            let slots = publishing::slots(pool, id.as_deref()).await?;
+            if slots.is_empty() {
+                println!("公開の時刻はありません（add slot -m <slug> --at 07:00 で足す）");
+            }
+            for s in slots {
+                println!(
+                    "{}  [{}]  {}  最後に動いた日: {}",
+                    s.id,
+                    s.municipality_id,
+                    s.time_of_day,
+                    s.last_run_on.as_deref().unwrap_or("-")
                 );
             }
         }
@@ -424,6 +479,13 @@ pub async fn show(ctx: &Ctx, args: ShowArgs) -> anyhow::Result<()> {
                 "運営者のアカウントは ID と登録日だけで、中身が無い（list operator で一覧を見る）",
             );
         }
+        Target::Queue | Target::Slot => {
+            return skip(
+                "show",
+                args.target,
+                "一覧に中身がすべて出る（list queue -m <slug> / list slot）",
+            );
+        }
         Target::Source => {
             let id = required(&args.id, "show source --id <id>（list source で見られる）")?;
             let Some(s) = collect::sources(pool)
@@ -497,6 +559,32 @@ pub async fn edit(ctx: &Ctx, args: EditArgs) -> anyhow::Result<()> {
             args.target,
             "運営者は足すか外すだけ（add / remove operator）",
         )?,
+        Target::Queue => skip(
+            "edit",
+            args.target,
+            "公開待ちは入れた順（入れるか外すだけ。add / remove queue）",
+        )?,
+        Target::Slot => {
+            let usage = "edit slot --id <id> --at <HH:MM>";
+            let id = required(&args.id, usage)?;
+            let Some(slot) = publishing::slots(pool, None)
+                .await?
+                .into_iter()
+                .find(|s| s.id == *id)
+            else {
+                anyhow::bail!("時刻が見つかりません: {id}");
+            };
+            let at = required(&args.at, usage)?;
+            process::publishing::update_slot(
+                pool,
+                &slot.municipality_id,
+                id,
+                at,
+                chrono::Utc::now(),
+            )
+            .await?;
+            println!("{id}: {at} にしました");
+        }
     }
     Ok(())
 }
@@ -532,6 +620,21 @@ pub async fn add(ctx: &Ctx, args: AddArgs) -> anyhow::Result<()> {
                 "このリンクは本人にだけ渡してください。リンクからパスキーを登録したアカウントが運営者になります"
             );
         }
+        Target::Queue => {
+            let id = required(&args.id, "add queue --id <topic_id>（下書きだけ）")?;
+            if !publishing::enqueue(pool, None, id).await? {
+                anyhow::bail!("下書きのトピックが見つかりません: {id}");
+            }
+            println!("{id}: 公開待ちに入れました");
+        }
+        Target::Slot => {
+            let usage = "add slot -m <slug> --at <HH:MM>（日本時間）";
+            let slug = required(&args.municipality, usage)?;
+            let at = required(&args.at, usage)?;
+            let mid = municipality_id(pool, slug).await?;
+            let id = process::publishing::add_slot(pool, &mid, at, chrono::Utc::now()).await?;
+            println!("{id}: {slug} に {at} を足しました");
+        }
         other => skip("add", other, not_editable(other))?,
     }
     Ok(())
@@ -564,6 +667,20 @@ pub async fn remove(ctx: &Ctx, args: RemoveArgs) -> anyhow::Result<()> {
             }
             println!("{id}: 運営者から外しました（アカウントとパスキーは残る）");
         }
+        Target::Queue => {
+            let id = required(&args.id, "remove queue --id <topic_id>")?;
+            if !publishing::dequeue(pool, None, id).await? {
+                anyhow::bail!("下書きのトピックが見つかりません: {id}");
+            }
+            println!("{id}: 公開待ちから外しました（下書きのまま）");
+        }
+        Target::Slot => {
+            let id = required(&args.id, "remove slot --id <id>（list slot で見られる）")?;
+            if !publishing::remove_slot(pool, None, id).await? {
+                anyhow::bail!("時刻が見つかりません: {id}");
+            }
+            println!("{id}: 消しました");
+        }
         other => skip("remove", other, not_editable(other))?,
     }
     Ok(())
@@ -575,11 +692,9 @@ fn not_editable(target: Target) -> &'static str {
         Target::Budget | Target::Settlement | Target::Minutes => {
             "資料から取り込んだものは手で足し引きしない（import で作り直す）"
         }
-        Target::Topic => {
-            "トピックは会議録から作る（import minutes。市民からの提案はフェーズ6のあと）"
-        }
+        Target::Topic => "トピックは会議録（import minutes）か、市民の提案（画面）から作る",
         Target::Source => "収集先は seed で管理する（data/seeds/010_municipality_*.sql）",
-        Target::Statement | Target::Tag | Target::Operator => "",
+        Target::Statement | Target::Tag | Target::Operator | Target::Queue | Target::Slot => "",
     }
 }
 
@@ -628,6 +743,11 @@ pub async fn publish(ctx: &Ctx, args: PublishArgs, publish: bool) -> anyhow::Res
         Target::Tag | Target::Source | Target::Operator => {
             skip(verb, args.target, "公開・取り下げの状態を持たない")?
         }
+        Target::Queue | Target::Slot => skip(
+            verb,
+            args.target,
+            "公開待ちは決まった時刻に公開される。急ぐものは publish topic --id で今すぐ公開する",
+        )?,
     }
     Ok(())
 }

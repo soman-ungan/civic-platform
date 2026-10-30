@@ -25,6 +25,17 @@ pub const STATEMENTS_PER_TOPIC: i64 = 1;
 /// 市民提案のトピックで、提案した本人が投稿できる意見の数（提案に含めた最初の意見も数える。ADR 0005）
 pub const STATEMENTS_PER_TOPIC_PROPOSER: i64 = 3;
 
+/// 新着の印を付ける日数（公開から。docs/plans/2026-10-30-timeline-flow.md）
+pub const NEW_TOPIC_DAYS: i64 = 3;
+
+/// 新着か: 公開から `NEW_TOPIC_DAYS` 日以内で、その参加者がまだ投票していない
+pub fn is_new(published_at: Option<&str>, voted: i64) -> bool {
+    voted == 0
+        && published_at
+            .and_then(|p| DateTime::parse_from_rfc3339(p).ok())
+            .is_some_and(|p| Utc::now() - p.with_timezone(&Utc) < Duration::days(NEW_TOPIC_DAYS))
+}
+
 /// 1人が1つの自治体にトピックを提案できる間隔（この日数に1件。ADR 0005）
 pub const PROPOSAL_INTERVAL_DAYS: i64 = 7;
 

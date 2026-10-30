@@ -100,6 +100,16 @@ fn operator_routes() -> Router<AppState> {
             put(operator::set_closes_at),
         )
         .route(
+            &format!("{M}/topics/{{topic_id}}/queue"),
+            post(operator::enqueue).delete(operator::dequeue),
+        )
+        .route(&format!("{M}/publishing"), get(operator::publishing))
+        .route(&format!("{M}/publish-slots"), post(operator::add_slot))
+        .route(
+            &format!("{M}/publish-slots/{{slot_id}}"),
+            patch(operator::update_slot).delete(operator::delete_slot),
+        )
+        .route(
             &format!("{M}/topics/{{topic_id}}/statements"),
             post(operator::add_statement),
         )

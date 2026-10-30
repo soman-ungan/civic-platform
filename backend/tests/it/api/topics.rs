@@ -276,3 +276,38 @@ async fn participation_status_follows_votes() {
         (json!("in_progress"), json!(2))
     );
 }
+
+#[tokio::test]
+async fn topics_are_ordered_by_publish_date_with_new_marks_and_sessions() {
+    let (pool, state) = setup().await;
+    let recent = backend::shared::util::now_iso();
+    // t1 は古く作って最近公開（新着）、t3 は新しく作って前に公開、t4 は期限の決まりより前（published_at なし）
+    sqlx::raw_sql(&format!(
+        "UPDATE topics SET source_type = 'assembly', published_at = '{recent}' WHERE id = 't1';
+         INSERT INTO topics (id, municipality_id, title, source_type, created_at, published_at) VALUES
+             ('t3', '092100', '前に公開', 'citizen', '2026-10-28T00:00:00.000Z', '2026-10-01T00:00:00.000Z'),
+             ('t4', '092100', '期限の前', 'citizen', '2026-09-01T00:00:00.000Z', NULL);
+         INSERT INTO documents (id, municipality_id, kind, title, held_on, sha256, char_count, imported_at) VALUES
+             ('d2', '092100', 'minutes', '令和８年第２回大田原市議会定例会（第３号）', '2026-06-17', 'h2', 1, '2026-10-26T00:00:00Z'),
+             ('d1', '092100', 'minutes', '令和８年第２回大田原市議会定例会（第２号）', '2026-06-16', 'h1', 1, '2026-10-26T00:00:00Z');
+         INSERT INTO topic_sources (id, topic_id, document_id, utterance_no, speaker_label, quote, position) VALUES
+             ('ts2', 't1', 'd2', 1, '市長', '引用2', 0),
+             ('ts1', 't1', 'd1', 1, '市長', '引用1', 1);"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let res = get(&state, "/api/municipalities/otawara/topics").await;
+    let topics = res.json["topics"].as_array().unwrap();
+    let ids: Vec<&str> = topics.iter().map(|t| t["id"].as_str().unwrap()).collect();
+    assert_eq!(ids, ["t1", "t3", "t4"]);
+    assert_eq!(topics[0]["is_new"], true);
+    assert_eq!(topics[1]["is_new"], false);
+    // 会期は出典の最初の会議（6月16日）から。市民の提案には無い
+    assert_eq!(topics[0]["session"], "令和8年 第2回定例会（6月）");
+    assert!(topics[1]["session"].is_null());
+
+    let res = get(&state, "/api/municipalities/otawara/topics/t1").await;
+    assert_eq!(res.json["session"], "令和8年 第2回定例会（6月）");
+}
