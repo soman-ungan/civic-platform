@@ -12,7 +12,8 @@ use crate::interface::api::error::ApiError;
 use crate::interface::api::participant::MaybeParticipant;
 use crate::interface::api::{finances, municipalities};
 use crate::process::progress::{self, Participation};
-use crate::records::{minutes, recommendations};
+use crate::records::minutes;
+use crate::records::topics as records_topics;
 use crate::shared::util::now_iso;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -76,10 +77,23 @@ pub struct TopicDetail {
     pub sources: Vec<TopicSource>,
     /// トピックの分野に関係する市のお金（決算カード）。対応する費目が無ければ null
     pub finances: Option<finances::TopicFinances>,
-    /// このトピックをまとめた公開済みの提言
-    pub recommendations: Vec<recommendations::Link>,
-    /// 第2回のトピックなら、元の提言（公開済みのもの）
-    pub origin: Option<recommendations::Link>,
+    /// 市民のまとめから作ったトピックなら、元のトピック（公開済みのもの）
+    pub parents: Vec<TopicLink>,
+    /// このトピックから生まれた、公開済みのトピック
+    pub children: Vec<TopicLink>,
+}
+
+/// ほかのトピックへのリンク
+#[derive(Debug, Serialize)]
+pub struct TopicLink {
+    pub id: String,
+    pub title: String,
+}
+
+fn links(rows: Vec<(String, String)>) -> Vec<TopicLink> {
+    rows.into_iter()
+        .map(|(id, title)| TopicLink { id, title })
+        .collect()
 }
 
 /// 出典（会議録の発言からの引用）。発言者は公人なら氏名つき、職員は職名だけ
@@ -256,13 +270,13 @@ pub async fn detail(
     .fetch_all(&state.pool)
     .await?;
     let finances = finances::for_topic(&state.pool, &municipality.id, &row.id).await?;
-    let recommendations = recommendations::published_for_topic(&state.pool, &row.id).await?;
-    let origin = recommendations::origin_of_topic(&state.pool, &row.id).await?;
+    let parents = links(records_topics::parents(&state.pool, &row.id).await?);
+    let children = links(records_topics::children(&state.pool, &row.id).await?);
     Ok(Json(TopicDetail {
         topic: into_topic(row, tags, voted_count),
         sources,
         finances,
-        recommendations,
-        origin,
+        parents,
+        children,
     }))
 }

@@ -11,6 +11,7 @@ mod common;
 mod api {
     mod analysis;
     mod auth;
+    mod digest;
     mod drafts;
     mod finances;
     mod health;
@@ -18,7 +19,6 @@ mod api {
     mod participant;
     mod participation;
     mod proposals;
-    mod recommendations;
     mod topics;
 }
 
@@ -37,7 +37,6 @@ mod process {
     mod moderation;
     mod participation_rules;
     mod publishing;
-    mod recommendation;
     mod review;
     mod tagging;
     mod topic_deadlines;

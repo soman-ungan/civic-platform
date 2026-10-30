@@ -176,28 +176,32 @@ async fn dev_seeds_are_enough_for_analysis() {
     .await;
     assert!(!pins.json.as_array().unwrap().is_empty());
 
-    // 締め切ったサンプル（4・5）で提言を試せる: 提言にでき、同じ分野で似ているのでまとまりの候補になり、
+    // 締め切ったサンプル（4・5）でトピックマップとまとめを試せる: 交通のタグの地図に載り、互いに近傍で、
     // 合意点と意見が分かれた点の両方が出る
-    let (candidates, groups) = backend::process::recommendation::candidates(&pool, "092100")
+    let map = backend::process::topic_map::topic_map(&pool, "092100", Some("field-koutsu"))
         .await
         .unwrap();
-    let ids: Vec<&str> = candidates.iter().map(|c| c.id.as_str()).collect();
-    assert_eq!(ids, ["sample-092100-5", "sample-092100-4"]);
-    assert_eq!(groups.len(), 1);
-    let id = backend::process::recommendation::create(&pool, "092100", &groups[0], &[], 0.6)
-        .await
-        .unwrap();
-    let detail = backend::records::recommendations::show(&pool, &id)
-        .await
-        .unwrap()
-        .unwrap();
-    use backend::shared::status::ItemKind;
-    assert!(detail.items.iter().any(|i| i.kind == ItemKind::Consensus));
-    assert!(detail.items.iter().any(|i| i.kind == ItemKind::Divided));
-    assert!(
-        detail
-            .topics
-            .iter()
-            .all(|t| t.residency.values().any(Option::is_some))
-    );
+    let mut ids: Vec<&str> = map.points.iter().map(|p| p.id.as_str()).collect();
+    ids.sort();
+    assert_eq!(ids, ["sample-092100-4", "sample-092100-5"]);
+    assert_eq!(map.edges.len(), 1);
+    let digest = backend::process::digest::digest(
+        &pool,
+        "092100",
+        "sample-092100-4",
+        &["sample-092100-5".to_owned()],
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(digest.topics.len(), 2);
+    for t in &digest.topics {
+        assert!(
+            t.sufficient && !t.consensus.is_empty() && !t.divided.is_empty(),
+            "{}",
+            t.id
+        );
+        assert!(t.groups.iter().all(|g| !g.representative.is_empty()));
+        assert!(t.residency.values().any(Option::is_some));
+    }
 }

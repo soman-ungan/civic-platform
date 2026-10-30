@@ -7,7 +7,7 @@
 //! - 言い換え（別の語で同じ意味）には弱い。件数が少ないうちは絞らずに全部を判定に回すこと
 //! - 比べるのは同じ自治体の中だけ（呼ぶ側がコーパスを `municipality_id` で絞る）
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -47,10 +47,11 @@ pub fn normalize(text: &str) -> Vec<char> {
         .collect()
 }
 
-/// 文字の2-gram の出現回数。1文字だけの文は、その1文字を2-gram として扱う
-fn bigrams(text: &str) -> HashMap<(char, char), f64> {
+/// 文字の2-gram の出現回数。1文字だけの文は、その1文字を2-gram として扱う。
+/// 並びを決めておく（BTreeMap）のは、足し算の順を毎回同じにして、結果を最後の桁までそろえるため
+fn bigrams(text: &str) -> BTreeMap<(char, char), f64> {
     let chars = normalize(text);
-    let mut out = HashMap::new();
+    let mut out = BTreeMap::new();
     if chars.len() == 1 {
         out.insert((chars[0], chars[0]), 1.0);
     }
@@ -181,7 +182,7 @@ impl Index {
 
     /// コーパスの中の文 `id` に似ている順の上位 `k` 件（自分は除く）
     pub fn similar_to(&self, id: &str, k: usize) -> Vec<Match> {
-        let Some(me) = self.ids.iter().position(|x| x == id) else {
+        let Some(me) = self.position(id) else {
             return Vec::new();
         };
         let q = &self.vectors[me];
@@ -193,6 +194,33 @@ impl Index {
                 .map(|(i, v)| (i, dot(q, v))),
             k,
         )
+    }
+
+    fn position(&self, id: &str) -> Option<usize> {
+        self.ids.iter().position(|x| x == id)
+    }
+
+    /// コーパスの中の2つの文の似ている度合い（どちらかが無ければ 0）
+    pub fn score(&self, a: &str, b: &str) -> f64 {
+        match (self.position(a), self.position(b)) {
+            (Some(i), Some(j)) => dot(&self.vectors[i], &self.vectors[j]),
+            _ => 0.0,
+        }
+    }
+
+    /// `ids` どうしの似ている度合いの表（`ids` の順。自分どうしは 1。コーパスに無い id の行は 0）
+    pub fn matrix(&self, ids: &[String]) -> Vec<Vec<f64>> {
+        let pos: Vec<Option<usize>> = ids.iter().map(|id| self.position(id)).collect();
+        pos.iter()
+            .map(|a| {
+                pos.iter()
+                    .map(|b| match (a, b) {
+                        (Some(i), Some(j)) => dot(&self.vectors[*i], &self.vectors[*j]),
+                        _ => 0.0,
+                    })
+                    .collect()
+            })
+            .collect()
     }
 
     /// 似ている度合いが `min_score` 以上の組（似ている順）

@@ -39,9 +39,6 @@ pub struct Config {
     pub llm_extraction_daily_budget_usd: f64,
     /// 収集の User-Agent に入れる運営者の連絡先（URL かメールアドレス）。無ければ収集しない
     pub collector_contact: Option<String>,
-    /// 提言の「意見が分かれた点」のしきい値（あるグループで賛成・別のグループで反対が、どちらもこれ以上）。
-    /// 作った提言に使った値を残す（process::recommendation）
-    pub recommendation_divided_threshold: f64,
     /// パスキーを結び付けるドメイン（ADR 0006）。本番ではサービスのドメイン
     pub webauthn_rp_id: String,
     /// パスキーの登録・ログインを行う画面のオリジン（ブラウザから見た URL）
@@ -88,11 +85,6 @@ impl Config {
             collector_contact: env::var("COLLECTOR_CONTACT")
                 .ok()
                 .filter(|v| !v.trim().is_empty()),
-            recommendation_divided_threshold: env::var("RECOMMENDATION_DIVIDED_THRESHOLD")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .filter(|v: &f64| (0.5..1.0).contains(v))
-                .unwrap_or(crate::process::recommendation::DEFAULT_DIVIDED_THRESHOLD),
             webauthn_rp_id: env::var("WEBAUTHN_RP_ID")
                 .unwrap_or_else(|_| DEFAULT_WEBAUTHN_RP_ID.into()),
             webauthn_origin: env::var("WEBAUTHN_ORIGIN")

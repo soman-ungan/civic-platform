@@ -90,16 +90,13 @@ async fn all_tables_exist() {
             "prefectures",
             "public_officials",
             "publish_slots",
-            "recommendation_children",
-            "recommendation_items",
-            "recommendation_topics",
-            "recommendations",
             "settlement_item_tags",
             "settlement_items",
             "statement_sources",
             "statements",
             "tags",
             "topic_analyses",
+            "topic_parents",
             "topic_sources",
             "topic_tags",
             "topics",
@@ -285,7 +282,7 @@ async fn statement_status_is_restricted() {
 /// Rust の状態の型（backend::shared::status）の値が、DB の CHECK と同じであること
 #[tokio::test]
 async fn status_enums_match_check_constraints() {
-    use backend::shared::status::{ItemKind, Publication, StatementStatus};
+    use backend::shared::status::{Publication, StatementStatus};
     let pool = crate::common::test_pool().await;
     crate::common::seed_fixture(&pool).await;
     for (i, status) in StatementStatus::ALL.into_iter().enumerate() {
@@ -321,54 +318,6 @@ async fn status_enums_match_check_constraints() {
             .await
             .unwrap_or_else(|e| panic!("budgets {status:?}: {e}"));
     }
-    exec(
-        &pool,
-        "INSERT INTO recommendations (id, municipality_id, consensus_threshold, divided_threshold, created_at)
-         VALUES ('r', '092100', 0.8, 0.6, '2026-10-26T00:00:00Z')",
-    )
-    .await
-    .unwrap();
-    for status in Publication::ALL {
-        sqlx::query("UPDATE recommendations SET status = ? WHERE id = 'r'")
-            .bind(status.as_str())
-            .execute(&pool)
-            .await
-            .unwrap_or_else(|e| panic!("recommendations {status:?}: {e}"));
-    }
-    insert_statement(&pool, "s-item", "意見", "approved")
-        .await
-        .unwrap();
-    for (i, kind) in ItemKind::ALL.into_iter().enumerate() {
-        sqlx::query(
-            "INSERT INTO recommendation_items
-                (id, recommendation_id, kind, topic_id, statement_id, body, agree, disagree, seen, groups, position)
-             VALUES (?, 'r', ?, 't1', ?, '意見', 0, 0, 0, '[]', 0)",
-        )
-        .bind(format!("i{i}"))
-        .bind(kind.as_str())
-        .bind(if i == 0 { "s-item" } else { "s1" })
-        .execute(&pool)
-        .await
-        .unwrap_or_else(|e| panic!("recommendation_items {kind:?}: {e}"));
-    }
-}
-
-#[tokio::test]
-async fn recommendation_cannot_be_its_own_child() {
-    let pool = crate::common::test_pool().await;
-    crate::common::seed_fixture(&pool).await;
-    exec(
-        &pool,
-        "INSERT INTO recommendations (id, municipality_id, consensus_threshold, divided_threshold, created_at)
-         VALUES ('r', '092100', 0.8, 0.6, '2026-10-26T00:00:00Z')",
-    )
-    .await
-    .unwrap();
-    assert!(
-        exec(&pool, "INSERT INTO recommendation_children (parent_id, child_id, position) VALUES ('r', 'r', 0)")
-            .await
-            .is_err()
-    );
 }
 
 #[tokio::test]

@@ -19,16 +19,7 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
   - 期限 `closes_at`（null は期限なし）と締め切ったか `closed`。一覧は受付中を先に、それぞれ公開した日（`published_at`。null なら作った日）の新しい順
   - 新着 `is_new`（公開から3日以内で、Cookie の参加者が未投票。`progress::is_new`）、会期 `session`（議会のトピックだけ。出典の最初の会議の資料名と月から「令和8年 第2回定例会（6月）」。`records::minutes::session_label`）
   - 詳細には出典 `sources`（会議録の引用）と `finances`（分野タグに対応する目的別歳出（決算の総額と歳出に占める割合）と、同じ分野の主な事業5件まで（予算））。議会のトピックは会議の年度に合わせる: 予算は会議の日の年（1月だけ前年）の年度でその年度の予算が無ければ出さない、決算はそれより前で最新の年度（`finances::budget_year_of_meeting`）。市民の提案は最新の年度
-  - 詳細には、このトピックをまとめた公開済みの提言 `recommendations`（`{id, title}` の配列）と、第2回のトピックなら元の提言 `origin`（無ければ null）
 - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。分析を見られて、1件以上投票したトピックの分だけ（Cookie が無ければ空）
-
-## 提言（`interface/api/recommendations.rs`。ADR 0005）
-- `GET /municipalities/{slug}/recommendations` — 公開済みの提言（公開の新しい順）。`consensus`・`divided` は項目の数
-- `GET /municipalities/{slug}/recommendations/{id}` — 公開済みの1件（下書き・取り下げ・別の自治体のものは 404）
-  - `items`: 合意点（`kind: consensus`）と意見が分かれた点（`divided`）。意見の本文と、作ったときの票（全体の `agree`・`disagree`・`seen`、グループごとの `groups`）の写し
-  - `topics`: 直接の元のトピック（分析の対象の人数 `participants`、関わり方ごとの人数 `residency`。少人数の区分は null。二次秘匿済み）
-  - `children`（子の提言）・`parents`（この提言を子に持つ公開済みの提言）・`second_round`（この提言から始まった公開済みの第2回のトピック）
-  - `consensus_threshold`・`divided_threshold`: 作ったときの基準
 
 ## 参加（投票・投稿）
 - `PUT /municipalities/{slug}/relation` — このまちとの関わり方（投票の前に必要）。地区は受け取らない（ADR 0002）
@@ -91,15 +82,8 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 | `GET .../{slug}/statements?after=&limit=` | 確認待ち（flagged）と判定待ち（pending）。種類 `kind`（seed / citizen / added）・理由・根拠の発言 |
 | `PATCH .../statements/{id}` | 本文の手直し（投票がある意見は直せない） |
 | `POST .../statements/{id}/approve` / `reject` / `retry` | 公開 / 非公開（下書きの意見の取り下げも）/ pending を1件 AI でやり直す（キーが無ければ 409 `llm_unavailable`） |
-| `GET .../{slug}/recommendation-candidates` | 提言にできるトピック `topics`（締め切っていて、分析の対象が5人以上・グループが2つ以上）、まとまりの候補 `groups`（同じ分野タグで似ているトピックの id）、子にできる公開済みの提言 `recommendations`（`interface/api/operator/recommendations.rs`） |
-| `GET .../{slug}/recommendations?status=draft\|published\|archived` | 提言の一覧（既定は下書き） |
-| `POST .../{slug}/recommendations` | `{topic_ids, child_ids}` 下書きを作る（中身はプログラムが決める。キーがあれば見出しと前書きを AI が下書き。失敗の理由は `text_error`） |
-| `GET` / `PATCH` / `DELETE .../recommendations/{id}` | 1件（下書きも）/ `{title?, preface?}` 下書きの見出し・前書きの手直し（公開済みは 409）/ 下書きを消す |
-| `POST .../recommendations/{id}/text` | 見出しと前書きを AI に書き直してもらう（キーが無ければ `text_error`） |
-| `POST .../recommendations/{id}/publish` / `archive` | 公開（見出しと項目が要る）/ 取り下げ |
-| `POST .../recommendations/{id}/second-round` | 公開済みの提言から、第2回のトピックの下書きを作る（`{topic_id}`。項目の原文が最初の意見） |
 
-画面は `/operator`（`?m=<slug>&tab=drafts|scheduled|queue|published|recommendations`。`frontend/src/components/operator/`）。運営者には、自治体のトップとトピックの詳細のヘッダーに「管理画面」のリンクが出る。
+画面は `/operator`（`?m=<slug>&tab=drafts|scheduled|queue|published`。`frontend/src/components/operator/`）。運営者には、自治体のトップとトピックの詳細のヘッダーに「管理画面」のリンクが出る。
 
 ## その他
 - `GET /health` — DB 込みの疎通確認

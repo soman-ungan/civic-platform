@@ -8,7 +8,7 @@ use clap::{Args, ValueEnum};
 use crate::ingest::{budget, collect};
 use crate::process::{self, moderation, progress, similarity};
 use crate::records::{self, accounts, publishing, topics};
-use crate::shared::status::{ItemKind, Publication};
+use crate::shared::status::Publication;
 
 use super::{Ctx, municipality_id, required, skip};
 
@@ -37,8 +37,6 @@ pub enum Target {
     Slot,
     /// 似ているトピックの組（-m）、またはトピックの中の似ている意見の組（--topic）。費用 0（process::similarity）
     Similar,
-    /// 提言（締め切ったトピックの合意点と意見が分かれた点。ADR 0005）
-    Recommendation,
 }
 
 #[derive(Debug, Args)]
@@ -90,26 +88,14 @@ pub struct EditArgs {
     /// 本文（statement。140文字以内。投票がある意見は直せない）
     #[arg(long)]
     body: Option<String>,
-    /// 前書き（recommendation。見出しは --title）
-    #[arg(long)]
-    preface: Option<String>,
-    /// 見出しと前書きを AI に書き直してもらう（recommendation。API キーが要る。費用がかかる）
-    #[arg(long)]
-    ai: bool,
 }
 
 #[derive(Debug, Args)]
 pub struct AddArgs {
     target: Target,
-    /// 対象のトピックの id（recommendation はカンマ区切りで複数）
-    #[arg(long, value_delimiter = ',')]
-    topic: Vec<String>,
-    /// 子にする公開済みの提言の id（recommendation。カンマ区切り）
-    #[arg(long, value_delimiter = ',')]
-    child: Vec<String>,
-    /// 元の公開済みの提言の id（topic。第2回のトピックの下書きを作る）
+    /// 対象のトピックの id
     #[arg(long)]
-    from_recommendation: Option<String>,
+    topic: Option<String>,
     /// 意見の本文（statement。140文字以内）
     #[arg(long)]
     body: Option<String>,
@@ -288,7 +274,6 @@ pub async fn list(ctx: &Ctx, args: ListArgs) -> anyhow::Result<()> {
         }
         Target::Statement => list_statements(ctx, &args).await?,
         Target::Similar => list_similar(ctx, &args).await?,
-        Target::Recommendation => list_recommendations(ctx, &args).await?,
         Target::Tag => {
             let filter = match &args.municipality {
                 Some(slug) => Some(municipality_id(pool, slug).await?),
@@ -529,10 +514,6 @@ pub async fn show(ctx: &Ctx, args: ShowArgs) -> anyhow::Result<()> {
                 "運営者のアカウントは ID と登録日だけで、中身が無い（list operator で一覧を見る）",
             );
         }
-        Target::Recommendation => {
-            let id = required(&args.id, "show recommendation --id <id>")?;
-            show_recommendation(ctx, id).await?;
-        }
         Target::Similar => skip(
             "show",
             args.target,
@@ -618,7 +599,6 @@ pub async fn edit(ctx: &Ctx, args: EditArgs) -> anyhow::Result<()> {
             args.target,
             "運営者は足すか外すだけ（add / remove operator）",
         )?,
-        Target::Recommendation => edit_recommendation(ctx, &args).await?,
         Target::Similar => skip(
             "edit",
             args.target,
@@ -659,15 +639,13 @@ pub async fn add(ctx: &Ctx, args: AddArgs) -> anyhow::Result<()> {
     match args.target {
         Target::Statement => {
             let usage = "add statement --topic <topic_id> --body <本文>";
-            let first = args.topic.first().cloned();
-            let topic = required(&first, usage)?;
+            let topic = required(&args.topic, usage)?;
             let sid = topics::add_statement(pool, topic, required(&args.body, usage)?).await?;
             println!("{sid}: 足しました");
         }
         Target::Tag => {
             let usage = "add tag --topic <topic_id> --id <tag_id>";
-            let first = args.topic.first().cloned();
-            let topic = required(&first, usage)?;
+            let topic = required(&args.topic, usage)?;
             let tag = required(&args.id, usage)?;
             topics::set_tag(pool, topic, tag, true).await?;
             println!("{topic}: {tag} を付けました");
@@ -702,16 +680,6 @@ pub async fn add(ctx: &Ctx, args: AddArgs) -> anyhow::Result<()> {
             let id = process::publishing::add_slot(pool, &mid, at, chrono::Utc::now()).await?;
             println!("{id}: {slug} に {at} を足しました");
         }
-        Target::Recommendation => add_recommendation(ctx, &args).await?,
-        Target::Topic if args.from_recommendation.is_some() => {
-            let id = args.from_recommendation.as_deref().unwrap_or_default();
-            match records::recommendations::second_round(pool, id).await? {
-                Ok(topic) => println!(
-                    "{topic}: 第2回のトピックの下書きを作りました（show topic --id {topic} で確かめ、最初の意見を減らしてから公開）"
-                ),
-                Err(e) => anyhow::bail!("{e}: {id}"),
-            }
-        }
         other => skip("add", other, not_editable(other))?,
     }
     Ok(())
@@ -744,15 +712,6 @@ pub async fn remove(ctx: &Ctx, args: RemoveArgs) -> anyhow::Result<()> {
             }
             println!("{id}: 運営者から外しました（アカウントとパスキーは残る）");
         }
-        Target::Recommendation => {
-            let id = required(&args.id, "remove recommendation --id <id>（下書きだけ）")?;
-            if !records::recommendations::remove_draft(pool, id).await? {
-                anyhow::bail!(
-                    "下書きの提言が見つかりません（公開したものは archive で取り下げる）: {id}"
-                );
-            }
-            println!("{id}: 下書きを消しました");
-        }
         Target::Queue => {
             let id = required(&args.id, "remove queue --id <topic_id>")?;
             if !publishing::dequeue(pool, None, id).await? {
@@ -778,12 +737,9 @@ fn not_editable(target: Target) -> &'static str {
         Target::Budget | Target::Settlement | Target::Minutes => {
             "資料から取り込んだものは手で足し引きしない（import で作り直す）"
         }
-        Target::Topic => {
-            "トピックは会議録（import minutes）か、市民の提案（画面）、公開した提言（add topic --from-recommendation <id>）から作る"
-        }
+        Target::Topic => "トピックは会議録（import minutes）か、市民の提案（画面）から作る",
         Target::Source => "収集先は seed で管理する（data/seeds/010_municipality_*.sql）",
         Target::Similar => "似ているかは計算するだけで、保存しない（list similar で見る）",
-        Target::Recommendation => "",
         Target::Statement | Target::Tag | Target::Operator | Target::Queue | Target::Slot => "",
     }
 }
@@ -833,13 +789,6 @@ pub async fn publish(ctx: &Ctx, args: PublishArgs, publish: bool) -> anyhow::Res
         Target::Tag | Target::Source | Target::Operator => {
             skip(verb, args.target, "公開・取り下げの状態を持たない")?
         }
-        Target::Recommendation => {
-            let id = required(&args.id, &format!("{verb} recommendation --id <id>"))?;
-            match records::recommendations::set_status(pool, id, status).await? {
-                Ok(()) => println!("{id}: {}", status.as_str()),
-                Err(e) => anyhow::bail!("{e}: {id}"),
-            }
-        }
         Target::Similar => skip(
             verb,
             args.target,
@@ -850,145 +799,6 @@ pub async fn publish(ctx: &Ctx, args: PublishArgs, publish: bool) -> anyhow::Res
             args.target,
             "公開待ちは決まった時刻に公開される。急ぐものは publish topic --id で今すぐ公開する",
         )?,
-    }
-    Ok(())
-}
-
-// ===== 提言（ADR 0005。docs/plans/2026-10-30-opinion-synthesis.md） =====
-
-/// 提言（公開済み・下書き・取り下げ）と、提言にできるトピック・まとまりの候補
-async fn list_recommendations(ctx: &Ctx, args: &ListArgs) -> anyhow::Result<()> {
-    let pool = &ctx.pool;
-    let slug = required(&args.municipality, "list recommendation -m <slug>")?;
-    let mid = municipality_id(pool, slug).await?;
-    for status in Publication::ALL {
-        for r in records::recommendations::list(pool, &mid, status).await? {
-            println!(
-                "{}  [{}]  {}  合意点 {} 件・分かれた点 {} 件",
-                r.id,
-                r.status,
-                if r.title.is_empty() {
-                    "（見出し未定）"
-                } else {
-                    &r.title
-                },
-                r.consensus,
-                r.divided
-            );
-        }
-    }
-    let (topics, groups) = process::recommendation::candidates(pool, &mid).await?;
-    println!("\n提言にできるトピック（締め切ったもの）:");
-    if topics.is_empty() {
-        println!("  ありません");
-    }
-    for t in &topics {
-        println!(
-            "  {}  {}人  {}  [{}]",
-            t.id,
-            t.participants,
-            t.title,
-            t.fields.join("・")
-        );
-    }
-    if !groups.is_empty() {
-        println!("\nまとまりの候補（同じ分野で似ているもの）:");
-        for g in groups {
-            println!("  --topic {}", g.join(","));
-        }
-    }
-    Ok(())
-}
-
-async fn show_recommendation(ctx: &Ctx, id: &str) -> anyhow::Result<()> {
-    let Some(d) = records::recommendations::show(&ctx.pool, id).await? else {
-        anyhow::bail!("提言が見つかりません: {id}");
-    };
-    println!("{}  [{}]", d.id, d.status);
-    println!("見出し: {}", d.title);
-    println!("前書き: {}", d.preface);
-    println!(
-        "基準: 合意点 {} 以上・分かれた点 {} 以上",
-        d.consensus_threshold, d.divided_threshold
-    );
-    for t in &d.topics {
-        println!("元のトピック: {}  {}  {}人", t.id, t.title, t.participants);
-    }
-    for c in &d.children {
-        println!("子の提言: {}  {}", c.id, c.title);
-    }
-    for item in &d.items {
-        let kind = match item.kind {
-            ItemKind::Consensus => "合意点",
-            ItemKind::Divided => "分かれた点",
-        };
-        let groups: Vec<String> = item
-            .groups
-            .iter()
-            .map(|g| format!("{} 賛成{}/反対{}/{}", g.label, g.agree, g.disagree, g.seen))
-            .collect();
-        println!("[{kind}] {}  （{}）", item.body, groups.join("、"));
-    }
-    Ok(())
-}
-
-/// 下書きの提言を作る。API キーがあれば、見出しと前書きの下書きを AI に頼む
-async fn add_recommendation(ctx: &Ctx, args: &AddArgs) -> anyhow::Result<()> {
-    let pool = &ctx.pool;
-    let slug = required(
-        &args.municipality,
-        "add recommendation -m <slug> --topic <id,id> [--child <id,id>]",
-    )?;
-    let mid = municipality_id(pool, slug).await?;
-    let id = process::recommendation::create(
-        pool,
-        &mid,
-        &args.topic,
-        &args.child,
-        ctx.config.recommendation_divided_threshold,
-    )
-    .await?;
-    println!("{id}: 提言の下書きを作りました");
-    write_text_with_ai(ctx, &id).await;
-    println!("show recommendation --id {id} で確かめ、publish recommendation --id {id} で公開");
-    Ok(())
-}
-
-/// API キーがあれば、見出しと前書きの下書きを AI に頼む（失敗しても提言はそのまま。手で書ける）
-async fn write_text_with_ai(ctx: &Ctx, id: &str) {
-    let Some(llm) = &ctx.llm else {
-        println!(
-            "API キーが無いので、見出しと前書きは edit recommendation --id {id} --title … --preface … で書いてください"
-        );
-        return;
-    };
-    match process::recommendation::draft_text(&ctx.pool, llm, &ctx.config.moderation_model, id)
-        .await
-    {
-        Ok((title, preface)) => println!("AI の下書き:\n  見出し: {title}\n  前書き: {preface}"),
-        Err(e) => println!("見出しと前書きの下書きを作れませんでした（手で書いてください）: {e}"),
-    }
-}
-
-async fn edit_recommendation(ctx: &Ctx, args: &EditArgs) -> anyhow::Result<()> {
-    let id = required(
-        &args.id,
-        "edit recommendation --id <id> [--title …] [--preface …] [--ai]",
-    )?;
-    if args.ai {
-        write_text_with_ai(ctx, id).await;
-        return Ok(());
-    }
-    match records::recommendations::edit(
-        &ctx.pool,
-        id,
-        args.title.as_deref(),
-        args.preface.as_deref(),
-    )
-    .await?
-    {
-        Ok(()) => println!("{id}: 直しました"),
-        Err(e) => anyhow::bail!("{e}: {id}"),
     }
     Ok(())
 }

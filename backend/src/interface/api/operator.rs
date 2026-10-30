@@ -7,8 +7,6 @@
 //! - 中身は CLI と同じ `records`・`process` の関数を使う（ロジックを写さない）。判定の基準は ADR 0007
 //! - 投稿者が誰かは、運営者にも返さない（市民の投稿か、議会の主張・運営者の意見かだけ）
 
-pub mod recommendations;
-
 use axum::Json;
 use axum::extract::{FromRequestParts, Path, Query, State};
 use axum::http::StatusCode;
@@ -81,6 +79,12 @@ pub struct TopicStatement {
 }
 
 #[derive(Debug, Serialize)]
+pub struct TopicParent {
+    pub id: String,
+    pub title: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct TopicTag {
     pub id: String,
     pub name: String,
@@ -106,6 +110,8 @@ pub struct OperatorTopic {
     pub sources: Vec<Source>,
     pub statements: Vec<TopicStatement>,
     pub tags: Vec<TopicTag>,
+    /// 市民のまとめから作ったトピックなら、元のトピック（`{id, title}`）
+    pub parents: Vec<TopicParent>,
     /// 似ている同じ自治体のトピック（下書きだけ。同じ論点の重なりを確かめる候補。process::similarity）
     pub similar: Vec<SimilarTopic>,
 }
@@ -144,6 +150,11 @@ impl From<DraftDetail> for OperatorTopic {
                     name,
                     assigned_by,
                 })
+                .collect(),
+            parents: d
+                .parents
+                .into_iter()
+                .map(|(id, title)| TopicParent { id, title })
                 .collect(),
             id: d.id,
             status: d.status,

@@ -117,6 +117,8 @@ pub struct DraftDetail {
     pub basis: std::collections::HashMap<String, Vec<String>>,
     /// (タグの ID, 名前, 付けたのは ai / admin)
     pub tags: Vec<(String, String, String)>,
+    /// 市民のまとめから作ったトピックの、元のトピック（ID, 題）
+    pub parents: Vec<(String, String)>,
 }
 
 pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetail>, sqlx::Error> {
@@ -196,7 +198,36 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
         statements,
         basis,
         tags,
+        parents: parents(pool, topic_id).await?,
     }))
+}
+
+/// 市民のまとめから作ったトピックの、元のトピック（ID, 題。選んだ順）。元は締め切った公開済みのトピック
+pub async fn parents(
+    pool: &SqlitePool,
+    topic_id: &str,
+) -> Result<Vec<(String, String)>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT t.id, t.title FROM topic_parents p JOIN topics t ON t.id = p.parent_id
+         WHERE p.topic_id = $1 AND t.status = 'published' ORDER BY p.position",
+    )
+    .bind(topic_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// このトピックから生まれた、公開済みのトピック（ID, 題。公開の古い順）
+pub async fn children(
+    pool: &SqlitePool,
+    topic_id: &str,
+) -> Result<Vec<(String, String)>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT t.id, t.title FROM topic_parents p JOIN topics t ON t.id = p.topic_id
+         WHERE p.parent_id = $1 AND t.status = 'published' ORDER BY t.published_at, t.id",
+    )
+    .bind(topic_id)
+    .fetch_all(pool)
+    .await
 }
 
 impl DraftDetail {
@@ -231,6 +262,12 @@ impl DraftDetail {
             out.push_str(&format!("- {mark}{body}\n  {id}\n"));
             if let Some(basis) = self.basis.get(id) {
                 out.push_str(&format!("  根拠: {}\n", basis.join("、")));
+            }
+        }
+        if !self.parents.is_empty() {
+            out.push_str("\n## 元のトピック（市民のまとめから）\n");
+            for (id, title) in &self.parents {
+                out.push_str(&format!("- {title}\n  {id}\n"));
             }
         }
         out.push_str("\n## タグ\n");

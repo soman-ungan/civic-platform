@@ -33,7 +33,7 @@ impl StatementStatus {
     }
 }
 
-/// 公開の状態（`topics.status`・`budgets.status`・`recommendations.status`）。下書きは API のどこにも出さない
+/// 公開の状態（`topics.status`・`budgets.status`）。下書きは API のどこにも出さない
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Publication {
@@ -53,30 +53,5 @@ impl Publication {
             Self::Published => "published",
             Self::Archived => "archived",
         }
-    }
-}
-
-/// 提言の項目の種類（`recommendation_items.kind`）
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ItemKind {
-    /// 合意点（どのグループでも多くが賛成）
-    Consensus,
-    /// 意見が分かれた点（あるグループでは多くが賛成し、別のグループでは多くが反対）
-    Divided,
-}
-
-impl ItemKind {
-    pub const ALL: [Self; 2] = [Self::Consensus, Self::Divided];
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Consensus => "consensus",
-            Self::Divided => "divided",
-        }
-    }
-
-    pub fn parse(s: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|k| k.as_str() == s)
     }
 }

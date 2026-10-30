@@ -21,11 +21,6 @@ export function proposalsApi(slug: string): string {
   return `${municipalityApi(slug)}/proposals`;
 }
 
-/** /api/municipalities/{slug}/recommendations（公開済みの提言） */
-export function recommendationsApi(slug: string): string {
-  return `${municipalityApi(slug)}/recommendations`;
-}
-
 /** パスキーでの登録とログイン（ADR 0006） */
 export const AUTH_API = {
   me: "/api/auth/me",
@@ -55,10 +50,4 @@ export function operatorStatementApi(
   statementId: string,
 ): string {
   return `${operatorApi(slug)}/statements/${enc(statementId)}`;
-}
-
-/** /api/operator/municipalities/{slug}/recommendations/{id}（id を省くと一覧・作成） */
-export function operatorRecommendationApi(slug: string, id?: string): string {
-  const base = `${operatorApi(slug)}/recommendations`;
-  return id ? `${base}/${enc(id)}` : base;
 }
