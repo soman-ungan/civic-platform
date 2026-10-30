@@ -661,6 +661,13 @@ async fn drafts_show_similar_topics_in_the_same_municipality() {
     assert_eq!(ids, ["t3"]);
     assert!(similar[0]["score"].as_f64().unwrap() >= 0.25);
 
-    let res = request(&state, "GET", &format!("{OTAWARA}/topics/t1"), Some(&op), None).await;
+    let res = request(
+        &state,
+        "GET",
+        &format!("{OTAWARA}/topics/t1"),
+        Some(&op),
+        None,
+    )
+    .await;
     assert_eq!(res.json["similar"][0]["id"], "t3");
 }

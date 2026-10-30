@@ -14,17 +14,12 @@ use crate::interface::api::error::ApiError;
 use crate::interface::api::municipalities;
 use crate::interface::api::participant::MaybeParticipant;
 use crate::process::analysis::conversation::{self, ConvResult, ConvState};
+use crate::process::analysis::disclosure::{
+    MIN_DISPLAY_PARTICIPANTS, PIN_THRESHOLD, group_label, suppress,
+};
 use crate::process::analysis::repness::RepfulFor;
 use crate::process::analysis::store::{self, Stored};
 use crate::process::progress::{self, RESIDENCY_TYPES};
-
-/// グループを表示する最小の参加者数（分析に含まれる人数）。
-/// 少人数ではグループの集計が個人の投票そのものになるため（Polis にはない、このプロジェクトの判断）
-pub const MIN_DISPLAY_PARTICIPANTS: usize = 5;
-/// 居住地属性ごとの集計で、これ未満の人数のセルは出さない
-pub const MIN_CELL_SIZE: i64 = 5;
-/// タイムラインにピン留めする合意点の条件: 全グループで (A+1)/(S+2) がこの値以上
-pub const PIN_THRESHOLD: f64 = 0.8;
 
 #[derive(Debug, Serialize)]
 pub struct RepresentativeOut {
@@ -172,10 +167,6 @@ async fn approved_bodies(
     Ok(rows.into_iter().collect())
 }
 
-fn group_label(index: usize) -> String {
-    char::from(b'A' + (index % 26) as u8).to_string()
-}
-
 /// 承認済みの意見（投稿順）ごとに、各グループの賛成・反対・投票数を並べる。
 /// 分析の後に投稿された意見は、分析に含まれていないので出さない
 async fn statements_by_group(
@@ -297,36 +288,6 @@ async fn locate_you(
             .map(|g| g.id)
     });
     Ok(Some(You { x, y, group_id }))
-}
-
-/// 居住地属性ごとの、意見ごとの賛成数と投票数（人数が少ないセルは null）
-/// 二次秘匿: どの区分を表示してよいかを返す（`counts` と同じ順の bool）。
-/// 1. 5人未満の区分を隠す
-/// 2. 隠した区分の合計が 1〜4 人なら、見えている区分のうち最も少ないものも隠す（引き算で逆算されないように）
-/// 3. 合計が5人以上になるか、すべて隠れるまで 2 を繰り返す
-pub fn suppress(counts: &[i64]) -> Vec<bool> {
-    let mut visible: Vec<bool> = counts.iter().map(|c| *c >= MIN_CELL_SIZE).collect();
-    loop {
-        let hidden: i64 = counts
-            .iter()
-            .zip(&visible)
-            .filter(|(_, v)| !**v)
-            .map(|(c, _)| *c)
-            .sum();
-        if hidden == 0 || hidden >= MIN_CELL_SIZE {
-            return visible;
-        }
-        let smallest = counts
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| visible[*i])
-            .min_by_key(|(_, c)| **c)
-            .map(|(i, _)| i);
-        match smallest {
-            Some(i) => visible[i] = false,
-            None => return visible,
-        }
-    }
 }
 
 /// 意見グループごとの、このまちとの関わり方の構成（Polis のレポートの「各グループの内訳」に相当）。
@@ -641,32 +602,4 @@ pub async fn municipality_consensus(
     });
     out.truncate(MAX_PINNED);
     Ok(Json(out))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::suppress;
-
-    #[test]
-    fn nothing_hidden() {
-        assert_eq!(suppress(&[6, 5, 7]), [true, true, true]);
-    }
-
-    #[test]
-    fn hidden_total_of_five_or_more_is_safe() {
-        // 3 + 2 = 5 人を隠すだけでよい
-        assert_eq!(suppress(&[3, 2, 9]), [false, false, true]);
-    }
-
-    #[test]
-    fn small_hidden_total_hides_next_smallest() {
-        // 3 人だけ隠すと逆算できるので、次に少ない 5 も隠す
-        assert_eq!(suppress(&[6, 5, 3, 0]), [true, false, false, false]);
-    }
-
-    #[test]
-    fn may_hide_everything() {
-        assert_eq!(suppress(&[7, 1]), [false, false]);
-        assert_eq!(suppress(&[0, 0]), [false, false]);
-    }
 }

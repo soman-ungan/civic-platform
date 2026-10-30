@@ -5,6 +5,7 @@
 
 pub mod clusters;
 pub mod conversation;
+pub mod disclosure;
 pub mod matrix;
 pub mod pca;
 pub mod repness;
