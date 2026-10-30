@@ -5,8 +5,8 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { OperatorLink } from "@/components/auth/operator-link";
-import { TopicMapView } from "@/components/digest/map";
-import { ConsensusList } from "@/components/topics/consensus-list";
+import { MapTagList, TopicMapView } from "@/components/digest/map";
+import { ConsensusToggle } from "@/components/topics/consensus-list";
 import { municipalityApi, topicMapApi } from "@/lib/api/paths";
 import { apiGet, requestCookie } from "@/lib/api/server";
 import type { MunicipalityConsensus } from "@/lib/api/types/analysis";
@@ -59,12 +59,8 @@ async function ConsensusView({
   if (!municipality || !consensus || !firstMap) {
     notFound();
   }
-  // 地図はタグで絞ったものだけ。タグが決まらなければ、締め切ったトピックの多いタグを開く
-  const map =
-    !firstMap.tag && firstMap.tags.length > 0
-      ? ((await apiGet<TopicMap>(topicMapApi(slug, firstMap.tags[0].id))) ??
-        firstMap)
-      : firstMap;
+  // 地図はタグで絞ったものだけ。タグが決まらなければ（最初に開いたとき）、タグの一覧を出す
+  const map = firstMap;
 
   return (
     <>
@@ -84,35 +80,31 @@ async function ConsensusView({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-8 px-4 pt-4">
-          <section aria-labelledby="consensus-title">
-            <h2 id="consensus-title" className="text-base font-bold">
-              合意点（{consensus.length}件）
-            </h2>
-            <p className="mb-3 text-xs leading-5 text-zinc-500">
-              意見の違うグループのどれでも、8割以上が賛成している意見です。締め切ったトピックの合意点は、押すと下の地図でそのトピックを示します。
-            </p>
-            <ConsensusList slug={municipality.slug} items={consensus} />
-          </section>
+        <div className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 pt-4 pb-6">
+          <ConsensusToggle slug={municipality.slug} items={consensus} />
 
           <section
             id={MAP_ANCHOR}
-            aria-labelledby="map-title"
+            aria-label="これまでの議論"
             className="scroll-mt-2"
           >
-            <h2 id="map-title" className="text-base font-bold">
-              これまでの議論
-            </h2>
-            <p className="mb-3 text-xs leading-5 text-zinc-500">
-              締め切ったトピックの地図です。似ているトピックを選んで、合意点や意見の分かれた点をまとめて見られ、そこから次のトピックを提案できます。
-            </p>
-            {/* タグか起点が変わったら、選んでいたものを捨てる（key） */}
-            <TopicMapView
-              key={`${map.tag ?? ""}:${focusId ?? ""}`}
-              slug={municipality.slug}
-              map={map}
-              initialAnchor={focusId}
-            />
+            {map.tag ? (
+              // タグか起点が変わったら、選んでいたものを捨てる（key）
+              <TopicMapView
+                key={`${map.tag}:${focusId ?? ""}`}
+                slug={municipality.slug}
+                map={map}
+                initialAnchor={focusId}
+              />
+            ) : (
+              <>
+                <h2 className="text-base font-bold">これまでの議論</h2>
+                <p className="mb-3 text-xs leading-5 text-zinc-500">
+                  締め切ったトピックの地図です。分野を選ぶと、似ているトピックほど近くに並んだ地図が開きます。似ているトピックを選んで、合意点や意見の分かれた点をまとめて見られ、そこから次のトピックを提案できます。
+                </p>
+                <MapTagList slug={municipality.slug} tags={map.tags} />
+              </>
+            )}
           </section>
         </div>
       </div>

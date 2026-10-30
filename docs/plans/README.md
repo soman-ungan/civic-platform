@@ -22,6 +22,7 @@
 | [2026-10-30-opinion-synthesis](2026-10-30-opinion-synthesis.md) | 意見の取りまとめ: 類似判定の基盤（トピックと意見に共通）。Part B（運営者の提言）は次の計画に置き換えた | [ADR 0005](../adr/0005-topic-lifecycle-and-funding.md)・[ADR 0007](../adr/0007-statement-review.md)・`backend/src/process/similarity.rs` |
 | [2026-10-30-topic-map](2026-10-30-topic-map.md) | トピックマップと市民のまとめ（運営者の提言を置き換える）。まとめから次のトピックを提案 | [ADR 0005](../adr/0005-topic-lifecycle-and-funding.md)・[design/api.md](../design/api.md)・`backend/src/process/topic_map.rs`・`backend/src/process/digest.rs` |
 | [2026-10-30-consensus-page](2026-10-30-consensus-page.md) | 合意点のページ: 「これまでの議論」をタブから「みんなの合意点」へ移し、合意点から地図へ | [ADR 0005](../adr/0005-topic-lifecycle-and-funding.md)・[design/api.md](../design/api.md) |
+| [2026-10-30-consensus-page-ui](2026-10-30-consensus-page-ui.md) | 合意点のページの画面: 合意点のトグル・地図の固定と拡大縮小・概要の吹き出し・トピック詳細のレイヤ | [ADR 0005](../adr/0005-topic-lifecycle-and-funding.md) |
 
 ## 方針・ADR
 | 計画 | 中身 | 今の決まりの場所 |
