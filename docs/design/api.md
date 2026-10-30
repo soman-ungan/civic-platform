@@ -20,11 +20,11 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
   - 新着 `is_new`（公開から3日以内で、Cookie の参加者が未投票。`progress::is_new`）、会期 `session`（議会のトピックだけ。出典の最初の会議の資料名と月から「令和8年 第2回定例会（6月）」。`records::minutes::session_label`）
   - 詳細には出典 `sources`（会議録の引用）と `finances`（分野タグに対応する目的別歳出（決算の総額と歳出に占める割合）と、同じ分野の主な事業5件まで（予算））。議会のトピックは会議の年度に合わせる: 予算は会議の日の年（1月だけ前年）の年度でその年度の予算が無ければ出さない、決算はそれより前で最新の年度（`finances::budget_year_of_meeting`）。市民の提案は最新の年度
   - 詳細には、市民のまとめから作ったトピックなら元のトピック `parents`、このトピックから生まれた公開済みのトピック `children`（どちらも `{id, title}` の配列）
-- `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。分析を見られて、1件以上投票したトピックの分だけ（Cookie が無ければ空）
+- `GET /municipalities/{slug}/consensus?include_closed=` — 合意点（全グループで (A+1)/(S+2) ≥ 0.8）。分析を見られて、1件以上投票したトピックの分だけ（Cookie が無ければ空）。`include_closed=true`（合意点のページ）なら、締め切ったトピックの合意点は投票を問わず返す（上限100件。ほかは20件）。各件に `closed`（元のトピックが締め切ったか）
 
 ## トピックマップと市民のまとめ（`interface/api/digest.rs`。ADR 0005「市民のまとめ」）
 締め切ったトピックだけを扱う。保存はせず、そのつど計算する。AI は使わない。
-- `GET /municipalities/{slug}/topic-map?tag=` — 地図。`tags`（締め切ったトピックに付いているタグと数）、`tag` を渡すと `points`（`id`・`title`・`closes_at`・`participants`・座標 `x`・`y`（-1〜1。似ている度合いの表を PCA で2次元に））と `edges`（似ている度合いが目安 0.25 以上の組 `{a, b, score}`。起点の近傍の判定と同じ）
+- `GET /municipalities/{slug}/topic-map?tag=&focus=` — 地図。`tag` が無ければ、`focus` のトピックに付いたタグのうち、一覧で先のもの（分野・締め切ったトピックの多い順）を開く。`tags`（締め切ったトピックに付いているタグと数）、`tag` を渡すと `points`（`id`・`title`・`closes_at`・`participants`・座標 `x`・`y`（-1〜1。似ている度合いの表を PCA で2次元に））と `edges`（似ている度合いが目安 0.25 以上の組 `{a, b, score}`。起点の近傍の判定と同じ）
 - `GET /municipalities/{slug}/digest?anchor=&topics=` — まとめ。起点 `anchor` と、その近傍から選んだ `topics`（カンマ区切り。合わせて10件まで）。近傍の外・受付中・別の自治体のものは 422 `invalid_selection`
   - `topics[]`: `score`（起点との似ている度合い）・`analyzed`（分析の対象の人数）・`sufficient`（5人以上で中身を出したか）・`residency`（関わり方ごとの人数。少人数は null）・`consensus`・`divided`（意見の本文と、全体・グループごとの票）・`groups`（グループごとの代表的な意見 `representative`）
   - `divided_threshold`: 意見が分かれた点の基準（0.6）

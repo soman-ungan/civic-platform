@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ScrollRow } from "@/components/ui/scroll-row";
 import { BUTTON_PRIMARY } from "@/components/ui/styles";
 import type { MapPoint, TopicMap } from "@/lib/api/types/digest";
-import { digestHref, formatDate } from "@/lib/digest";
+import { consensusMapHref, digestHref, formatDate } from "@/lib/digest";
 
 /** まとめで選べるトピックの数（backend の digest::MAX_TOPICS） */
 const MAX_TOPICS = 10;
@@ -21,8 +21,21 @@ const PAD = 0.15;
  * トピックマップ: 締め切ったトピック1件を点1つにし、似ているトピックほど近くに置く（配置は backend の PCA）。
  * 点を押すと起点になり、起点に似ているトピック（近傍。線でつながったもの）だけを追加で選べる
  */
-export function TopicMapView({ slug, map }: { slug: string; map: TopicMap }) {
-  const [anchor, setAnchor] = useState<string | null>(null);
+export function TopicMapView({
+  slug,
+  map,
+  initialAnchor = null,
+}: {
+  slug: string;
+  map: TopicMap;
+  /** 最初から起点にするトピック（合意点から来たとき。地図に載っていなければ無視） */
+  initialAnchor?: string | null;
+}) {
+  const [anchor, setAnchor] = useState<string | null>(
+    initialAnchor && map.points.some((p) => p.id === initialAnchor)
+      ? initialAnchor
+      : null,
+  );
   const [selected, setSelected] = useState<string[]>([]);
   const byId = new Map(map.points.map((p) => [p.id, p]));
   const neighbors = new Set(
@@ -65,7 +78,7 @@ export function TopicMapView({ slug, map }: { slug: string; map: TopicMap }) {
           <li key={t.id}>
             <ChipLink
               active={t.id === map.tag}
-              href={`/${slug}/map?tag=${encodeURIComponent(t.id)}`}
+              href={consensusMapHref(slug, { tag: t.id })}
             >
               {t.kind === "district" ? `#${t.name}` : t.name}（{t.count}）
             </ChipLink>

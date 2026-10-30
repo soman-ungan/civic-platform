@@ -11,7 +11,7 @@ import { digestApi, municipalityApi } from "@/lib/api/paths";
 import { apiGet } from "@/lib/api/server";
 import type { Digest } from "@/lib/api/types/digest";
 import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
-import { idList } from "@/lib/digest";
+import { consensusMapHref, idList } from "@/lib/digest";
 
 /** 市民のまとめ（?anchor=起点&topics=近傍から選んだトピック）。保存しないので、URL で共有・印刷できる */
 export default function DigestPage({
@@ -53,10 +53,12 @@ async function DigestPageView({
       <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800 print:border-0">
         <div className="mx-auto w-full max-w-md px-4 pb-3 print:max-w-none">
           <Link
-            href={`/${municipality.slug}/map`}
+            href={consensusMapHref(municipality.slug, {
+              focus: digest?.anchor ?? anchor,
+            })}
             className="inline-flex h-10 items-center text-sm text-zinc-600 print:hidden dark:text-zinc-400"
           >
-            ← これまでの議論
+            ← みんなの合意点
           </Link>
           <p className="mb-0.5 text-xs text-zinc-500">
             {municipality.name}の市民の投票のまとめ

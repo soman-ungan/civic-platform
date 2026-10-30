@@ -1,0 +1,135 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Suspense } from "react";
+
+import { OperatorLink } from "@/components/auth/operator-link";
+import { TopicMapView } from "@/components/digest/map";
+import { ConsensusList } from "@/components/topics/consensus-list";
+import { municipalityApi, topicMapApi } from "@/lib/api/paths";
+import { apiGet, requestCookie } from "@/lib/api/server";
+import type { MunicipalityConsensus } from "@/lib/api/types/analysis";
+import type { TopicMap } from "@/lib/api/types/digest";
+import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
+import { MAP_ANCHOR } from "@/lib/digest";
+
+/**
+ * みんなの合意点（ADR 0005「市民のまとめ」）: 上に合意点の一覧、下に「これまでの議論」（締め切ったトピックの地図 → まとめ → 提案）。
+ * 合意点を押すと、元のトピックを起点にした地図を開く（?focus=）。地図の分野は ?tag=
+ */
+export default function ConsensusPage({
+  params,
+  searchParams,
+}: PageProps<"/[municipality]/consensus">) {
+  // 戻るリンクと見出しを固定のヘッダーにし、その下をスクロールする（スクロールはページだけ）
+  return (
+    <main className="flex min-h-0 flex-1 flex-col">
+      <Suspense fallback={<Skeleton />}>
+        <ConsensusView params={params} searchParams={searchParams} />
+      </Suspense>
+    </main>
+  );
+}
+
+async function ConsensusView({
+  params,
+  searchParams,
+}: Pick<PageProps<"/[municipality]/consensus">, "params" | "searchParams">) {
+  const { municipality: slug } = await params;
+  const { tag, focus } = await searchParams;
+  const path = municipalityApi(slug);
+  // 受付中のトピックの合意点は、本人が投票し終えたものだけ（参加者ごとに違うので Cookie を渡す）。
+  // 締め切ったトピックの合意点は誰にでも出す
+  const cookie = await requestCookie();
+  const focusId = typeof focus === "string" ? focus : null;
+  const mapQuery =
+    typeof tag === "string"
+      ? topicMapApi(slug, tag)
+      : focusId
+        ? `${topicMapApi(slug)}?focus=${encodeURIComponent(focusId)}`
+        : topicMapApi(slug);
+  const [municipality, consensus, firstMap] = await Promise.all([
+    apiGet<MunicipalityDetail>(path),
+    apiGet<MunicipalityConsensus[]>(`${path}/consensus?include_closed=true`, {
+      cookie,
+    }),
+    apiGet<TopicMap>(mapQuery),
+  ]);
+  if (!municipality || !consensus || !firstMap) {
+    notFound();
+  }
+  // 地図はタグで絞ったものだけ。タグが決まらなければ、締め切ったトピックの多いタグを開く
+  const map =
+    !firstMap.tag && firstMap.tags.length > 0
+      ? ((await apiGet<TopicMap>(topicMapApi(slug, firstMap.tags[0].id))) ??
+        firstMap)
+      : firstMap;
+
+  return (
+    <>
+      <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="mx-auto w-full max-w-md px-4 pb-3">
+          <div className="flex items-center justify-between gap-4">
+            <Link
+              href={`/${municipality.slug}`}
+              className="inline-flex h-10 items-center text-sm text-zinc-600 dark:text-zinc-400"
+            >
+              ← {municipality.name}のトピック
+            </Link>
+            <OperatorLink />
+          </div>
+          <h1 className="text-lg leading-snug font-bold">みんなの合意点</h1>
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-8 px-4 pt-4">
+          <section aria-labelledby="consensus-title">
+            <h2 id="consensus-title" className="text-base font-bold">
+              合意点（{consensus.length}件）
+            </h2>
+            <p className="mb-3 text-xs leading-5 text-zinc-500">
+              意見の違うグループのどれでも、8割以上が賛成している意見です。締め切ったトピックの合意点は、押すと下の地図でそのトピックを示します。
+            </p>
+            <ConsensusList slug={municipality.slug} items={consensus} />
+          </section>
+
+          <section
+            id={MAP_ANCHOR}
+            aria-labelledby="map-title"
+            className="scroll-mt-2"
+          >
+            <h2 id="map-title" className="text-base font-bold">
+              これまでの議論
+            </h2>
+            <p className="mb-3 text-xs leading-5 text-zinc-500">
+              締め切ったトピックの地図です。似ているトピックを選んで、合意点や意見の分かれた点をまとめて見られ、そこから次のトピックを提案できます。
+            </p>
+            {/* タグか起点が変わったら、選んでいたものを捨てる（key） */}
+            <TopicMapView
+              key={`${map.tag ?? ""}:${focusId ?? ""}`}
+              slug={municipality.slug}
+              map={map}
+              initialAnchor={focusId}
+            />
+          </section>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Skeleton() {
+  return (
+    <div
+      aria-hidden
+      className="mx-auto w-full max-w-md animate-pulse px-4 py-3"
+    >
+      <div className="mb-4 h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-800" />
+      <div className="mb-3 h-6 w-1/2 rounded bg-zinc-200 dark:bg-zinc-800" />
+      <div className="mb-3 h-24 rounded-2xl bg-zinc-100 dark:bg-zinc-900" />
+      <div className="aspect-square rounded-2xl bg-zinc-100 dark:bg-zinc-900" />
+    </div>
+  );
+}

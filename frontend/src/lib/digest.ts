@@ -19,6 +19,18 @@ export function ratioLabel(value: number): string {
   return `${Math.round(value * 10)}割`;
 }
 
+/** 地図の欄の id（合意点のページの中の位置） */
+export const MAP_ANCHOR = "topic-map";
+
+/** 合意点のページの地図（タグを選ぶ、または合意点の元のトピックを起点にして開く） */
+export function consensusMapHref(
+  slug: string,
+  by: { tag: string } | { focus: string },
+): string {
+  const q = "tag" in by ? `tag=${enc(by.tag)}` : `focus=${enc(by.focus)}`;
+  return `/${slug}/consensus?${q}#${MAP_ANCHOR}`;
+}
+
 /** まとめのページ /{slug}/digest?anchor=&topics=（起点と、近傍から選んだトピック） */
 export function digestHref(
   slug: string,
