@@ -6,7 +6,7 @@
 use clap::{Args, ValueEnum};
 
 use crate::ingest::{budget, collect};
-use crate::process::{self, moderation, progress};
+use crate::process::{self, moderation, progress, similarity};
 use crate::records::{self, accounts, publishing, topics};
 use crate::shared::status::Publication;
 
@@ -35,6 +35,8 @@ pub enum Target {
     Queue,
     /// 自動公開の時刻（自治体ごと。1つで1日1件）
     Slot,
+    /// 似ているトピックの組（-m）、またはトピックの中の似ている意見の組（--topic）。費用 0（process::similarity）
+    Similar,
 }
 
 #[derive(Debug, Args)]
@@ -135,6 +137,38 @@ pub struct PublishArgs {
 }
 
 // ===== list =====
+
+/// 似ているトピック・意見の組。度合いの目安を手元の DB で確かめるのに使う
+async fn list_similar(ctx: &Ctx, args: &ListArgs) -> anyhow::Result<()> {
+    let pool = &ctx.pool;
+    if let Some(topic) = &args.topic {
+        let pairs =
+            similarity::statement_pairs(pool, topic, similarity::SIMILAR_STATEMENT_SCORE).await?;
+        if pairs.is_empty() {
+            println!("似ている意見の組はありません");
+        }
+        for ((a, body_a), (b, body_b), score) in pairs {
+            println!("{score:.2}\n  {a}  {body_a}\n  {b}  {body_b}");
+        }
+        return Ok(());
+    }
+    let slug = required(
+        &args.municipality,
+        "list similar -m <slug> または --topic <id>",
+    )?;
+    let id = municipality_id(pool, slug).await?;
+    let pairs = similarity::topic_pairs(pool, &id).await?;
+    if pairs.is_empty() {
+        println!("似ているトピックの組はありません");
+    }
+    for (a, b) in pairs {
+        println!(
+            "{:.2}\n  {}  [{}]  {}\n  {}  [{}]  {}",
+            a.score, a.id, a.status, a.title, b.id, b.status, b.title
+        );
+    }
+    Ok(())
+}
 
 pub async fn list(ctx: &Ctx, args: ListArgs) -> anyhow::Result<()> {
     let pool = &ctx.pool;
@@ -239,6 +273,7 @@ pub async fn list(ctx: &Ctx, args: ListArgs) -> anyhow::Result<()> {
             }
         }
         Target::Statement => list_statements(ctx, &args).await?,
+        Target::Similar => list_similar(ctx, &args).await?,
         Target::Tag => {
             let filter = match &args.municipality {
                 Some(slug) => Some(municipality_id(pool, slug).await?),
@@ -479,6 +514,11 @@ pub async fn show(ctx: &Ctx, args: ShowArgs) -> anyhow::Result<()> {
                 "運営者のアカウントは ID と登録日だけで、中身が無い（list operator で一覧を見る）",
             );
         }
+        Target::Similar => skip(
+            "show",
+            args.target,
+            "似ているかは計算するだけで、保存しない（list similar で見る）",
+        )?,
         Target::Queue | Target::Slot => {
             return skip(
                 "show",
@@ -558,6 +598,11 @@ pub async fn edit(ctx: &Ctx, args: EditArgs) -> anyhow::Result<()> {
             "edit",
             args.target,
             "運営者は足すか外すだけ（add / remove operator）",
+        )?,
+        Target::Similar => skip(
+            "edit",
+            args.target,
+            "似ているかは計算するだけで、保存しない（list similar で見る）",
         )?,
         Target::Queue => skip(
             "edit",
@@ -694,6 +739,7 @@ fn not_editable(target: Target) -> &'static str {
         }
         Target::Topic => "トピックは会議録（import minutes）か、市民の提案（画面）から作る",
         Target::Source => "収集先は seed で管理する（data/seeds/010_municipality_*.sql）",
+        Target::Similar => "似ているかは計算するだけで、保存しない（list similar で見る）",
         Target::Statement | Target::Tag | Target::Operator | Target::Queue | Target::Slot => "",
     }
 }
@@ -743,6 +789,11 @@ pub async fn publish(ctx: &Ctx, args: PublishArgs, publish: bool) -> anyhow::Res
         Target::Tag | Target::Source | Target::Operator => {
             skip(verb, args.target, "公開・取り下げの状態を持たない")?
         }
+        Target::Similar => skip(
+            verb,
+            args.target,
+            "似ているかは計算するだけで、保存しない（list similar で見る）",
+        )?,
         Target::Queue | Target::Slot => skip(
             verb,
             args.target,

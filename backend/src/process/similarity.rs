@@ -9,9 +9,15 @@
 
 use std::collections::HashMap;
 
+use serde::Serialize;
+use sqlx::SqlitePool;
+
 /// 似ているトピック（タイトル＋説明）とみなす目安。運営者に候補として見せる・まとまりを作るのに使う。
 /// 2026-10-30 の手元の DB（大田原市の75件）で、同じ論点の組はすべて 0.30 以上、別の論点は 0.19 以下だった
 pub const SIMILAR_TOPIC_SCORE: f64 = 0.25;
+
+/// 似ている意見（本文）とみなす目安（`list similar --topic` で見せる組）
+pub const SIMILAR_STATEMENT_SCORE: f64 = 0.25;
 
 /// 候補とその似ている度合い（0〜1）
 #[derive(Debug, Clone, PartialEq)]
@@ -239,6 +245,128 @@ impl Index {
         out.sort_by_key(|g| std::cmp::Reverse(g.len()));
         out
     }
+}
+
+/// 似ているトピック（運営者に見せる候補）
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SimilarTopic {
+    pub id: String,
+    pub title: String,
+    /// draft / published
+    pub status: String,
+    pub score: f64,
+}
+
+#[derive(sqlx::FromRow)]
+struct TopicRow {
+    id: String,
+    title: String,
+    description: String,
+    status: String,
+}
+
+/// 自治体の、取り下げていないトピック（下書き・公開中・締め切ったもの）
+async fn topic_rows(
+    pool: &SqlitePool,
+    municipality_id: &str,
+) -> Result<Vec<TopicRow>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT id, title, description, status FROM topics
+         WHERE municipality_id = $1 AND status IN ('draft', 'published') ORDER BY created_at, id",
+    )
+    .bind(municipality_id)
+    .fetch_all(pool)
+    .await
+}
+
+fn topic_index(rows: &[TopicRow]) -> Index {
+    Index::build(
+        rows.iter()
+            .map(|t| (t.id.clone(), format!("{} {}", t.title, t.description))),
+    )
+}
+
+/// 自治体の中で、似ているトピックの組（`SIMILAR_TOPIC_SCORE` 以上。似ている順）
+pub async fn topic_pairs(
+    pool: &SqlitePool,
+    municipality_id: &str,
+) -> Result<Vec<(SimilarTopic, SimilarTopic)>, sqlx::Error> {
+    let rows = topic_rows(pool, municipality_id).await?;
+    let index = topic_index(&rows);
+    let find = |id: &str, score: f64| {
+        let t = rows.iter().find(|t| t.id == id).expect("コーパスの id");
+        SimilarTopic {
+            id: t.id.clone(),
+            title: t.title.clone(),
+            status: t.status.clone(),
+            score,
+        }
+    };
+    Ok(index
+        .pairs(SIMILAR_TOPIC_SCORE)
+        .into_iter()
+        .map(|(a, b, s)| (find(&a, s), find(&b, s)))
+        .collect())
+}
+
+/// 各トピックに似ている、同じ自治体のほかのトピック（`SIMILAR_TOPIC_SCORE` 以上を、最大 `k` 件ずつ）。
+/// 管理画面の下書きの確認で、同じ論点の重なりを確かめるのに使う
+pub async fn similar_topics(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    topic_ids: &[String],
+    k: usize,
+) -> Result<HashMap<String, Vec<SimilarTopic>>, sqlx::Error> {
+    let rows = topic_rows(pool, municipality_id).await?;
+    let index = topic_index(&rows);
+    Ok(topic_ids
+        .iter()
+        .map(|id| {
+            let similar = index
+                .similar_to(id, k)
+                .into_iter()
+                .filter(|m| m.score >= SIMILAR_TOPIC_SCORE)
+                .filter_map(|m| {
+                    rows.iter().find(|t| t.id == m.id).map(|t| SimilarTopic {
+                        id: t.id.clone(),
+                        title: t.title.clone(),
+                        status: t.status.clone(),
+                        score: m.score,
+                    })
+                })
+                .collect();
+            (id.clone(), similar)
+        })
+        .collect())
+}
+
+/// トピックの中で、似ている意見の組（承認済み・確認待ち。`min_score` 以上、似ている順）。
+/// 返すのは (id, 本文) の組と度合い
+pub async fn statement_pairs(
+    pool: &SqlitePool,
+    topic_id: &str,
+    min_score: f64,
+) -> Result<Vec<((String, String), (String, String), f64)>, sqlx::Error> {
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT id, body FROM statements
+         WHERE topic_id = $1 AND status IN ('approved', 'flagged', 'pending') ORDER BY created_at, id",
+    )
+    .bind(topic_id)
+    .fetch_all(pool)
+    .await?;
+    let index = Index::build(rows.iter().map(|(id, body)| (id.clone(), body.as_str())));
+    let body: HashMap<&str, &str> = rows
+        .iter()
+        .map(|(id, b)| (id.as_str(), b.as_str()))
+        .collect();
+    Ok(index
+        .pairs(min_score)
+        .into_iter()
+        .map(|(a, b, s)| {
+            let (ba, bb) = (body[a.as_str()].to_owned(), body[b.as_str()].to_owned());
+            ((a, ba), (b, bb), s)
+        })
+        .collect())
 }
 
 #[cfg(test)]
