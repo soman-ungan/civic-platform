@@ -7,7 +7,7 @@ import { OperatorLink } from "@/components/auth/operator-link";
 import { SwipeNav } from "@/components/layout/swipe-nav";
 import { TabNav, TabNavFallback } from "@/components/layout/tab-nav";
 import { municipalityApi } from "@/lib/api/paths";
-import { TABS_HEADER_ID } from "@/lib/tabs";
+import { MUNICIPALITY_NAME_ID } from "@/lib/tabs";
 import { apiGet } from "@/lib/api/server";
 import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
 
@@ -23,12 +23,12 @@ export default function TabsLayout({
 }: LayoutProps<"/[municipality]">) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header
-        id={TABS_HEADER_ID}
-        className="shrink-0 border-b border-zinc-200 dark:border-zinc-800"
-      >
+      <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto w-full max-w-md px-4 pt-3">
-          <div className="flex items-start justify-between gap-4">
+          <div
+            id={MUNICIPALITY_NAME_ID}
+            className="flex items-start justify-between gap-4"
+          >
             <Suspense fallback={<NameSkeleton />}>
               <MunicipalityName params={params} />
             </Suspense>
