@@ -12,12 +12,14 @@
 //! - AI に送るのは、本文と、トピックのタイトル・説明・承認済みの意見の本文（公開済みのもの）だけ。
 //!   参加者の ID や関わり方は送らない
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::SqlitePool;
 
+use crate::process::similarity;
 use crate::shared::llm::{Effort, Llm, LlmError, Purpose, Request};
 use crate::shared::status::StatementStatus;
 use crate::shared::util::now_iso;
@@ -28,9 +30,10 @@ const MAX_SUGGESTION_CHARS: usize = 140;
 const RETRY_AFTER: chrono::Duration = chrono::Duration::seconds(60);
 /// 1回の再判定で扱う件数
 const RETRY_BATCH: i64 = 20;
-/// 似た意見を探すために AI に渡す、トピックの承認済みの意見の上限（新しい順）。
-/// 超えたら候補を集める部分（ベクトル化など）を検討する（ADR 0007。意見の取りまとめのフェーズ）
-pub const MAX_COMPARED_STATEMENTS: i64 = 300;
+/// トピックの承認済みの意見がこれ以下なら、似た意見を探すために全部を AI に渡す
+pub const COMPARE_ALL_STATEMENTS: usize = 100;
+/// それを超えたら、投稿に似ている順（`process::similarity`）にこの件数だけを渡す（ADR 0007）
+pub const COMPARED_CANDIDATES: usize = 50;
 
 /// 判定の基準。毎回同じなのでプロンプトキャッシュの対象になる
 const SYSTEM_PROMPT: &str = "\
@@ -170,10 +173,12 @@ pub struct Context {
     pub officials: Vec<String>,
 }
 
-/// トピックの審査の情報を集める。`exclude` は審査する意見そのもの（再判定のとき）
+/// トピックの審査の情報を集める。`body` は審査する意見の本文（似た意見の候補を絞る）、
+/// `exclude` は審査する意見そのもの（再判定のとき）
 pub async fn context_for_topic(
     pool: &SqlitePool,
     topic_id: &str,
+    body: &str,
     exclude: Option<&str>,
 ) -> Result<Context, sqlx::Error> {
     let topic: Option<(String, String, String)> =
@@ -184,34 +189,41 @@ pub async fn context_for_topic(
     let Some((municipality_id, title, description)) = topic else {
         return Ok(Context::default());
     };
-    let total: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM statements WHERE topic_id = $1 AND status = 'approved'",
-    )
-    .bind(topic_id)
-    .fetch_one(pool)
-    .await?;
-    if total > MAX_COMPARED_STATEMENTS {
-        tracing::warn!(
-            topic_id,
-            total,
-            "似た意見の判定に渡す意見が上限を超えた。新しい順に {MAX_COMPARED_STATEMENTS} 件だけを比べる"
-        );
-    }
-    let statements: Vec<(String, String)> = sqlx::query_as(
+    let all: Vec<(String, String)> = sqlx::query_as(
         "SELECT id, body FROM statements
          WHERE topic_id = $1 AND status = 'approved' AND id <> $2
-         ORDER BY created_at DESC, id DESC LIMIT $3",
+         ORDER BY created_at DESC, id DESC",
     )
     .bind(topic_id)
     .bind(exclude.unwrap_or(""))
-    .bind(MAX_COMPARED_STATEMENTS)
     .fetch_all(pool)
     .await?;
+    let statements = compared_statements(all, body);
     Ok(Context {
         topic: Some((title, description)),
         statements,
         officials: official_names(pool, &municipality_id).await?,
     })
+}
+
+/// 似た意見を探すために AI に渡す意見。少なければ全部（新しい順）。
+/// 多ければ本文に似ている順の候補で、足りない分は新しい順で埋める（`all` は新しい順）
+pub fn compared_statements(all: Vec<(String, String)>, body: &str) -> Vec<(String, String)> {
+    if all.len() <= COMPARE_ALL_STATEMENTS {
+        return all;
+    }
+    let index = similarity::Index::build(all.iter().map(|(id, b)| (id.clone(), b.as_str())));
+    let order: HashMap<String, usize> = index
+        .top_k(body, COMPARED_CANDIDATES)
+        .into_iter()
+        .enumerate()
+        .map(|(i, m)| (m.id, i))
+        .collect();
+    let (mut picked, rest): (Vec<_>, Vec<_>) =
+        all.into_iter().partition(|(id, _)| order.contains_key(id));
+    picked.sort_by_key(|(id, _)| order[id]);
+    picked.extend(rest.into_iter().take(COMPARED_CANDIDATES - picked.len()));
+    picked
 }
 
 /// その自治体の公人の氏名（任期の終わった人も含める）
@@ -482,7 +494,7 @@ pub async fn retry_one(
     topic_id: &str,
     body: &str,
 ) -> Result<Verdict, sqlx::Error> {
-    let context = context_for_topic(pool, topic_id, Some(statement_id)).await?;
+    let context = context_for_topic(pool, topic_id, body, Some(statement_id)).await?;
     let review = moderation.review(pool, body, &context).await;
     if review.verdict != Verdict::Pending {
         save(pool, statement_id, &review).await?;

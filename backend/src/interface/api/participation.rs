@@ -363,7 +363,7 @@ pub async fn post_statement(
     .execute(&state.pool)
     .await?;
 
-    let context = moderation::context_for_topic(&state.pool, &topic_id, Some(&id)).await?;
+    let context = moderation::context_for_topic(&state.pool, &topic_id, body, Some(&id)).await?;
     let review = state.moderation.review(&state.pool, body, &context).await;
 
     // 同じ意見がすでにあれば、保存せず（上限にも数えない）、その意見への投票を案内する（ADR 0005）
