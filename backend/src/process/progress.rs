@@ -22,8 +22,11 @@ pub const TOPIC_OPEN_DAYS: i64 = 90;
 /// 1人が1つのトピックに投稿できる意見の数（ADR 0005）
 pub const STATEMENTS_PER_TOPIC: i64 = 1;
 
-/// 市民提案のトピックで、提案した本人が投稿できる意見の数（提案に含めた最初の意見も数える。ADR 0005）
+/// 市民提案のトピックで、提案した本人が公開のあとに投稿できる意見の数（提案に含めた最初の意見は数えない。ADR 0005）
 pub const STATEMENTS_PER_TOPIC_PROPOSER: i64 = 3;
+
+/// 提案に含められる最初の意見の数（1〜この数。Polis が勧める seed の10件以上の下限。ADR 0005）
+pub const PROPOSAL_SEEDS: usize = 10;
 
 /// 新着の印を付ける日数（公開から。docs/plans/2026-10-30-timeline-flow.md）
 pub const NEW_TOPIC_DAYS: i64 = 3;
@@ -207,7 +210,8 @@ impl PostPermission {
 
 /// その参加者がトピックに意見を投稿できるか。
 /// 先に投票の条件を見る（未登録の人にも、最初の意見を終えるまではパスキーの案内を出さない）。
-/// 数えるのは承認待ち・確認待ち・承認済みの自分の意見。非公開（rejected）は数えない（書き直して出し直せる）
+/// 数えるのは承認待ち・確認待ち・承認済みの自分の意見。非公開（rejected）は数えない（書き直して出し直せる）。
+/// 最初の意見（提案に含めたもの）も数えない
 pub async fn post_permission(
     pool: &SqlitePool,
     topic_id: &str,
@@ -235,7 +239,8 @@ pub async fn post_permission(
     }
     let posted: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM statements
-         WHERE topic_id = $1 AND user_id = $2 AND status IN ('pending', 'flagged', 'approved')",
+         WHERE topic_id = $1 AND user_id = $2 AND status IN ('pending', 'flagged', 'approved')
+           AND NOT is_seed",
     )
     .bind(topic_id)
     .bind(user_id)
@@ -250,7 +255,7 @@ pub async fn post_permission(
     )
 }
 
-/// その参加者がトピックに投稿できる意見の数: 提案した本人なら3件、ほかの人は1件（ADR 0005）
+/// その参加者がトピックに投稿できる意見の数: 提案した本人なら3件（最初の意見とは別に）、ほかの人は1件（ADR 0005）
 async fn statements_per_topic(
     pool: &SqlitePool,
     topic_id: &str,

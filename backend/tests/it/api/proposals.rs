@@ -263,7 +263,7 @@ async fn proposal_input_is_checked() {
         json!({"title": "", "description": "説明", "statements": ["意見"]}),
         json!({"title": "タイトル", "description": long, "statements": ["意見"]}),
         json!({"title": "タイトル", "description": "説明", "statements": []}),
-        json!({"title": "タイトル", "description": "説明", "statements": ["一", "二", "三", "四"]}),
+        json!({"title": "タイトル", "description": "説明", "statements": (1..=11).map(|i| format!("意見{i}")).collect::<Vec<_>>()}),
         json!({"title": "タイトル", "description": "説明", "statements": [long]}),
     ];
     for body in cases {
@@ -352,19 +352,25 @@ async fn proposer_votes_on_their_own_seeds_and_posts_up_to_three() {
         assert_eq!(res.status, StatusCode::OK, "{}", res.json);
     }
 
-    // 提案した本人は、最初の意見とあわせて3件まで
-    let res = request(&state, "GET", &path, Some(&u2), None).await;
-    assert_eq!(res.json["posting"]["status"], "allowed");
+    // 提案した本人は、最初の意見とは別に、公開のあと3件まで
     let post = format!("/api/municipalities/otawara/topics/{id}/statements");
-    let res = request(
-        &state,
-        "POST",
-        &post,
-        Some(&u2),
-        Some(json!({"body": "駐輪場は有料にすべきだ"})),
-    )
-    .await;
-    assert_eq!(res.json["status"], "approved", "{}", res.json);
+    for body in [
+        "駐輪場は有料にすべきだ",
+        "駐輪場の屋根を直すべきだ",
+        "自転車の貸し出しを始めるべきだ",
+    ] {
+        let res = request(&state, "GET", &path, Some(&u2), None).await;
+        assert_eq!(res.json["posting"]["status"], "allowed");
+        let res = request(
+            &state,
+            "POST",
+            &post,
+            Some(&u2),
+            Some(json!({"body": body})),
+        )
+        .await;
+        assert_eq!(res.json["status"], "approved", "{}", res.json);
+    }
     let res = request(&state, "GET", &path, Some(&u2), None).await;
     assert_eq!(res.json["posting"]["status"], "limit_reached");
 

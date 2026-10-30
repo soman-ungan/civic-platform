@@ -484,14 +484,16 @@ async fn projects(
         .collect())
 }
 
-/// トピックの詳細に出す「この分野の市のお金」。トピックの分野タグに対応する目的別歳出（最新の年度）
+/// トピックの詳細に出す「この分野の市のお金」。トピックの分野タグに対応する目的別歳出（決算）と、
+/// 同じ分野の主な事業（予算）。年度の決まりは `topic_years`
 #[derive(Debug, Serialize)]
 pub struct TopicFinances {
-    pub fiscal_year: i32,
+    /// 決算の年度。対応する決算が無ければ null（`items` も空）
+    pub fiscal_year: Option<i32>,
     pub population: Option<i64>,
     pub items: Vec<Amount>,
-    pub source: Source,
-    /// この分野の今年度の主な事業（公開済みの最新の予算。分野タグが重なるもの、金額の大きい順に5件まで）
+    pub source: Option<Source>,
+    /// この分野の主な事業（その年度の公開済みの予算。分野タグが重なるもの、金額の大きい順に5件まで）
     pub budget: Option<TopicBudget>,
 }
 
@@ -512,65 +514,98 @@ pub async fn for_topic(
     municipality_id: &str,
     topic_id: &str,
 ) -> Result<Option<TopicFinances>, ApiError> {
-    let Some(&fiscal_year) = years(pool, municipality_id).await?.last() else {
-        return Ok(None);
-    };
-    let total: Option<i64> = sqlx::query_scalar(
-        "SELECT SUM(value) FROM settlement_items
-         WHERE municipality_id = $1 AND fiscal_year = $2 AND category = 'expenditure_purpose'",
+    let held_on: Option<String> = sqlx::query_scalar(
+        "SELECT d.held_on FROM topic_sources ts JOIN documents d ON d.id = ts.document_id
+         WHERE ts.topic_id = $1 AND d.held_on IS NOT NULL ORDER BY d.held_on LIMIT 1",
     )
-    .bind(municipality_id)
-    .bind(fiscal_year)
-    .fetch_one(pool)
-    .await?;
-    let rows: Vec<(String, Option<i64>)> = sqlx::query_as(
-        "SELECT i.item_key, i.value FROM settlement_items i
-         WHERE i.municipality_id = $1 AND i.fiscal_year = $2 AND i.category = 'expenditure_purpose'
-           AND EXISTS (
-               SELECT 1 FROM settlement_item_tags m
-               JOIN topic_tags tt ON tt.tag_id = m.tag_id
-               WHERE m.category = i.category AND m.item_key = i.item_key AND tt.topic_id = $3)
-         ORDER BY i.position",
-    )
-    .bind(municipality_id)
-    .bind(fiscal_year)
     .bind(topic_id)
-    .fetch_all(pool)
+    .fetch_optional(pool)
     .await?;
-    let budget = topic_budget(pool, municipality_id, topic_id).await?;
-    if rows.is_empty() && budget.is_none() {
+    let budget_year = held_on.as_deref().and_then(budget_year_of_meeting);
+    let years = years(pool, municipality_id).await?;
+    // 議会のトピックは、会議の時点で分かっていた最新の決算（予算の年度より前）。市民の提案は最新
+    let fiscal_year = match budget_year {
+        Some(budget_year) => years.iter().rev().find(|y| **y < budget_year).copied(),
+        None => years.last().copied(),
+    };
+    let budget = topic_budget(pool, municipality_id, topic_id, budget_year).await?;
+    let mut items = Vec::new();
+    let mut population = None;
+    let mut source_info = None;
+    if let Some(fiscal_year) = fiscal_year {
+        let total: Option<i64> = sqlx::query_scalar(
+            "SELECT SUM(value) FROM settlement_items
+             WHERE municipality_id = $1 AND fiscal_year = $2 AND category = 'expenditure_purpose'",
+        )
+        .bind(municipality_id)
+        .bind(fiscal_year)
+        .fetch_one(pool)
+        .await?;
+        let rows: Vec<(String, Option<i64>)> = sqlx::query_as(
+            "SELECT i.item_key, i.value FROM settlement_items i
+             WHERE i.municipality_id = $1 AND i.fiscal_year = $2 AND i.category = 'expenditure_purpose'
+               AND EXISTS (
+                   SELECT 1 FROM settlement_item_tags m
+                   JOIN topic_tags tt ON tt.tag_id = m.tag_id
+                   WHERE m.category = i.category AND m.item_key = i.item_key AND tt.topic_id = $3)
+             ORDER BY i.position",
+        )
+        .bind(municipality_id)
+        .bind(fiscal_year)
+        .bind(topic_id)
+        .fetch_all(pool)
+        .await?;
+        if !rows.is_empty() {
+            population = self::population(pool, municipality_id, fiscal_year).await?;
+            let total = total.unwrap_or(0);
+            items = rows
+                .into_iter()
+                .map(|(key, value)| Amount {
+                    per_capita: per_capita(value, population),
+                    share: value.filter(|_| total > 0).map(|v| v as f64 / total as f64),
+                    key,
+                    value,
+                })
+                .collect();
+            source_info = Some(source(pool, municipality_id, fiscal_year).await?);
+        }
+    }
+    if items.is_empty() && budget.is_none() {
         return Ok(None);
     }
-    let population = population(pool, municipality_id, fiscal_year).await?;
-    let total = total.unwrap_or(0);
-    let items = rows
-        .into_iter()
-        .map(|(key, value)| Amount {
-            per_capita: per_capita(value, population),
-            share: value.filter(|_| total > 0).map(|v| v as f64 / total as f64),
-            key,
-            value,
-        })
-        .collect();
     Ok(Some(TopicFinances {
-        source: source(pool, municipality_id, fiscal_year).await?,
-        fiscal_year,
+        fiscal_year: source_info.as_ref().and(fiscal_year),
         population,
         items,
+        source: source_info,
         budget,
     }))
 }
 
+/// 会議の日（YYYY-MM-DD）から、その会議に対応する予算の年度: 会議の日の年。1月の会議だけ前年。
+/// 第1回定例会（2〜3月）は翌年度の当初予算を審議する会で、4〜12月の会はその年度の会なので、こうなる
+pub fn budget_year_of_meeting(held_on: &str) -> Option<i32> {
+    let year: i32 = held_on.get(0..4)?.parse().ok()?;
+    let month: u32 = held_on.get(5..7)?.parse().ok()?;
+    Some(if month == 1 { year - 1 } else { year })
+}
+
+/// トピックの分野の主な事業。`fiscal_year` があればその年度の予算だけ（無ければ出さない。年度のずれた数字を並べない）、
+/// 無ければ公開済みの最新の予算
 async fn topic_budget(
     pool: &SqlitePool,
     municipality_id: &str,
     topic_id: &str,
+    fiscal_year: Option<i32>,
 ) -> Result<Option<TopicBudget>, ApiError> {
     let row: Option<(String, i32, String, Option<String>)> = sqlx::query_as(
         "SELECT b.id, b.fiscal_year, d.title, d.url FROM budgets b JOIN documents d ON d.id = b.document_id
-         WHERE b.municipality_id = $1 AND b.status = 'published' ORDER BY b.fiscal_year DESC LIMIT 1",
+         WHERE b.municipality_id = $1 AND b.status = 'published'
+           AND (CAST($2 AS INTEGER) IS NULL OR b.fiscal_year = $2)
+         ORDER BY b.fiscal_year DESC LIMIT 1",
     )
     .bind(municipality_id)
+    .bind(fiscal_year)
     .fetch_optional(pool)
     .await?;
     let Some((id, fiscal_year, title, url)) = row else {

@@ -205,3 +205,60 @@ async fn topic_detail_shows_projects_of_its_field() {
     assert_eq!(b["project_count"], 1);
     assert_eq!(b["projects"][0]["name"], "子育て支援事業費");
 }
+
+/// t1 を、`held_on` の日の会議録から作った議会のトピックにする
+async fn from_meeting(pool: &sqlx::SqlitePool, held_on: &str) {
+    sqlx::raw_sql(&format!(
+        "UPDATE topics SET source_type = 'assembly' WHERE id = 't1';
+         INSERT INTO documents (id, municipality_id, kind, title, held_on, sha256, char_count, imported_at) VALUES
+             ('dm', '092100', 'minutes', '定例会', '{held_on}', 'hm', 1, '2026-10-27T00:00:00Z');
+         INSERT INTO topic_sources (id, topic_id, document_id, utterance_no, speaker_label, quote, position)
+             VALUES ('ts', 't1', 'dm', 1, '市長', '引用', 0);"
+    ))
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+#[test]
+fn the_budget_year_of_a_meeting() {
+    use backend::interface::api::finances::budget_year_of_meeting;
+    // 第1回定例会（2〜3月）は翌年度の当初予算を審議する。4〜12月はその年度。1月だけ前年度
+    assert_eq!(budget_year_of_meeting("2024-02-27"), Some(2024));
+    assert_eq!(budget_year_of_meeting("2024-06-16"), Some(2024));
+    assert_eq!(budget_year_of_meeting("2024-12-05"), Some(2024));
+    assert_eq!(budget_year_of_meeting("2025-01-20"), Some(2024));
+    assert_eq!(budget_year_of_meeting("不明"), None);
+}
+
+#[tokio::test]
+async fn assembly_topics_use_the_years_of_their_meeting() {
+    let (pool, state) = setup().await;
+    add_budget(&pool, "published").await;
+    // 2024年3月の会議: 2024年度の予算と、その前で最新の2023年度の決算
+    from_meeting(&pool, "2024-03-01").await;
+    let res = get(&state, "/api/municipalities/otawara/topics/t1").await;
+    let f = &res.json["finances"];
+    assert_eq!(f["fiscal_year"], 2023);
+    assert_eq!(f["items"][0]["value"], 750);
+    assert_eq!(f["budget"]["fiscal_year"], 2024);
+
+    // 2023年6月の会議: 2023年度の予算は無いので出さない。決算は2022年度
+    sqlx::query("UPDATE documents SET held_on = '2023-06-16' WHERE id = 'dm'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let res = get(&state, "/api/municipalities/otawara/topics/t1").await;
+    let f = &res.json["finances"];
+    assert_eq!(f["fiscal_year"], 2022);
+    assert_eq!(f["items"][0]["value"], 600);
+    assert!(f["budget"].is_null());
+
+    // 2022年の会議: その前の決算も予算も無いので、欄ごと出さない
+    sqlx::query("UPDATE documents SET held_on = '2022-06-16' WHERE id = 'dm'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let res = get(&state, "/api/municipalities/otawara/topics/t1").await;
+    assert!(res.json["finances"].is_null());
+}

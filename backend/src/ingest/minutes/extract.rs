@@ -7,7 +7,7 @@
 //! - タイトル・説明・意見に氏名が入ったものは捨てる（意見は中身で判断してもらうため）
 //! - 最初の意見は、議会で実際に出た主張を出発点にする。根拠の発言が無い意見は捨てる
 //!   （AI に新しい選択肢を作らせると、議論の枠を AI が決めてしまうため。2026-10-27 ユーザーと決定）
-//! - 意見は140文字以内。意見が0件のトピックは捨て、少ない（3件未満）ものは運営者に知らせて残す
+//! - 意見は140文字以内。意見が0件のトピックは捨て、少ない（3件未満）ものと多い（15件を超える）ものは運営者に知らせて残す
 //! - 既存のトピック（公開中・下書き）と同じ論点なら、AI が `same_as` で印を付ける。
 //!   一覧に無いトピックへの印は無視する（docs/plans/2026-10-28-similar-topics.md）
 
@@ -21,8 +21,9 @@ use crate::shared::limits::{MAX_DESCRIPTION_CHARS, MAX_STATEMENT_CHARS, MAX_TITL
 /// 多めにして、すべて下書きにして運営者の承認を待つ（2026-10-28 ユーザーと決定。前は5件）。
 /// 超えた分は捨てずに知らせる（AI の出力が壊れたときの歯止め）
 pub const MAX_TOPICS: usize = 15;
-/// 1つのトピックの最初の意見の最大数（市民が足す余地を残すため少なめにする）
-pub const MAX_STATEMENTS: usize = 5;
+/// 1つのトピックの最初の意見がこれより多いと、運営者に知らせる（捨てない）。議会で出た主張はすべて採る
+/// （2026-10-30 ユーザーと決定。前は5件で切っていた）ので上限ではなく、AI の出力が壊れたときの歯止め
+pub const MANY_STATEMENTS: usize = 15;
 /// これより意見が少ないトピックは、運営者に知らせる（捨てずに残し、運営者の承認を待つ）
 pub const MIN_STATEMENTS: usize = 3;
 /// 引用の最大文字数（topic_sources.quote と同じ）
@@ -43,7 +44,7 @@ pub const SYSTEM_PROMPT: &str = "\
   - **人の名前を書かない。**「議員から〜という質問があり、市は〜と答えた」のように役割で書く
   - 一方の立場に寄せない。会議録に無い事実を付け足さない
 - sources: そのトピックの根拠になる発言を1〜4件。utterance_no は発言の番号、quote はその発言の本文から**そのまま抜き出した**連続した文字列（1〜2文、200字以内）。要約や言い換えをしない
-- statements: 市民が賛成・反対を投票する「最初の意見」を3〜5件
+- statements: 市民が賛成・反対を投票する「最初の意見」。そのトピックについて議会で出た、立場や中身の違う主張を**すべて**書く（数は決めない。同じ主張の言い換えは1件にまとめる）
   - **議会で実際に出た主張だけを出発点にする。** 議員の提案・要望・懸念、市の方針・考え方など、会議録にある主張を、市民が投票できる一人称の意見の文に言い直す
   - **会議録に無い選択肢や新しい案を作らない。** まだ出ていない視点は、参加する市民が足していく
   - 議会で出た異なる立場（例: 議員の提案と市の考え）は、それぞれ含める
@@ -311,7 +312,12 @@ pub fn check(
                 statements.push(CheckedStatement { body, basis });
             }
         }
-        statements.truncate(MAX_STATEMENTS);
+        if statements.len() > MANY_STATEMENTS {
+            notes.push(format!(
+                "{title}: 意見が多い（{}件）。同じ主張の言い換えが無いか確かめる",
+                statements.len()
+            ));
+        }
         let same_as = match topic.same_as.as_deref().map(str::trim) {
             None | Some("") => None,
             Some(id) => match existing.iter().find(|t| t.id == id) {
@@ -420,6 +426,26 @@ mod tests {
         );
         assert_eq!(kept.len(), 1, "{notes:?}");
         assert_eq!(kept[0].sources[0].utterance_no, 1);
+    }
+
+    #[test]
+    fn keeps_every_statement_and_notes_too_many() {
+        let many: Vec<String> = (1..=16).map(|i| format!("案{i}を採るべきだ")).collect();
+        let many: Vec<&str> = many.iter().map(String::as_str).collect();
+        let (kept, notes) = check(
+            RawOutput {
+                topics: vec![topic("説明", "待機児童が増えています。", &many)],
+            },
+            &utterances(),
+            &names(),
+            &[],
+        );
+        // 議会で出た主張はすべて採る（数で切らない）。多すぎれば運営者に知らせる
+        assert_eq!(kept[0].statements.len(), 16);
+        assert!(
+            notes.iter().any(|n| n.contains("意見が多い（16件）")),
+            "{notes:?}"
+        );
     }
 
     #[test]

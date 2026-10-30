@@ -18,7 +18,7 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
   - Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count`（承認済みの意見だけで数える）
   - 期限 `closes_at`（null は期限なし）と締め切ったか `closed`。一覧は受付中を先に、それぞれ公開した日（`published_at`。null なら作った日）の新しい順
   - 新着 `is_new`（公開から3日以内で、Cookie の参加者が未投票。`progress::is_new`）、会期 `session`（議会のトピックだけ。出典の最初の会議の資料名と月から「令和8年 第2回定例会（6月）」。`records::minutes::session_label`）
-  - 詳細には出典 `sources`（会議録の引用）と `finances`（分野タグに対応する目的別歳出と、今年度の主な事業5件まで）
+  - 詳細には出典 `sources`（会議録の引用）と `finances`（分野タグに対応する目的別歳出（決算の総額と歳出に占める割合）と、同じ分野の主な事業5件まで（予算））。議会のトピックは会議の年度に合わせる: 予算は会議の日の年（1月だけ前年）の年度でその年度の予算が無ければ出さない、決算はそれより前で最新の年度（`finances::budget_year_of_meeting`）。市民の提案は最新の年度
 - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。分析を見られて、1件以上投票したトピックの分だけ（Cookie が無ければ空）
 
 ## 参加（投票・投稿）
@@ -32,11 +32,11 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
   - 保存した意見（rejected 以外）には投稿者の賛成の票を入れる（Polis と同じ）
   - 分析の前は 403 `votes_required`（未登録でも先にこちら）、未登録は 401 `registration_required`、2件目は 409 `statement_limit`
 - 締め切ったトピック（`closes_at` を過ぎた。ADR 0005）への投票・投稿は 409 `topic_closed`
-- 投稿できる数は1トピック1件。市民提案のトピックを提案した本人は、提案に含めた最初の意見とあわせて3件
+- 投稿できる数は1トピック1件。市民提案のトピックを提案した本人は、提案に含めた最初の意見とは別に3件
 
 ## トピックの提案（`interface/api/proposals.rs`。ADR 0005）
 - `GET /municipalities/{slug}/proposals` — 提案できるか `permission`（`status`: allowed / registration_required / relation_required / weekly_limit（`next_at`））と、本人の提案 `items`（新しい順。`state`: reviewing / published / declined（公開しないまま取り下げ）/ withdrawn（公開のあとに取り下げ））。Cookie が無ければ空
-- `POST /municipalities/{slug}/proposals` — `{title, description, statements}`（タイトル1〜60字・説明1〜140字・意見1〜3件で各140字以内。文字数は `shared/limits.rs`）。下書き（`source_type = 'citizen'`）として保存し、意見は承認済みの最初の意見になる。201 で提案1件
+- `POST /municipalities/{slug}/proposals` — `{title, description, statements}`（タイトル1〜60字・説明1〜140字・意見1〜10件で各140字以内。文字数は `shared/limits.rs`）。下書き（`source_type = 'citizen'`）として保存し、意見は承認済みの最初の意見になる。201 で提案1件
   - 未登録は 401 `registration_required`、関わり方が未登録は 409 `relation_required`、その自治体に直近7日で提案していたら 409 `proposal_limit`（見送りになった提案も数える）
   - 入力の誤りは 422 `invalid_proposal`、公人の氏名が入っていたら 422 `official_name`（AI の審査は呼ばない。運営者が全件を見る）
   - 提案した人（`topics.proposed_by`）はどの API にも返さない。提案した人の票は自動で入れない（Polis の seed と同じ。公開のあと、ほかの人と同じく投票する）
