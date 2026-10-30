@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 /** レイヤの高さ（画面に対する割合）。半分と全体の2段 */
 const HEIGHTS = { half: 0.55, full: 0.92 } as const;
-type Size = keyof typeof HEIGHTS;
+export type Size = keyof typeof HEIGHTS;
 /** つまみをこれ以上動かしたら、段を変えるか閉じる（px） */
 const STEP_PX = 60;
 
@@ -19,19 +19,40 @@ const STEP_PX = 60;
  */
 export function BottomSheet({
   label,
+  initialSize = "half",
+  topAnchorId,
   children,
 }: {
   label: string;
+  /** 開いたときの高さ */
+  initialSize?: Size;
+  /** 全体の高さのとき、レイヤの上端をこの要素（固定のヘッダー）の下端にそろえる。無ければ画面の92% */
+  topAnchorId?: string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [size, setSize] = useState<Size>("half");
+  const [size, setSize] = useState<Size>(initialSize);
+  const [fullPx, setFullPx] = useState<number | null>(null);
   const [entered, setEntered] = useState(false);
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
   const start = useRef<number | null>(null);
   /** 引っ張ったあとの click では段を切り替えない */
   const moved = useRef(false);
+
+  // 全体の高さ（ヘッダーの下端から画面の下まで）を測る
+  useEffect(() => {
+    if (!topAnchorId) return;
+    const measure = () => {
+      const anchor = document.getElementById(topAnchorId);
+      if (anchor) {
+        setFullPx(window.innerHeight - anchor.getBoundingClientRect().bottom);
+      }
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [topAnchorId]);
 
   // 開いたときに下から伸ばす
   useEffect(() => {
@@ -70,7 +91,10 @@ export function BottomSheet({
     }
   }
 
-  const height = `${HEIGHTS[size] * 100}dvh`;
+  const height =
+    size === "full" && fullPx !== null
+      ? `${fullPx}px`
+      : `${HEIGHTS[size] * 100}dvh`;
   return (
     <div className="fixed inset-0 z-40 print:hidden">
       <button
