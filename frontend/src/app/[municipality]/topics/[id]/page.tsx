@@ -71,6 +71,18 @@ async function TopicView({
             {deadline && ` ・ ${deadline}`}
           </p>
           <h1 className="text-lg leading-snug font-bold">{topic.title}</h1>
+          {topic.origin && (
+            <p className="mt-1 text-xs text-zinc-500">
+              第2回のトピック（
+              <Link
+                href={`/${municipality.slug}/recommendations/${topic.origin.id}`}
+                className="underline underline-offset-2"
+              >
+                提言「{topic.origin.title}」
+              </Link>
+              から）
+            </p>
+          )}
           {topic.tags.length > 0 && (
             <ul className="-mx-4 mt-1.5 flex gap-2 overflow-x-auto px-4 whitespace-nowrap [scrollbar-width:none]">
               {topic.tags.map((tag) => (
@@ -102,6 +114,25 @@ async function TopicView({
             }
             context={
               <div className="mb-6">
+                {topic.recommendations.length > 0 && (
+                  <section aria-label="このトピックの提言" className="mb-4">
+                    <h2 className="text-sm font-semibold">
+                      このトピックをまとめた提言
+                    </h2>
+                    <ul className="mt-1 flex flex-col gap-1 text-sm">
+                      {topic.recommendations.map((r) => (
+                        <li key={r.id}>
+                          <Link
+                            href={`/${municipality.slug}/recommendations/${r.id}`}
+                            className="underline underline-offset-2"
+                          >
+                            {r.title}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
                 <TopicSources sources={topic.sources} />
                 <TopicFinances
                   slug={municipality.slug}

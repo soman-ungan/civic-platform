@@ -4,6 +4,7 @@
 
 import type { TopicFinanceData } from "./finances";
 import type { Participation } from "./participation";
+import type { RecommendationLink } from "./recommendations";
 
 export type Tag = {
   id: string;
@@ -56,4 +57,8 @@ export type TopicDetail = Topic & {
   sources: TopicSource[];
   /** トピックの分野に関係する市のお金。対応する費目が無ければ null */
   finances: TopicFinanceData | null;
+  /** このトピックをまとめた公開済みの提言 */
+  recommendations: RecommendationLink[];
+  /** 第2回のトピックなら、元の提言 */
+  origin: RecommendationLink | null;
 };
