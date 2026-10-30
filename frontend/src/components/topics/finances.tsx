@@ -7,15 +7,15 @@ import { FLAG_LABEL } from "@/lib/finances/budget-fields";
 import {
   SOURCE_NOTE,
   fiscalYearLabel,
-  roughYen,
   shareText,
   thousandYen,
 } from "@/lib/finances/money";
 import type { TopicFinanceData } from "@/lib/api/types/finances";
 
 /**
- * この分野のお金。トピックの分野タグに対応する目的別歳出（決算の最新の年度）と、
- * 同じ分野の今年度の主な事業（予算）。費目は分野より広いので、対応はおおまかだと注記する。
+ * この分野のお金。トピックの分野タグに対応する目的別歳出（決算）と、同じ分野の主な事業（予算）。
+ * 議会のトピックは会議の年度に合わせる（予算はその会議の年度、決算は会議の時点で最新。年度の決まりは backend）。
+ * 金額は予算・決算とも総額で出す。費目は分野より広いので、対応はおおまかだと注記する。
  * 事業の説明の文章は載せず、原本のページへリンクする（市の著作物のため）
  */
 export function TopicFinances({
@@ -32,7 +32,7 @@ export function TopicFinances({
       aria-labelledby="topic-finances"
       className="mt-4 rounded-2xl bg-zinc-50 p-3 dark:bg-zinc-900"
     >
-      {finances.items.length > 0 && (
+      {finances.items.length > 0 && finances.fiscal_year !== null && (
         <>
           <h2 id="topic-finances" className="text-sm font-semibold">
             この分野のお金（{fiscalYearLabel(finances.fiscal_year)}・決算）
@@ -45,8 +45,7 @@ export function TopicFinances({
               >
                 <span>{item.key}</span>
                 <span className="tabular-nums">
-                  1人あたり{" "}
-                  {item.per_capita !== null ? roughYen(item.per_capita) : "—"}
+                  {item.value !== null ? thousandYen(item.value) : "—"}
                   {item.share !== null && (
                     <span className="ml-1.5 text-xs text-zinc-500">
                       歳出の{shareText(item.share)}
@@ -66,8 +65,7 @@ export function TopicFinances({
       {budget && (
         <div className={finances.items.length > 0 ? "mt-3" : undefined}>
           <h2 className="text-sm font-semibold">
-            この分野の今年の主な事業（{fiscalYearLabel(budget.fiscal_year)}
-            ・予算）
+            この分野の主な事業（{fiscalYearLabel(budget.fiscal_year)}・予算）
           </h2>
           <ul className="mt-2 flex flex-col gap-1.5">
             {budget.projects.map((p) => (

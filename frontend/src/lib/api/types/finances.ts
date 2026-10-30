@@ -116,9 +116,10 @@ export type TopicBudget = {
 
 /** トピックの詳細の `finances`（分野タグに対応する目的別歳出と、主な事業） */
 export type TopicFinanceData = {
-  fiscal_year: number;
+  /** 決算の年度（議会のトピックは会議の時点で最新の決算）。対応する決算が無ければ null */
+  fiscal_year: number | null;
   population: number | null;
   items: FinanceAmount[];
-  source: FinanceSource;
+  source: FinanceSource | null;
   budget: TopicBudget | null;
 };

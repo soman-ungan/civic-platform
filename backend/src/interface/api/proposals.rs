@@ -17,8 +17,7 @@ use crate::process::progress::{self, ProposePermission};
 use crate::records::proposals::{self, MyProposal};
 use crate::shared::limits::{MAX_DESCRIPTION_CHARS, MAX_STATEMENT_CHARS, MAX_TITLE_CHARS};
 
-/// 提案に含められる最初の意見の数（提案した本人の上限と同じ。ADR 0005）
-const MAX_PROPOSAL_STATEMENTS: usize = progress::STATEMENTS_PER_TOPIC_PROPOSER as usize;
+const MAX_PROPOSAL_STATEMENTS: usize = progress::PROPOSAL_SEEDS;
 
 #[derive(Debug, Deserialize)]
 pub struct ProposalInput {
