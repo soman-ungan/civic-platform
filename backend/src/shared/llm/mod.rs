@@ -31,6 +31,8 @@ pub enum Purpose {
     Eval,
     /// 会議録・行政資料からの抽出。1回が高く時間もかかるので、上限とタイムアウトを別にする
     Extraction,
+    /// 提言の見出し・前書きの下書き（運営者が確かめる）
+    Recommendation,
 }
 
 impl Purpose {
@@ -40,6 +42,7 @@ impl Purpose {
             Self::Tagging => "tagging",
             Self::Eval => "eval",
             Self::Extraction => "extraction",
+            Self::Recommendation => "recommendation",
         }
     }
 

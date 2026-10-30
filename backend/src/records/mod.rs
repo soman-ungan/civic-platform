@@ -9,6 +9,7 @@ pub mod budget;
 pub mod minutes;
 pub mod proposals;
 pub mod publishing;
+pub mod recommendations;
 pub mod settlement;
 pub mod statements;
 pub mod tags;

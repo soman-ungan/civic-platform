@@ -36,6 +36,7 @@ mod process {
     mod moderation;
     mod participation_rules;
     mod publishing;
+    mod recommendation;
     mod review;
     mod tagging;
     mod topic_deadlines;

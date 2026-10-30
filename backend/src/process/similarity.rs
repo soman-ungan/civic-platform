@@ -212,39 +212,49 @@ impl Index {
 
     /// 似ている組をつないだまとまり（2件以上のものだけ。まとまりの中はコーパスの順、まとまりは大きい順）
     pub fn groups(&self, min_score: f64) -> Vec<Vec<String>> {
-        let index: HashMap<&str, usize> = self
-            .ids
-            .iter()
-            .enumerate()
-            .map(|(i, id)| (id.as_str(), i))
+        let pairs: Vec<(String, String)> = self
+            .pairs(min_score)
+            .into_iter()
+            .map(|(a, b, _)| (a, b))
             .collect();
-        let mut parent: Vec<usize> = (0..self.ids.len()).collect();
-        fn find(p: &mut [usize], x: usize) -> usize {
-            let mut r = x;
-            while p[r] != r {
-                r = p[r];
-            }
-            p[x] = r;
-            r
-        }
-        for (a, b, _) in self.pairs(min_score) {
-            let (ra, rb) = (
-                find(&mut parent, index[a.as_str()]),
-                find(&mut parent, index[b.as_str()]),
-            );
-            if ra != rb {
-                parent[ra.max(rb)] = ra.min(rb);
-            }
-        }
-        let mut by_root: Vec<Vec<String>> = vec![Vec::new(); self.ids.len()];
-        for i in 0..self.ids.len() {
-            let r = find(&mut parent, i);
-            by_root[r].push(self.ids[i].clone());
-        }
-        let mut out: Vec<Vec<String>> = by_root.into_iter().filter(|g| g.len() >= 2).collect();
-        out.sort_by_key(|g| std::cmp::Reverse(g.len()));
-        out
+        connect(&self.ids, &pairs)
     }
+}
+
+/// 組をつないだまとまり（2件以上のものだけ。まとまりの中は `ids` の順、まとまりは大きい順）。
+/// `ids` に無い id の組は無視する
+pub fn connect(ids: &[String], pairs: &[(String, String)]) -> Vec<Vec<String>> {
+    let index: HashMap<&str, usize> = ids
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (id.as_str(), i))
+        .collect();
+    let mut parent: Vec<usize> = (0..ids.len()).collect();
+    fn find(p: &mut [usize], x: usize) -> usize {
+        let mut r = x;
+        while p[r] != r {
+            r = p[r];
+        }
+        p[x] = r;
+        r
+    }
+    for (a, b) in pairs {
+        let (Some(&a), Some(&b)) = (index.get(a.as_str()), index.get(b.as_str())) else {
+            continue;
+        };
+        let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
+        if ra != rb {
+            parent[ra.max(rb)] = ra.min(rb);
+        }
+    }
+    let mut by_root: Vec<Vec<String>> = vec![Vec::new(); ids.len()];
+    for (i, id) in ids.iter().enumerate() {
+        let r = find(&mut parent, i);
+        by_root[r].push(id.clone());
+    }
+    let mut out: Vec<Vec<String>> = by_root.into_iter().filter(|g| g.len() >= 2).collect();
+    out.sort_by_key(|g| std::cmp::Reverse(g.len()));
+    out
 }
 
 /// 似ているトピック（運営者に見せる候補）

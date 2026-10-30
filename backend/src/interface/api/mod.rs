@@ -151,6 +151,8 @@ pub struct AppState {
     pub moderation: Moderation,
     /// パスキーの登録・ログイン（ADR 0006）
     pub webauthn: std::sync::Arc<webauthn_rs::Webauthn>,
+    /// 提言の「意見が分かれた点」のしきい値
+    pub divided_threshold: f64,
 }
 
 impl AppState {
@@ -171,6 +173,7 @@ impl AppState {
             moderation: Moderation::default(),
             // 開発用の既定（localhost）。main では設定（WEBAUTHN_RP_ID・WEBAUTHN_ORIGIN）で差し替える
             webauthn: auth::webauthn("localhost", "http://localhost:3000")?,
+            divided_threshold: crate::process::recommendation::DEFAULT_DIVIDED_THRESHOLD,
         })
     }
 }
@@ -179,6 +182,12 @@ impl AppState {
     /// 投稿の判定方式を差し替える（API キーがあるときの LLM、テストの偽の LLM）
     pub fn with_moderation(mut self, moderation: Moderation) -> Self {
         self.moderation = moderation;
+        self
+    }
+
+    /// 提言の「意見が分かれた点」のしきい値を差し替える（設定 RECOMMENDATION_DIVIDED_THRESHOLD）
+    pub fn with_divided_threshold(mut self, threshold: f64) -> Self {
+        self.divided_threshold = threshold;
         self
     }
 
