@@ -341,6 +341,20 @@ pub async fn published_for_topic(
     .await
 }
 
+/// 第2回のトピックの元の提言（公開済みのもの）
+pub async fn origin_of_topic(
+    pool: &SqlitePool,
+    topic_id: &str,
+) -> Result<Option<Link>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT r.id, r.title FROM topics t JOIN recommendations r ON r.id = t.recommendation_id
+         WHERE t.id = $1 AND r.status = 'published'",
+    )
+    .bind(topic_id)
+    .fetch_optional(pool)
+    .await
+}
+
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum EditError {
     #[error("下書きの提言が見つかりません（公開した提言は変えません）")]

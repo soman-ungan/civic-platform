@@ -7,6 +7,8 @@
 //! - 中身は CLI と同じ `records`・`process` の関数を使う（ロジックを写さない）。判定の基準は ADR 0007
 //! - 投稿者が誰かは、運営者にも返さない（市民の投稿か、議会の主張・運営者の意見かだけ）
 
+pub mod recommendations;
+
 use axum::Json;
 use axum::extract::{FromRequestParts, Path, Query, State};
 use axum::http::StatusCode;

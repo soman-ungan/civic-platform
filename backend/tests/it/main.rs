@@ -18,6 +18,7 @@ mod api {
     mod participant;
     mod participation;
     mod proposals;
+    mod recommendations;
     mod topics;
 }
 

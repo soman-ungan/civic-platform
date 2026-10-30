@@ -12,6 +12,7 @@ pub mod operator;
 pub mod participant;
 pub mod participation;
 pub mod proposals;
+pub mod recommendations;
 pub mod topics;
 
 use axum::Router;
@@ -45,6 +46,14 @@ pub fn router() -> Router<AppState> {
         .route(
             "/municipalities/{slug}/proposals",
             get(proposals::mine).post(proposals::create),
+        )
+        .route(
+            "/municipalities/{slug}/recommendations",
+            get(recommendations::list),
+        )
+        .route(
+            "/municipalities/{slug}/recommendations/{id}",
+            get(recommendations::detail),
         )
         .route("/municipalities/{slug}/topics", get(topics::list))
         .route(
@@ -116,6 +125,36 @@ fn operator_routes() -> Router<AppState> {
         .route(
             &format!("{M}/topics/{{topic_id}}/tags/{{tag_id}}"),
             put(operator::put_tag).delete(operator::delete_tag),
+        )
+        .route(
+            &format!("{M}/recommendation-candidates"),
+            get(operator::recommendations::candidates),
+        )
+        .route(
+            &format!("{M}/recommendations"),
+            get(operator::recommendations::list).post(operator::recommendations::create),
+        )
+        .route(
+            &format!("{M}/recommendations/{{id}}"),
+            get(operator::recommendations::show)
+                .patch(operator::recommendations::edit)
+                .delete(operator::recommendations::remove),
+        )
+        .route(
+            &format!("{M}/recommendations/{{id}}/text"),
+            post(operator::recommendations::rewrite),
+        )
+        .route(
+            &format!("{M}/recommendations/{{id}}/publish"),
+            post(operator::recommendations::publish),
+        )
+        .route(
+            &format!("{M}/recommendations/{{id}}/archive"),
+            post(operator::recommendations::archive),
+        )
+        .route(
+            &format!("{M}/recommendations/{{id}}/second-round"),
+            post(operator::recommendations::second_round),
         )
         .route(&format!("{M}/statements"), get(operator::queue))
         .route(
