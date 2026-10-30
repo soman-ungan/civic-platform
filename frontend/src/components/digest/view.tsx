@@ -82,7 +82,7 @@ export function DigestView({
         も運営者も書き足していません。
       </p>
 
-      <div className="sticky bottom-0 -mx-4 border-t border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur print:hidden dark:border-zinc-800 dark:bg-zinc-950/95">
+      <div className="sticky bottom-0 z-30 -mx-4 border-t border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur print:hidden dark:border-zinc-800 dark:bg-zinc-950/95">
         <Link
           href={proposeFromDigestHref(slug, digest.anchor, others, [
             ...selected,

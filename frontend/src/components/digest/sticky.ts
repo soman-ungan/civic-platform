@@ -8,6 +8,6 @@
 export const STICKY_TOPIC =
   "sticky top-0 z-20 -mx-4 bg-background/95 px-4 pt-2 pb-2 backdrop-blur print:static";
 
-/** 2段目: 節の見出し（合意点・意見が分かれた点・代表的な意見）。1段目の下に貼り付き、節が終わると流れる */
+/** 2段目（下の「提案する」のボタン（z-30）より下に重ねる）: 節の見出し（合意点・意見が分かれた点・代表的な意見）。1段目の下に貼り付き、節が終わると流れる */
 export const STICKY_BLOCK =
   "sticky top-[var(--topic-head,0px)] z-10 -mx-4 bg-background/95 px-4 py-1.5 backdrop-blur print:static";
