@@ -173,11 +173,13 @@ pub fn layout(matrix: &[Vec<f64>]) -> Vec<[f64; 2]> {
         .collect()
 }
 
-/// タグの地図（`tag` が無ければ、タグの一覧だけ）
+/// タグの地図（`tag` が無ければ、`focus` のトピックに付いたタグのうち一覧で先のもの（分野・締め切ったトピックの多い順）。
+/// どちらも無ければ、タグの一覧だけ）
 pub async fn topic_map(
     pool: &SqlitePool,
     municipality_id: &str,
     tag: Option<&str>,
+    focus: Option<&str>,
 ) -> Result<TopicMap, sqlx::Error> {
     let closed = closed(pool, municipality_id).await?;
     let ids: Vec<String> = closed.topics.iter().map(|t| t.id.clone()).collect();
@@ -213,7 +215,15 @@ pub async fn topic_map(
             .then(a.name.cmp(&b.name))
     });
 
-    let Some(tag) = tag.filter(|t| tagged.contains_key(*t)) else {
+    let focus_tag = focus.and_then(|f| {
+        tags.iter()
+            .find(|t| tagged[&t.id].iter().any(|id| id == f))
+            .map(|t| t.id.clone())
+    });
+    let Some(tag) = tag
+        .filter(|t| tagged.contains_key(*t))
+        .or(focus_tag.as_deref())
+    else {
         return Ok(TopicMap {
             tags,
             tag: None,

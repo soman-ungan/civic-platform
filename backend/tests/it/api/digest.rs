@@ -199,3 +199,52 @@ async fn proposals_from_a_digest_keep_their_parents() {
     let res = request(&state, "GET", &format!("{OTAWARA}/topics/{id}"), None, None).await;
     assert_eq!(res.json["parents"].as_array().unwrap().len(), 2);
 }
+
+#[tokio::test]
+async fn consensus_page_shows_closed_topics_to_everyone_and_focuses_the_map() {
+    let state = setup().await;
+    // ピン留め（今までどおり）: Cookie が無ければ空
+    let res = request(&state, "GET", &format!("{OTAWARA}/consensus"), None, None).await;
+    assert!(res.json.as_array().unwrap().is_empty());
+    // 合意点のページ: 締め切ったトピックの合意点は、投票していなくても出る
+    let res = request(
+        &state,
+        "GET",
+        &format!("{OTAWARA}/consensus?include_closed=true"),
+        None,
+        None,
+    )
+    .await;
+    let items = res.json.as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["statement_id"], "common");
+    assert_eq!(items[0]["closed"], true);
+
+    // 合意点から地図へ: タグを渡さなくても、そのトピックの載る地図を開く
+    let res = request(
+        &state,
+        "GET",
+        &format!("{OTAWARA}/topic-map?focus=t1"),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(res.json["tag"], "field-koutsu");
+    assert!(
+        res.json["points"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["id"] == "t1")
+    );
+    // 地図に載らないトピック（受付中）なら、タグの一覧だけ
+    let res = request(
+        &state,
+        "GET",
+        &format!("{OTAWARA}/topic-map?focus=t5"),
+        None,
+        None,
+    )
+    .await;
+    assert!(res.json["tag"].is_null());
+}

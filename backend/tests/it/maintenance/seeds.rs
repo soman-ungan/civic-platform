@@ -178,7 +178,7 @@ async fn dev_seeds_are_enough_for_analysis() {
 
     // 締め切ったサンプル（4・5）でトピックマップとまとめを試せる: 交通のタグの地図に載り、互いに近傍で、
     // 合意点と意見が分かれた点の両方が出る
-    let map = backend::process::topic_map::topic_map(&pool, "092100", Some("field-koutsu"))
+    let map = backend::process::topic_map::topic_map(&pool, "092100", Some("field-koutsu"), None)
         .await
         .unwrap();
     let mut ids: Vec<&str> = map.points.iter().map(|p| p.id.as_str()).collect();

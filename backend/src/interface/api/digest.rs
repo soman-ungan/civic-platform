@@ -17,9 +17,12 @@ use crate::process::topic_map::{self, TopicMap};
 #[derive(Debug, Deserialize)]
 pub struct MapQuery {
     pub tag: Option<String>,
+    /// タグが無いとき、このトピックの載る地図を開く（合意点のページで、合意点から地図へ）
+    pub focus: Option<String>,
 }
 
-/// GET /api/municipalities/{slug}/topic-map?tag= — 締め切ったトピックの地図（タグで絞る。無ければタグの一覧だけ）
+/// GET /api/municipalities/{slug}/topic-map?tag=&focus= — 締め切ったトピックの地図（タグで絞る。
+/// タグが無ければ `focus` のトピックの載るタグ、それも無ければタグの一覧だけ）
 pub async fn map(
     State(state): State<AppState>,
     Path(slug): Path<String>,
@@ -27,7 +30,13 @@ pub async fn map(
 ) -> Result<Json<TopicMap>, ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
     Ok(Json(
-        topic_map::topic_map(&state.pool, &municipality.id, query.tag.as_deref()).await?,
+        topic_map::topic_map(
+            &state.pool,
+            &municipality.id,
+            query.tag.as_deref(),
+            query.focus.as_deref(),
+        )
+        .await?,
     ))
 }
 

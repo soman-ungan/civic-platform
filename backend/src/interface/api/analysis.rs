@@ -5,8 +5,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use axum::Json;
-use axum::extract::{Path, State};
-use serde::Serialize;
+use axum::extract::{Path, Query, State};
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::interface::api::AppState;
@@ -538,40 +538,57 @@ pub struct MunicipalityConsensus {
     pub statement_id: String,
     pub body: String,
     pub gac: f64,
+    /// 元のトピックが締め切ったか（締め切ったものはトピックマップに載る）
+    pub closed: bool,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ConsensusQuery {
+    /// 締め切ったトピックの合意点を、投票を問わず出す（合意点のページ。締め切ったトピックの分析は誰にでも見せる。ADR 0005）
+    #[serde(default)]
+    pub include_closed: bool,
+}
+
+/// 合意点のページに出す件数の上限
+const MAX_LISTED: usize = 100;
 
 /// タイムラインにピン留めする件数の上限（画面では最初の数件だけを出し、残りは「もっと見る」）
 const MAX_PINNED: usize = 20;
 
-/// GET /api/municipalities/{slug}/consensus — 自治体内の合意点（ピン留め用）。
-/// 分析と同じく、その参加者がすべての意見に投票したトピックの合意点だけを返す
+/// GET /api/municipalities/{slug}/consensus?include_closed= — 自治体内の合意点（ピン留め・合意点のページ）。
+/// 分析と同じく、その参加者がすべての意見に投票したトピックの合意点だけを返す。
+/// `include_closed` なら、締め切ったトピックの合意点は投票を問わず返す
 pub async fn municipality_consensus(
     State(state): State<AppState>,
     Path(slug): Path<String>,
+    Query(query): Query<ConsensusQuery>,
     MaybeParticipant(user_id): MaybeParticipant,
 ) -> Result<Json<Vec<MunicipalityConsensus>>, ApiError> {
-    let Some(user_id) = user_id else {
+    if user_id.is_none() && !query.include_closed {
         return Ok(Json(Vec::new()));
-    };
+    }
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
-    let topics: Vec<(String, String)> = sqlx::query_as(
-        "SELECT id, title FROM topics WHERE municipality_id = $1 AND status = 'published'",
+    let topics: Vec<(String, String, Option<String>)> = sqlx::query_as(
+        "SELECT id, title, closes_at FROM topics WHERE municipality_id = $1 AND status = 'published'",
     )
     .bind(&municipality.id)
     .fetch_all(&state.pool)
     .await?;
 
     let progress =
-        progress::progress_by_topic(&state.pool, &municipality.id, Some(&user_id)).await?;
+        progress::progress_by_topic(&state.pool, &municipality.id, user_id.as_deref()).await?;
 
     let mut out = Vec::new();
-    for (topic_id, title) in topics {
-        let Some(p) = progress.get(&topic_id) else {
-            continue;
-        };
-        // 投票していないトピックは出さない（最初の意見が無いトピックは、投票しなくても分析が開くため）
-        if p.voted == 0 || !p.analysis_unlocked() {
-            continue;
+    for (topic_id, title, closes_at) in topics {
+        let closed = progress::is_closed(closes_at.as_deref());
+        if !(closed && query.include_closed) {
+            let Some(p) = progress.get(&topic_id) else {
+                continue;
+            };
+            // 投票していないトピックは出さない（最初の意見が無いトピックは、投票しなくても分析が開くため）
+            if user_id.is_none() || p.voted == 0 || !p.analysis_unlocked() {
+                continue;
+            }
         }
         let Some(Stored::Ready { result, .. }) = store::load(&state.pool, &topic_id).await? else {
             continue;
@@ -592,6 +609,7 @@ pub async fn municipality_consensus(
                 statement_id: c.statement_id,
                 body: c.body,
                 gac: c.gac,
+                closed,
             });
         }
     }
@@ -600,6 +618,10 @@ pub async fn municipality_consensus(
             .partial_cmp(&a.gac)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    out.truncate(MAX_PINNED);
+    out.truncate(if query.include_closed {
+        MAX_LISTED
+    } else {
+        MAX_PINNED
+    });
     Ok(Json(out))
 }

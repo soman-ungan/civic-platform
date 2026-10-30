@@ -296,6 +296,7 @@ async fn municipality_consensus_lists_pinned_statements() {
             "statement_id": "common",
             "body": "全員賛成",
             "gac": (11.0f64 / 12.0).powi(2),
+            "closed": false,
         }])
     );
     // 別の自治体の合意点は混ざらない
