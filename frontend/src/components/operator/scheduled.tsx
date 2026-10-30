@@ -21,6 +21,7 @@ import { useApi } from "@/lib/api/use-api";
 import { SOURCE_LABELS } from "@/lib/labels";
 import { formatDateTime } from "@/lib/operator";
 
+import { STICKY_SECTION_HEAD } from "./sticky";
 import { useAction } from "./use-action";
 
 const INPUT =
@@ -50,7 +51,10 @@ export function Scheduled({ slug }: { slug: string }) {
         onChange={(next) => update(() => next)}
       />
       <section aria-labelledby="queue-heading" className="mt-8">
-        <h2 id="queue-heading" className="text-sm font-semibold">
+        <h2
+          id="queue-heading"
+          className={`text-sm font-semibold ${STICKY_SECTION_HEAD}`}
+        >
           公開する順（{data.queue.length}件）
         </h2>
         {data.queue.length === 0 ? (
