@@ -19,6 +19,7 @@
 | [2026-10-28-phase6b-participation-rules](2026-10-28-phase6b-participation-rules.md) | フェーズ6b: 投稿の条件・上限・意見の審査 | [ADR 0005](../adr/0005-topic-lifecycle-and-funding.md)・[ADR 0007](../adr/0007-statement-review.md)・`backend/src/process/progress.rs` |
 | [2026-10-29-phase6c-operator-console](2026-10-29-phase6c-operator-console.md) | フェーズ6c: 管理画面とトピックの期限 | [ADR 0005](../adr/0005-topic-lifecycle-and-funding.md)・[design/api.md](../design/api.md) |
 | [2026-10-29-phase6d-citizen-proposals](2026-10-29-phase6d-citizen-proposals.md) | フェーズ6d: 市民からのトピックの提案 | [ADR 0005](../adr/0005-topic-lifecycle-and-funding.md)・[design/api.md](../design/api.md)・`backend/src/process/progress.rs` |
+| [2026-10-30-opinion-synthesis](2026-10-30-opinion-synthesis.md) | 意見の取りまとめ: 類似判定の基盤（トピックと意見に共通）・提言・第2回のトピック | [ADR 0005](../adr/0005-topic-lifecycle-and-funding.md)・[ADR 0007](../adr/0007-statement-review.md)・[design/api.md](../design/api.md)・`backend/src/process/similarity.rs`・`backend/src/process/recommendation.rs` |
 
 ## 方針・ADR
 | 計画 | 中身 | 今の決まりの場所 |

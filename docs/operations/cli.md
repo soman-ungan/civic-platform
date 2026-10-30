@@ -61,12 +61,13 @@ Claude API を呼ぶのは、段階1では **`extract` だけ**です（`fetch` 
 | `extract budget`（当初予算の概要、40ページ） | 約 0.8 ドル（`--manual`・`--dry-run` なら費用なし） |
 | `eval moderation` / `eval tagging` | 件数による |
 | `moderate statement`・`classify topic`・サーバーのモデレーションとタグ付け | 投稿・トピックの数による（`llm_usage` で確かめられる） |
+| `add recommendation`・`edit recommendation --ai`（提言の見出しと前書きの下書き） | 1回 0.01 ドル前後（キーが無ければ呼ばず、手で書く） |
 
 1日（UTC）の費用には上限があり、超えると AI を呼びません。
 
 | 環境変数 | 既定 | 対象 |
 |---|---|---|
-| `LLM_DAILY_BUDGET_USD` | 1.0 | モデレーション・タグ付け・評価 |
+| `LLM_DAILY_BUDGET_USD` | 1.0 | モデレーション・タグ付け・評価・提言の見出し |
 | `LLM_EXTRACTION_DAILY_BUDGET_USD` | 5.0 | 会議録・予算の `extract`（別枠） |
 
 使った量と推定の費用は、DB の `llm_usage` に記録されます。
@@ -87,13 +88,15 @@ Claude API を呼ぶのは、段階1では **`extract` だけ**です（`fetch` 
 
 ### 2. DB を見る・直す
 
-| | `budget` | `settlement` | `minutes` | `topic` | `statement` | `tag` | `source` | `operator` |
-|---|---|---|---|---|---|---|---|---|
-| [`list`](#list) | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [`show`](#show) | ○ | ○ | ○ | ○ | ○ | 無 | ○ | 無 |
-| [`edit`](#edit--add--remove) | 無 | 無 | 無 | ○ | ○ | 無 | 無 | 無 |
-| [`add` / `remove`](#edit--add--remove) | 無 | 無 | 無 | 無 | ○ | ○ | 無 | ○ |
-| [`publish` / `archive`](#publish--archive) | ○ | 無 | 無 | ○ | 無（`moderate` で） | 無 | 無 | 無 |
+| | `budget` | `settlement` | `minutes` | `topic` | `statement` | `tag` | `source` | `operator` | `recommendation` | `similar` |
+|---|---|---|---|---|---|---|---|---|---|---|
+| [`list`](#list) | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [`show`](#show) | ○ | ○ | ○ | ○ | ○ | 無 | ○ | 無 | ○ | 無 |
+| [`edit`](#edit--add--remove) | 無 | 無 | 無 | ○ | ○ | 無 | 無 | 無 | ○ | 無 |
+| [`add` / `remove`](#edit--add--remove) | 無 | 無 | 無 | add だけ（`--from-recommendation`） | ○ | ○ | 無 | ○ | ○ | 無 |
+| [`publish` / `archive`](#publish--archive) | ○ | 無 | 無 | ○ | 無（`moderate` で） | 無 | 無 | 無 | ○ | 無 |
+
+（`queue`・`slot` は [edit / add / remove](#edit--add--remove) を参照）
 
 ### 3. DB の中身を判定・計算する
 
@@ -233,6 +236,7 @@ cargo run -- list queue -m otawara             # 公開待ち（公開する順�
 cargo run -- list slot [-m otawara]            # 自動公開の時刻
 cargo run -- list similar -m otawara           # 似ているトピックの組（度合いつき。費用 0）
 cargo run -- list similar --topic <id>         # トピックの中の似ている意見の組
+cargo run -- list recommendation -m otawara    # 提言と、提言にできるトピック・まとまりの候補
 ```
 
 ### show
@@ -244,6 +248,7 @@ cargo run -- show minutes --id <document の id>    # 会議録と、そこか�
 cargo run -- show topic --id <id>                  # 説明・出典の引用・最初の意見・タグ
 cargo run -- show statement --id <id>              # 本文・状態・判定の理由・投票の数
 cargo run -- show source --id <id>                 # 収集先の設定
+cargo run -- show recommendation --id <id>         # 見出し・前書き・基準・元のトピック・項目（グループごとの票）
 ```
 
 意見の投稿者が誰かは、運営のコマンドでも出しません（最初の意見か市民の投稿かだけ）。
@@ -264,7 +269,18 @@ cargo run -- remove queue --id <topic_id>                         # 公開待ち
 cargo run -- add slot -m otawara --at 07:00                       # 自動公開の時刻（日本時間。1つで1日1件）
 cargo run -- edit slot --id <時刻の id> --at 12:00
 cargo run -- remove slot --id <時刻の id>
+cargo run -- add recommendation -m otawara --topic <id>,<id> [--child <提言の id>]  # 提言の下書き
+cargo run -- edit recommendation --id <id> --title "..." --preface "..."           # 見出しと前書き（下書きだけ）
+cargo run -- edit recommendation --id <id> --ai                                    # AI に書き直してもらう（費用）
+cargo run -- remove recommendation --id <id>                                       # 下書きを消す
+cargo run -- add topic --from-recommendation <提言の id>                           # 第2回のトピックの下書き
 ```
+
+- 提言（ADR 0005）にできるのは、締め切ったトピック（分析の対象が5人以上、意見のグループが2つ以上）と、公開済みの提言（子）です。中身（合意点・意見が分かれた点）はプログラムが決め、作ったときの原文と数字を写して残します。子の提言は、見出し・前書きを使わず、項目をたどって集めます
+- 意見が分かれた点の基準は `RECOMMENDATION_DIVIDED_THRESHOLD`（既定 0.6。あるグループで賛成・別のグループで反対が、どちらもこの割合以上）。作った提言には、そのときの基準が残り、ページに出ます
+- API キーがあれば、`add recommendation` のときに見出しと前書きを AI が下書きします（公人の氏名があれば使わない）。公開する前に必ず確かめます。公開した提言は直せません（`archive` で取り下げる）
+- 第2回のトピックは、提言の項目の原文を最初の意見にした下書きです。多すぎるときは `remove statement` で減らしてから公開します
+- 管理画面の「提言」でも同じことができます
 
 - 下書きはふだん公開待ちに入れ、`publish_slots` の時刻ごとに、待ちの古い順に1件ずつ公開します（API サーバーの裏の処理。ADR 0005「少しずつ公開する」）。backend が止まっていて時刻を逃しても、その日のうちに起動すれば公開します。日をまたいだ分はまとめて出しません。今日の時刻を過ぎてから足した・変えた時刻は、明日から動きます
 - 時刻と公開待ちは、管理画面の「公開待ち」でも同じことができます。急ぐものは `publish topic` で今すぐ公開します
@@ -282,6 +298,8 @@ cargo run -- publish topic --id <id>              # 公開する（初めてな�
 cargo run -- archive topic --id <id>              # 取り下げる（画面から消える。データは残る）
 cargo run -- publish budget -m otawara -y 2026
 cargo run -- archive budget -m otawara -y 2026
+cargo run -- publish recommendation --id <id>     # 提言を公開する（見出しと項目が要る）
+cargo run -- archive recommendation --id <id>     # 提言を取り下げる
 ```
 
 - 会議録から作ったトピックは、1つずつ公開します（`show minutes` で一覧）

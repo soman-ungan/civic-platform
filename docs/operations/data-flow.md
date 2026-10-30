@@ -229,13 +229,14 @@ stateDiagram-v2
 | 資料の出典 | `documents`（URL・ハッシュ・作り方 `extraction`。原本は持たない） | `import` |
 | 決算 | `settlement_items` | `import settlement` |
 | 予算 | `budgets` `budget_items` `budget_projects` `budget_project_tags` | `import budget`・`publish budget` |
-| トピック | `topics`（公開の日時 `published_at`・投票の期限 `closes_at`・市民の提案をした人 `proposed_by`・公開待ち `queued_at`）`topic_sources`（引用） | `import minutes`・`edit topic`・`publish topic` など・管理画面・市民の提案（`POST /proposals`）・自動公開 |
+| トピック | `topics`（公開の日時 `published_at`・投票の期限 `closes_at`・市民の提案をした人 `proposed_by`・公開待ち `queued_at`・第2回の元の提言 `recommendation_id`）`topic_sources`（引用） | `import minutes`・`edit topic`・`publish topic` など・管理画面・市民の提案（`POST /proposals`）・自動公開・`add topic --from-recommendation` |
 | 自動公開 | `publish_slots`（公開の時刻） | `add slot` など・管理画面 |
 | 意見 | `statements` | `import minutes`（最初の意見）・市民の投稿 |
 | | `statement_sources`（最初の意見の根拠の発言。API では返さない） | `import minutes` |
 | 参加者 | `users` `user_municipality_relations`（関わり方） | 市民（API） |
 | | `votes` | 市民（API） |
 | 分析 | `topic_analyses` | 分析の処理 |
+| 提言 | `recommendations` `recommendation_topics` `recommendation_children` `recommendation_items` | `add recommendation`・`edit`・`publish`・`archive`・`remove recommendation`・管理画面の「提言」 |
 | AI | `llm_usage`（使用量・推定の費用） | AI を呼ぶすべての処理 |
 
 投稿者が誰かは、API の応答に一切含めません（匿名性）。
@@ -248,6 +249,7 @@ stateDiagram-v2
 | 定例会（3・6・9・12月）の会議録が公開されたら | 1日分ずつ取り込む（`/import-minutes`）→ 管理画面（`/operator`）の「下書き」で確かめて公開 |
 | 決算カードの公表のあと | `fetch settlement -m <slug>` → `import settlement -m <slug>` |
 | 選挙のあと | `data/seeds/030_officials_*.sql` を直して `seed` |
+| トピックが締め切られたら | 管理画面の「提言」で、まとまりの候補から提言の下書きを作り、見出しと前書きを確かめて公開 → 必要なら第2回のトピックの下書きを作る |
 | いつでも | 管理画面の「確認待ち」（人が確かめる意見）、「公開中」（期限の近いトピック）。`list source`（規約の確認から1年を過ぎると警告） |
 
 ## 困ったとき
