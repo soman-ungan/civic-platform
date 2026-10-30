@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { BUTTON_PRIMARY } from "@/components/ui/styles";
+import { BUTTON_PRIMARY, BUTTON_SECONDARY } from "@/components/ui/styles";
 import type { Digest, TopicDigest } from "@/lib/api/types/digest";
 import { proposeFromDigestHref, ratioLabel } from "@/lib/digest";
 import { RESIDENCY_ORDER, RESIDENCY_SHORT_LABELS } from "@/lib/labels";
@@ -20,7 +20,16 @@ const MAX_USE = 10;
  * 市民のまとめ: 選んだトピックごとに、合意点・意見が分かれた点・グループの代表的な意見を並べる。
  * 「使う」で選んだ意見を最初の意見にして、自分で新しいトピックを提案できる（AI でまとめない。ADR 0005）
  */
-export function DigestView({ slug, digest }: { slug: string; digest: Digest }) {
+export function DigestView({
+  slug,
+  digest,
+  printHref,
+}: {
+  slug: string;
+  digest: Digest;
+  /** レイヤで開いたとき: 印刷はできないので、普通のページを開くリンクにする（レイヤは印刷に出ない） */
+  printHref?: string;
+}) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const use: UseToggle = {
     selected,
@@ -42,7 +51,17 @@ export function DigestView({ slug, digest }: { slug: string; digest: Digest }) {
           件のトピックの投票から、どの意見グループでも賛成が多かった意見（合意点）と、グループによって賛否が分かれた意見を、原文と数字のまま並べています。これを見ながら、次に話し合いたいトピックを提案できます。
         </p>
         <div>
-          <PrintButton />
+          {printHref ? (
+            // ページの読み込みからやり直して（インターセプトしない）、普通のまとめのページを開く
+            <a
+              href={printHref}
+              className={`inline-flex h-9 items-center px-4 text-sm ${BUTTON_SECONDARY}`}
+            >
+              印刷・PDF 用に開く
+            </a>
+          ) : (
+            <PrintButton />
+          )}
         </div>
       </div>
 
