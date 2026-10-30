@@ -22,6 +22,52 @@ const PAD = 0.15;
 const MAX_ZOOM = 8;
 /** これより動いたら、タップではなくドラッグ（px） */
 const TAP_PX = 6;
+/** 地図の高さ（画面の高さに対する割合）。カードをスクロールすると、大きいほうから小さいほうへ縮む */
+const MAP_HEIGHT = { large: 0.4, small: 0.18 } as const;
+
+/** いちばん近い、縦にスクロールする祖先 */
+function scrollParent(el: HTMLElement | null): HTMLElement | null {
+  for (let p = el?.parentElement; p; p = p.parentElement) {
+    const { overflowY } = getComputedStyle(p);
+    if (overflowY === "auto" || overflowY === "scroll") return p;
+  }
+  return null;
+}
+
+/**
+ * 地図の高さ（px）。地図が上に固定されてから下にスクロールした分だけ縮め、上に戻すと元に戻す。
+ * `sentinel` は固定する見出しの直前に置いた要素（それがどれだけ上に過ぎたかで測る）
+ */
+function useShrinkingHeight(sentinel: React.RefObject<HTMLDivElement | null>) {
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const container = scrollParent(sentinel.current);
+    if (!container) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const vh = window.innerHeight;
+      const large = vh * MAP_HEIGHT.large;
+      const small = vh * MAP_HEIGHT.small;
+      const past =
+        container.getBoundingClientRect().top -
+        (sentinel.current?.getBoundingClientRect().top ?? 0);
+      setHeight(Math.round(Math.min(large, Math.max(small, large - past))));
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    container.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      container.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [sentinel]);
+  return height;
+}
 
 /** 地図を開く前のタグの一覧 */
 export function MapTagList({ slug, tags }: { slug: string; tags: MapTag[] }) {
@@ -117,10 +163,18 @@ export function TopicMapView({
       )
     : [...map.points].sort((a, b) => b.closes_at.localeCompare(a.closes_at));
   const popupPoint = popup ? byId.get(popup) : undefined;
+  const sentinel = useRef<HTMLDivElement>(null);
+  const mapHeight = useShrinkingHeight(sentinel);
+  // 地図が縮んだら、吹き出しは閉じる（小さい地図を覆ってしまうため）
+  const shrunk =
+    mapHeight !== null &&
+    typeof window !== "undefined" &&
+    mapHeight < window.innerHeight * MAP_HEIGHT.large - 40;
 
   return (
     <>
-      {/* 見出しと地図は、ページをスクロールしても上に残す */}
+      <div ref={sentinel} aria-hidden />
+      {/* 見出しと地図は、ページをスクロールしても上に残す。カードをスクロールすると地図は縮む */}
       <div className="sticky top-0 z-10 -mx-4 bg-white px-4 pt-2 pb-2 dark:bg-zinc-950">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-base font-bold">
@@ -140,6 +194,7 @@ export function TopicMapView({
         </div>
         <div className="relative mt-2">
           <ZoomableMap
+            height={mapHeight}
             map={map}
             anchor={anchor}
             near={near}
@@ -147,7 +202,7 @@ export function TopicMapView({
             onPoint={(id) => setPopup(id)}
             onBackground={() => setPopup(null)}
           />
-          {popupPoint && (
+          {popupPoint && !shrunk && (
             <PointPopup
               slug={slug}
               point={popupPoint}
@@ -167,7 +222,8 @@ export function TopicMapView({
           ? "起点と、起点に似ているトピック（黄色）です。カードを押すと、まとめに入れます。"
           : "点は締め切ったトピックで、大きいほど参加した人が多く、似ているトピックほど近くにあります。カードを押すと、そのトピックを起点にします。"}
       </p>
-      <ul className="mt-2 flex flex-col gap-2 pb-4">
+      {/* 下の余白は、地図が縮む分（縮んでページが短くなり、スクロールが押し戻されて地図が揺れないように） */}
+      <ul className="mt-2 flex flex-col gap-2 pb-[22dvh]">
         {cards.map((p) => (
           <TopicCard
             key={p.id}
@@ -218,6 +274,7 @@ export function TopicMapView({
  * 点と線の太さは、拡大しても画面の上で同じにする
  */
 function ZoomableMap({
+  height,
   map,
   anchor,
   near,
@@ -225,6 +282,8 @@ function ZoomableMap({
   onPoint,
   onBackground,
 }: {
+  /** 地図の高さ（px）。測る前は null（画面の4割） */
+  height: number | null;
   map: TopicMap;
   anchor: string | null;
   near: Set<string>;
@@ -341,6 +400,7 @@ function ZoomableMap({
       <svg
         ref={svgRef}
         viewBox={`${view.cx - hx} ${view.cy - hy} ${2 * hx} ${2 * hy}`}
+        style={height === null ? undefined : { height }}
         className="h-[40dvh] w-full touch-none rounded-2xl bg-zinc-50 select-none dark:bg-zinc-900"
         role="group"
         aria-label="締め切ったトピックの地図（似ているトピックほど近い）"
