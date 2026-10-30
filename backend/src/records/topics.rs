@@ -31,6 +31,7 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<DraftSummary>, sqlx::Error> {
 }
 
 /// 自治体のトピックの ID（状態で絞る。下書きは古い順、ほかは新しい順）。管理画面の一覧に使う。
+/// 下書きは、公開待ちに入れたものを除く（公開待ちは `publishing::queue`）。
 /// `after`（前に読んだ最後の ID）の次から `limit` 件。公開などで一覧から抜けても読み飛ばさないよう、件数ではなく ID で続ける
 pub async fn ids_in(
     pool: &SqlitePool,
@@ -47,6 +48,7 @@ pub async fn ids_in(
     // PostgreSQL では型の決まらないパラメーターを IS NULL にできないため CAST する
     sqlx::query_scalar(&format!(
         "SELECT id FROM topics WHERE municipality_id = $1 AND status = $2
+           AND (status <> 'draft' OR queued_at IS NULL)
            AND (CAST($3 AS TEXT) IS NULL
                 OR created_at {cmp} (SELECT created_at FROM topics WHERE id = $3)
                 OR (created_at = (SELECT created_at FROM topics WHERE id = $3) AND id {cmp} $3))

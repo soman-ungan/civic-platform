@@ -29,6 +29,8 @@ export type OperatorTopic = {
   description: string;
   created_at: string;
   published_at: string | null;
+  /** 公開待ちに入れた日時（下書きだけ。null は入っていない） */
+  queued_at: string | null;
   closes_at: string | null;
   closed: boolean;
   sources: OperatorSource[];
@@ -62,4 +64,27 @@ export type QueueStatement = {
     held_on: string | null;
     url: string | null;
   } | null;
+};
+
+/** 公開待ちの1件（公開する順） */
+export type QueuedTopic = {
+  id: string;
+  title: string;
+  source_type: "assembly" | "citizen";
+  queued_at: string;
+  /** 公開の予定（今の時刻の設定のままの見込み）。時刻が1つも無ければ null */
+  planned_at: string | null;
+};
+
+/** 自動公開の時刻（1つで1日1件） */
+export type PublishSlot = {
+  id: string;
+  /** 日本時間の HH:MM */
+  time_of_day: string;
+};
+
+/** 自動公開の全体（docs/plans/2026-10-30-timeline-flow.md） */
+export type Publishing = {
+  queue: QueuedTopic[];
+  slots: PublishSlot[];
 };

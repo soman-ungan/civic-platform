@@ -229,6 +229,8 @@ cargo run -- list statement --status approved --topic <id>
 cargo run -- list tag -m otawara               # 分野の語彙と、その自治体の地区（add tag に使う id）
 cargo run -- list source                       # 収集先・規約の確認日・最後の取得
 cargo run -- list operator                     # 運営者のアカウント（ID・登録日・パスキーの数）
+cargo run -- list queue -m otawara             # 公開待ち（公開する順と予定）
+cargo run -- list slot [-m otawara]            # 自動公開の時刻
 ```
 
 ### show
@@ -255,7 +257,15 @@ cargo run -- add tag --topic <topic_id> --id field-kosodate      # 地区は 092
 cargo run -- remove tag --topic <topic_id> --id field-kosodate
 cargo run -- add operator                                         # 運営者の招待のリンク（24時間・1回だけ）
 cargo run -- remove operator --id <アカウントの id>               # 運営者から外す（アカウントは残る）
+cargo run -- add queue --id <下書きの topic_id>                  # 公開待ちに入れる
+cargo run -- remove queue --id <topic_id>                         # 公開待ちから外す（下書きのまま）
+cargo run -- add slot -m otawara --at 07:00                       # 自動公開の時刻（日本時間。1つで1日1件）
+cargo run -- edit slot --id <時刻の id> --at 12:00
+cargo run -- remove slot --id <時刻の id>
 ```
+
+- 下書きはふだん公開待ちに入れ、`publish_slots` の時刻ごとに、待ちの古い順に1件ずつ公開します（API サーバーの裏の処理。ADR 0005「少しずつ公開する」）。backend が止まっていて時刻を逃しても、その日のうちに起動すれば公開します。日をまたいだ分はまとめて出しません。今日の時刻を過ぎてから足した・変えた時刻は、明日から動きます
+- 時刻と公開待ちは、管理画面の「公開待ち」でも同じことができます。急ぐものは `publish topic` で今すぐ公開します
 
 - 運営者は画面からは増やせません（ADR 0006）。`add operator` が出すリンク（`<WEBAUTHN_ORIGIN>/operator/join?token=…`）を本人にだけ渡し、そこでパスキーを登録したアカウントが運営者になります。DB にはトークンのハッシュだけを残します
 
@@ -363,7 +373,7 @@ cargo run -- list settlement -m otawara
 2. `extract minutes ... --dry-run` で、発言者と名簿を確かめる
 3. `extract minutes ...`（費用がかかる）か、共同作業なら `--manual`
 4. `import minutes -m <slug> --file <パス>` で下書きを作る
-5. `list topic --drafts` → `show topic --id <id>` → 必要なら `edit topic` など → `publish topic --id <id>`
+5. `list topic --drafts` → `show topic --id <id>` → 必要なら `edit topic` など → `add queue --id <id>`（決まった時刻に公開。急ぐなら `publish topic --id <id>`）
 
 ### 共同作業で取り込む（API を使わない）
 

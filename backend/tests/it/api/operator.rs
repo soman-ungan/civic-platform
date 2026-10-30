@@ -487,6 +487,16 @@ async fn drafts_are_queued_and_publish_slots_are_managed_per_municipality() {
     assert_eq!(res.status, StatusCode::OK, "{}", res.json);
     assert!(res.json["queued_at"].is_string());
     assert_eq!(res.json["status"], "draft");
+    // 下書きの一覧からは外れる（公開待ちの一覧に出る）
+    let res = request(
+        &state,
+        "GET",
+        &format!("{OTAWARA}/topics?status=draft"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert!(!res.json.to_string().contains("\"t1\""));
     let res = request(
         &state,
         "POST",

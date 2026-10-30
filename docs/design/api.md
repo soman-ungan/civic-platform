@@ -16,7 +16,8 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）— 公開中（`is_active`）の自治体だけ
 - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}`
   - Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count`（承認済みの意見だけで数える）
-  - 期限 `closes_at`（null は期限なし）と締め切ったか `closed`。一覧は受付中を先に、それぞれ新しい順
+  - 期限 `closes_at`（null は期限なし）と締め切ったか `closed`。一覧は受付中を先に、それぞれ公開した日（`published_at`。null なら作った日）の新しい順
+  - 新着 `is_new`（公開から3日以内で、Cookie の参加者が未投票。`progress::is_new`）、会期 `session`（議会のトピックだけ。出典の最初の会議の資料名と月から「令和8年 第2回定例会（6月）」。`records::minutes::session_label`）
   - 詳細には出典 `sources`（会議録の引用）と `finances`（分野タグに対応する目的別歳出と、今年度の主な事業5件まで）
 - `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。分析を見られて、1件以上投票したトピックの分だけ（Cookie が無ければ空）
 
@@ -72,6 +73,9 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 | `GET .../{slug}/topics?status=draft\|published\|archived&after=&limit=` | トピック（出典・意見と根拠の発言・タグつき）。下書きは古い順、ほかは新しい順 |
 | `GET` / `PATCH .../topics/{id}` | 1件（種類 `source_type`: assembly / citizen。提案した人は返さない）/ タイトル・説明の手直し |
 | `POST .../topics/{id}/publish` / `archive` | 公開（初めてなら90日の期限が付く）/ 取り下げ（市民の提案なら、本人には「見送り」） |
+| `POST` / `DELETE .../topics/{id}/queue` | 公開待ちに入れる（下書きだけ。ほかは 409）/ 外す。公開待ちのものは下書きの一覧（`?status=draft`）に出ない |
+| `GET .../{slug}/publishing` | 公開待ち `queue`（公開する順と予定 `planned_at`。時刻が無ければ null）と公開の時刻 `slots` |
+| `POST .../{slug}/publish-slots` / `PATCH` / `DELETE .../publish-slots/{id}` | 時刻 `{time_of_day}`（日本時間の HH:MM）を足す・変える・消す（今日の時刻を過ぎていれば明日から）。応答は `publishing` と同じ |
 | `PUT .../topics/{id}/closes-at` | `{closes_at?}` 期限の変更。省くと今（すぐ締め切る）。公開中だけ（ほかは 409） |
 | `POST .../topics/{id}/statements` | 意見を足す（運営者の意見として承認済み。下書きなら最初の意見） |
 | `PUT` / `DELETE .../topics/{id}/tags/{tag_id}` | タグを付ける（運営者のタグとして）/ 外す |
@@ -79,7 +83,7 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 | `PATCH .../statements/{id}` | 本文の手直し（投票がある意見は直せない） |
 | `POST .../statements/{id}/approve` / `reject` / `retry` | 公開 / 非公開（下書きの意見の取り下げも）/ pending を1件 AI でやり直す（キーが無ければ 409 `llm_unavailable`） |
 
-画面は `/operator`（`?m=<slug>&tab=drafts|queue|published`。`frontend/src/components/operator/`）。運営者には、自治体のトップとトピックの詳細のヘッダーに「管理画面」のリンクが出る。
+画面は `/operator`（`?m=<slug>&tab=drafts|scheduled|queue|published`。`frontend/src/components/operator/`）。運営者には、自治体のトップとトピックの詳細のヘッダーに「管理画面」のリンクが出る。
 
 ## その他
 - `GET /health` — DB 込みの疎通確認

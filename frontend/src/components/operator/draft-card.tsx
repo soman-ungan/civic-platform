@@ -52,6 +52,16 @@ export function DraftCard({
     onChange(await apiFetch<OperatorTopic>(api));
   }
 
+  async function enqueue() {
+    await run(
+      async () =>
+        onChange(
+          await apiFetch<OperatorTopic>(`${api}/queue`, { method: "POST" }),
+        ),
+      "公開待ちに入れられませんでした",
+    );
+  }
+
   async function setStatus(action: "publish" | "archive") {
     const message =
       action === "publish"
@@ -149,13 +159,22 @@ export function DraftCard({
 
       {error && <p className={`mt-3 ${ERROR_TEXT}`}>{error}</p>}
       <div className="mt-4 flex gap-2">
+        {/* ふだんは公開待ちに入れ、決まった時刻に古い順に公開する。急ぐものだけ今すぐ公開する */}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void enqueue()}
+          className={`h-10 flex-1 text-sm ${BUTTON_PRIMARY}`}
+        >
+          公開待ちに入れる
+        </button>
         <button
           type="button"
           disabled={busy}
           onClick={() => setStatus("publish")}
-          className={`h-10 flex-1 text-sm ${BUTTON_PRIMARY}`}
+          className={`h-10 px-4 text-sm ${BUTTON_SECONDARY}`}
         >
-          公開する
+          今すぐ公開
         </button>
         <button
           type="button"

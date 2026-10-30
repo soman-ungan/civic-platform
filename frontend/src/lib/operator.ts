@@ -6,6 +6,7 @@ import type { QueueStatement } from "@/lib/api/types/operator";
 
 export const OPERATOR_TABS = [
   { key: "drafts", label: "下書き" },
+  { key: "scheduled", label: "公開待ち" },
   { key: "queue", label: "確認待ち" },
   { key: "published", label: "公開中" },
 ] as const;
