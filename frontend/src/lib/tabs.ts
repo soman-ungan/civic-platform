@@ -11,6 +11,8 @@ export function tabsFor(pathname: string) {
   // swipe: その画面の横フリックで隣のタブへ移るか。まちのお金は、横フリックを欄の切り替えに使う（ユーザーと決定）
   const tabs = [
     { href: `/${slug}`, label: "トピック", swipe: true },
+    // 地図は触れて操作するので、横フリックでタブを変えない
+    { href: `/${slug}/map`, label: "これまでの議論", swipe: false },
     { href: `/${slug}/finances`, label: "まちのお金", swipe: false },
   ];
   return { tabs, current: tabs.findIndex((t) => t.href === pathname) };

@@ -21,6 +21,21 @@ export function proposalsApi(slug: string): string {
   return `${municipalityApi(slug)}/proposals`;
 }
 
+/** /api/municipalities/{slug}/topic-map?tag=（締め切ったトピックの地図） */
+export function topicMapApi(slug: string, tag?: string | null): string {
+  const base = `${municipalityApi(slug)}/topic-map`;
+  return tag ? `${base}?tag=${enc(tag)}` : base;
+}
+
+/** /api/municipalities/{slug}/digest?anchor=&topics=（市民のまとめ） */
+export function digestApi(
+  slug: string,
+  anchor: string,
+  topics: string[],
+): string {
+  return `${municipalityApi(slug)}/digest?anchor=${enc(anchor)}&topics=${topics.map(enc).join(",")}`;
+}
+
 /** パスキーでの登録とログイン（ADR 0006） */
 export const AUTH_API = {
   me: "/api/auth/me",

@@ -27,14 +27,14 @@ docs の入口は `docs/README.md`。**設計判断で迷ったら、`docs/overv
 civic-platform/
 ├── backend/              Rust / axum / sqlx（API サーバー＋運営のコマンド）
 │   ├── src/shared/       システム内で共通に使うもの（config・db・limits（トピックと意見の文字数）・status（意見と公開の状態の型。DB の CHECK と同じ値）・util・llm）
-│   ├── src/interface/    外とのやりとり。api/（HTTP API: 自治体・トピック・投票・分析・まちのお金）と cli/（運営のコマンド。clap。<動詞> <対象>。docs/operations/cli.md）
+│   ├── src/interface/    外とのやりとり。api/（HTTP API: 自治体・トピック・投票・分析・まとめ（トピックマップ）・まちのお金）と cli/（運営のコマンド。clap。<動詞> <対象>。docs/operations/cli.md）
 │   ├── src/ingest/       段階1 資料を DB に入れる（collect: 取得と置き場・決算カード、budget、minutes、extraction）
 │   ├── src/records/      段階2 DB を見る・直す（topics・budget・settlement・minutes・statements・tags）
-│   ├── src/process/      段階3 判定・計算（moderation・tagging・analysis（Polis の数理）・progress（参加のルール。ルールはここだけで変える））
+│   ├── src/process/      段階3 判定・計算（moderation・tagging・analysis（Polis の数理）・progress（参加のルール。ルールはここだけで変える）・similarity（似ているかの候補）・topic_map・digest（市民のまとめ））
 │   └── src/maintenance/  準備と保守（seed・eval）
 │       層の依存は interface → ingest / records / process / maintenance → shared。内部ロジックは interface を使わない（docs/plans/2026-10-28-backend-layers.md）
 ├── frontend/             Next.js (App Router) / TypeScript / Tailwind CSS
-│   ├── src/components/   画面の部品。まとまりは backend の interface/api/ にそろえる（topics・participation・analysis・finances・auth）。ほかに ui/（よく使う見た目: チップ・横スクロールの行・切り替え・空の欄・説明の吹き出し・ボタンのクラス）と layout/（画面の枠）
+│   ├── src/components/   画面の部品。まとまりは backend の interface/api/ にそろえる（topics・participation・analysis・digest・finances・auth）。ほかに ui/（よく使う見た目: チップ・横スクロールの行・切り替え・空の欄・説明の吹き出し・ボタンのクラス）と layout/（画面の枠）
 │   └── src/lib/          api/（backend とのやりとり: paths・server・client・use-api。型は api/types/ に backend のモジュールごと）、finances/（お金の表示の決まり）、auth/（パスキー）、画面をまたぐ小さな決まり（labels など）
 │       ファイル名はディレクトリ名と重なる部分を外す（components/finances/bars.tsx など）。型をまとめて export し直すファイルは作らない（docs/plans/2026-10-28-frontend-layout.md）
 ├── data/                 SQLite ファイル（*.db は git 管理しない）
@@ -54,7 +54,7 @@ civic-platform/
 - **市民を本人の属性（年齢・性別など）や市内の地区で分けて集計・可視化しない。** 分けて見せてよいのは、その自治体との関わり方（`residency_type`: 住民・周辺・通勤通学・関係人口）だけ。
 - 年齢・性別は集めない（必須は棄却、任意も当面しない）。参加者の地区も集めない。トピックの地区タグ（話題の対象地域）は人を分けないので可。
 - 関わり方も、意見グループを作るのには使わず、グループの説明と意見ごとの比較にだけ使う（Polis の原則）。
-- 公表は5人未満の区分を隠し、隠した合計が1〜4人なら次に少ない区分も隠す（二次秘匿。`backend/src/interface/api/analysis.rs` の `suppress`）。
+- 公表は5人未満の区分を隠し、隠した合計が1〜4人なら次に少ない区分も隠す（二次秘匿。`backend/src/process/analysis/disclosure.rs` の `suppress`）。
 - 属性や区分で集計する機能を検討するときは、プライバシーに加えて「分断を生まないか」を必ず検討する。
 
 ## AI（LLM）の原則（`docs/adr/0003-llm-operations.md`）
@@ -80,7 +80,8 @@ civic-platform/
 - 分析は、最初の意見すべてに投票したら見られる（市民の意見は数えないので、公開後に一度開いた分析は閉じない）。次の意見は最初の意見から出す。意見の投稿も、分析を見られるようになってから（`backend/src/process/progress.rs`）。投稿した人は自分の意見に賛成したものとする（Polis と同じ。市民の提案の最初の意見は、Polis の seed と同じく自動の票なし）
 - **お金（寄付・投げ銭）で議論への影響を変えない。** 投稿数・投票・表示の順番は誰でも同じ。行政からの出資と、政党・政治団体・候補者からの寄付は受けない。収支は公開する
 - 会議録から作るトピックが既存と同じ論点（何を決める・変えるかが同じ）なら、新しく作らず意見を足す（下書きには最初の意見として、公開中には確認待ちで。`statements.is_seed`）。意見が少ないトピックも残して運営者が確かめる。AI に反対の立場の意見を作らせない。似ているかは、プログラムが候補を絞り（文字の2-gram の類似度。`backend/src/process/similarity.rs`。トピックと意見に共通）、AI か運営者が決める
-- トピックの投票は混ぜない。統合は「提言」（合意点と意見が分かれた点を原文と数字のまま集める）と、それを元にした「第2回のトピック」で行う（提言の作り方は検討中）
+- トピックの投票は混ぜない。統合は「市民のまとめ」で行う: 市民がトピックマップ（締め切ったトピックを似ている度合いで配置。タグで絞る）で起点と近傍を選び、合意点・意見が分かれた点・グループの代表的な意見を原文と数字のまま見て、自分で次のトピックを提案する（普通の提案と同じく週1件・運営者の確認。元のトピックは `topic_parents`）
+  - 中身はプログラムだけで決める（`backend/src/process/digest.rs`）。AI で論点をまとめない。グループを AI で要約しない（人をひとくくりに名付けない）
 
 ## 技術方針
 - DB: 開発は SQLite、将来 PostgreSQL へ移行。
@@ -140,7 +141,7 @@ civic-platform/
 - CI は `.github/workflows/ci.yml`（PostgreSQL へのマイグレーションと seed の互換も確かめる）
 
 ## 開発フェーズ
-- 1 土台 → 2 コア → 3 分析 → 4 AI → 5 収集 → 6a パスキー・運営者 → 6b 参加の決まり → 6c 管理画面とトピックの期限 → 6d 市民からのトピックの提案 は済み（状況は `docs/overview.md`、各計画は `docs/plans/README.md`）
+- 1 土台 → 2 コア → 3 分析 → 4 AI → 5 収集 → 6a パスキー・運営者 → 6b 参加の決まり → 6c 管理画面とトピックの期限 → 6d 市民からのトピックの提案 → タイムラインの流れ → 意見の取りまとめ（類似判定・トピックマップ・市民のまとめ） は済み（状況は `docs/overview.md`、各計画は `docs/plans/README.md`）
 - 6e 1人を見分ける目印（乱用が見えたら。SNS か SMS を1回だけ確かめ、鍵付きのハッシュだけを持つ。ADR 0006）
 - 7 リリース準備: 全機能がそろってから、デプロイ先の選定・契約、Dockerfile / 本番用 compose / Caddy / バックアップ、ドメイン、リポジトリの Public 化、本番公開をまとめて行う（`docs/adr/0001-docker-adoption.md` の改訂を参照）。収集の定期実行もここで整える
 - 8 展開: 自治体選択 UI の有効化、近隣自治体の追加、自治体追加手順のドキュメント化

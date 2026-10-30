@@ -71,6 +71,23 @@ async function TopicView({
             {deadline && ` ・ ${deadline}`}
           </p>
           <h1 className="text-lg leading-snug font-bold">{topic.title}</h1>
+          {topic.parents.length > 0 && (
+            <p className="mt-1 text-xs leading-5 text-zinc-500">
+              市民のまとめから生まれたトピック（元:{" "}
+              {topic.parents.map((p, i) => (
+                <span key={p.id}>
+                  {i > 0 && "、"}
+                  <Link
+                    href={`/${municipality.slug}/topics/${p.id}`}
+                    className="underline underline-offset-2"
+                  >
+                    {p.title}
+                  </Link>
+                </span>
+              ))}
+              ）
+            </p>
+          )}
           {topic.tags.length > 0 && (
             <ul className="-mx-4 mt-1.5 flex gap-2 overflow-x-auto px-4 whitespace-nowrap [scrollbar-width:none]">
               {topic.tags.map((tag) => (
@@ -102,6 +119,28 @@ async function TopicView({
             }
             context={
               <div className="mb-6">
+                {topic.children.length > 0 && (
+                  <section
+                    aria-label="ここから生まれたトピック"
+                    className="mb-4"
+                  >
+                    <h2 className="text-sm font-semibold">
+                      このトピックから生まれたトピック
+                    </h2>
+                    <ul className="mt-1 flex flex-col gap-1 text-sm">
+                      {topic.children.map((c) => (
+                        <li key={c.id}>
+                          <Link
+                            href={`/${municipality.slug}/topics/${c.id}`}
+                            className="underline underline-offset-2"
+                          >
+                            {c.title}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
                 <TopicSources sources={topic.sources} />
                 <TopicFinances
                   slug={municipality.slug}

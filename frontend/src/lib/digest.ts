@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// 提言の表示の決まり（ADR 0005）
+// トピックマップと市民のまとめの表示の決まり（ADR 0005「市民のまとめ」）
 
-/** 公開した日（日本時間の「2026年10月30日」） */
+const enc = encodeURIComponent;
+
+/** 締め切った日（日本時間の「2026年10月30日」） */
 export function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo",
@@ -15,4 +17,32 @@ export function formatDate(iso: string): string {
 /** 基準の割合の表記（0.6 → 「6割」） */
 export function ratioLabel(value: number): string {
   return `${Math.round(value * 10)}割`;
+}
+
+/** まとめのページ /{slug}/digest?anchor=&topics=（起点と、近傍から選んだトピック） */
+export function digestHref(
+  slug: string,
+  anchor: string,
+  topics: string[],
+): string {
+  return `/${slug}/digest?anchor=${enc(anchor)}&topics=${topics.map(enc).join(",")}`;
+}
+
+/** まとめから提案するページ（元のトピックと、最初の意見に使う原文の意見の ID を渡す） */
+export function proposeFromDigestHref(
+  slug: string,
+  anchor: string,
+  topics: string[],
+  use: string[],
+): string {
+  return `/${slug}/proposals?anchor=${enc(anchor)}&topics=${topics.map(enc).join(",")}&use=${use.map(enc).join(",")}`;
+}
+
+/** URL の「a,b,c」を配列に */
+export function idList(value: string | string[] | undefined): string[] {
+  const s = Array.isArray(value) ? value.join(",") : (value ?? "");
+  return s
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x !== "");
 }

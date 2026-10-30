@@ -93,6 +93,12 @@ export function DraftCard({
           市民からの提案です。説明が一方の立場に寄っていないか、提案した人と違う立場の意見がわざと弱く書かれていないか、すでにある論点と同じでないかを確かめてください。取り下げると、提案した人には「見送り」と表示されます。
         </p>
       )}
+      {topic.parents.length > 0 && (
+        <p className="mt-2 text-xs leading-5 text-zinc-500">
+          市民のまとめから: {topic.parents.map((p) => p.title).join("、")}
+          （元のトピックの合意点・分かれた点を、一方の立場に寄せて書き換えていないかも確かめてください）
+        </p>
+      )}
       <TitleEditor slug={slug} topic={topic} onChange={onChange} />
       <SimilarTopics topic={topic} />
 

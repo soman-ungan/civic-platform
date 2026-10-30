@@ -56,4 +56,10 @@ export type TopicDetail = Topic & {
   sources: TopicSource[];
   /** トピックの分野に関係する市のお金。対応する費目が無ければ null */
   finances: TopicFinanceData | null;
+  /** 市民のまとめから作ったトピックなら、元のトピック */
+  parents: TopicLink[];
+  /** このトピックから生まれた、公開済みのトピック */
+  children: TopicLink[];
 };
+
+export type TopicLink = { id: string; title: string };

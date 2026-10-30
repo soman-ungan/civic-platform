@@ -2,22 +2,31 @@
 
 import { GROUP_COLORS, percent } from "@/lib/labels";
 import type {
+  DigestGroup,
+  DigestItem,
   GroupVotes,
-  RecommendationItem,
-  RecommendationTopic,
-} from "@/lib/api/types/recommendations";
+} from "@/lib/api/types/digest";
+
+/** 意見を「最初の意見に使う」の切り替え（まとめから提案するとき） */
+export type UseToggle = {
+  selected: Set<string>;
+  onToggle: (statementId: string) => void;
+};
 
 /**
- * 提言の項目（合意点・意見が分かれた点）。原文と、作ったときの数字をそのまま出す。
- * グループは元のトピックの分析での意見グループ（属性で分けたものではない。ADR 0002）
+ * 合意点・意見が分かれた点。原文と、分析に含まれた人の票をそのまま出す。
+ * グループはそのトピックの投票の傾向で分けた意見のグループ（属性で分けたものではない。ADR 0002）
  */
-export function RecommendationItems({
+export function DigestItems({
   items,
-  topics,
+  use,
 }: {
-  items: RecommendationItem[];
-  topics: Map<string, string>;
+  items: DigestItem[];
+  use?: UseToggle;
 }) {
+  if (items.length === 0) {
+    return <p className="text-sm text-zinc-500">ありません</p>;
+  }
   return (
     <ul className="flex flex-col gap-3">
       {items.map((item) => (
@@ -25,10 +34,12 @@ export function RecommendationItems({
           key={item.statement_id}
           className="rounded-2xl border border-zinc-200 p-4 break-inside-avoid dark:border-zinc-800"
         >
-          <p className="leading-7">{item.body}</p>
+          <div className="flex items-start gap-3">
+            <p className="min-w-0 flex-1 leading-7">{item.body}</p>
+            {use && <UseButton statementId={item.statement_id} use={use} />}
+          </div>
           <p className="mt-1 text-xs text-zinc-500">
-            {topics.get(item.topic_id) ?? "元のトピック"} ・ 賛成{" "}
-            {percent(item.agree, item.seen)}% ・ 反対{" "}
+            賛成 {percent(item.agree, item.seen)}% ・ 反対{" "}
             {percent(item.disagree, item.seen)}%（投票 {item.seen} 人）
           </p>
           <ul className="mt-3 flex flex-col gap-1.5">
@@ -61,45 +72,73 @@ function GroupBar({ group, color }: { group: GroupVotes; color: string }) {
         <span className="bg-sky-600" style={{ width: `${agree}%` }} />
         <span className="bg-rose-500" style={{ width: `${disagree}%` }} />
       </span>
-      <span className="w-32 shrink-0 text-right tabular-nums text-zinc-600 dark:text-zinc-400">
+      <span className="w-32 shrink-0 text-right text-zinc-600 tabular-nums dark:text-zinc-400">
         賛成{agree}% 反対{disagree}%（{group.seen}人）
       </span>
     </li>
   );
 }
 
-/** 元のトピックと、参加した人数・関わり方ごとの人数（少人数の区分は隠す） */
-export function RecommendationTopics({
-  slug,
-  topics,
-  labels,
+/** グループごとの代表的な意見（Polis の repness。AI の要約ではなく原文） */
+export function DigestGroups({
+  groups,
+  use,
 }: {
-  slug: string;
-  topics: RecommendationTopic[];
-  labels: [key: string, label: string][];
+  groups: DigestGroup[];
+  use?: UseToggle;
 }) {
   return (
     <ul className="flex flex-col gap-3">
-      {topics.map((t) => (
-        <li key={t.id} className="text-sm">
-          <a
-            href={`/${slug}/topics/${t.id}`}
-            className="font-medium underline underline-offset-2"
+      {groups.map((g, i) => (
+        <li
+          key={g.label}
+          className="rounded-2xl border border-zinc-200 p-4 break-inside-avoid dark:border-zinc-800"
+        >
+          <p
+            className="text-sm font-semibold"
+            style={{ color: GROUP_COLORS[i % GROUP_COLORS.length] }}
           >
-            {t.title}
-          </a>
-          <p className="mt-0.5 text-xs leading-5 text-zinc-500">
-            分析の対象 {t.participants} 人（
-            {labels
-              .map(([key, label]) => {
-                const n = t.residency[key as keyof typeof t.residency];
-                return `${label} ${n == null ? "—" : `${n}人`}`;
-              })
-              .join("・")}
-            ）
+            グループ{g.label}（{g.members}人）
           </p>
+          <ul className="mt-2 flex flex-col gap-2">
+            {g.representative.map((r) => (
+              <li key={r.statement_id} className="flex items-start gap-3">
+                <p className="min-w-0 flex-1 text-sm leading-6">
+                  <span className="mr-1 text-xs text-zinc-500">
+                    {r.repful_for === "agree" ? "多くが賛成" : "多くが反対"}
+                  </span>
+                  {r.body}
+                </p>
+                {use && <UseButton statementId={r.statement_id} use={use} />}
+              </li>
+            ))}
+          </ul>
         </li>
       ))}
     </ul>
+  );
+}
+
+function UseButton({
+  statementId,
+  use,
+}: {
+  statementId: string;
+  use: UseToggle;
+}) {
+  const on = use.selected.has(statementId);
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => use.onToggle(statementId)}
+      className={`h-8 shrink-0 rounded-full border px-3 text-xs print:hidden ${
+        on
+          ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+          : "border-zinc-300 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+      }`}
+    >
+      {on ? "使う ✓" : "使う"}
+    </button>
   );
 }

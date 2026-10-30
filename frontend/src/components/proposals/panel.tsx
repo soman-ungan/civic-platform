@@ -44,9 +44,12 @@ const INPUT =
 export function ProposalPanel({
   slug,
   initial,
+  from,
 }: {
   slug: string;
   initial: Proposals;
+  /** 市民のまとめから提案するとき: 元のトピック（起点が先）と、最初の意見に使う原文 */
+  from?: ProposalSource;
 }) {
   const api = proposalsApi(slug);
   const { data, reload } = useApi<Proposals>(api, undefined, initial);
@@ -70,6 +73,7 @@ export function ProposalPanel({
       >
         <ProposalForm
           api={api}
+          from={from}
           onSubmitted={() => {
             setDone(true);
             void reload();
@@ -155,19 +159,31 @@ function PermissionGate({
   }
 }
 
+/** 市民のまとめから提案するときに、フォームへ渡すもの */
+export type ProposalSource = {
+  parents: { id: string; title: string }[];
+  statements: string[];
+};
+
 function ProposalForm({
   api,
+  from,
   onSubmitted,
   onRejected,
 }: {
   api: string;
+  from?: ProposalSource;
   onSubmitted: () => void;
   /** 週1件などで断られた（`permission` を読み直す） */
   onRejected: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [statements, setStatements] = useState<string[]>([""]);
+  const [statements, setStatements] = useState<string[]>(
+    from && from.statements.length > 0
+      ? from.statements.slice(0, MAX_PROPOSAL_STATEMENTS)
+      : [""],
+  );
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -190,7 +206,12 @@ function ProposalForm({
     try {
       await apiFetch<Proposal>(api, {
         method: "POST",
-        body: { title, description, statements: filled },
+        body: {
+          title,
+          description,
+          statements: filled,
+          parent_ids: from?.parents.map((p) => p.id) ?? [],
+        },
       });
       setTitle("");
       setDescription("");
@@ -209,6 +230,19 @@ function ProposalForm({
       onSubmit={submit}
       className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
     >
+      {from && from.parents.length > 0 && (
+        <div className="mb-4 rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900">
+          <p className="text-xs font-medium">元のトピック（まとめから）</p>
+          <ul className="mt-1 list-disc pl-5 text-xs leading-5 text-zinc-600 dark:text-zinc-400">
+            {from.parents.map((p) => (
+              <li key={p.id}>{p.title}</li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs leading-5 text-zinc-500">
+            公開されると、元のトピックからこのトピックをたどれるようになります。
+          </p>
+        </div>
+      )}
       <p className="text-xs leading-5 text-zinc-500">
         運営者が確かめてから公開します。公開されるまで、ほかの人には見えません。提案は1つのまちに1週間に1件までです。提案した人が誰かは、公開しません。
       </p>
