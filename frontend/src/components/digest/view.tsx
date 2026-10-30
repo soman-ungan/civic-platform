@@ -3,7 +3,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { BUTTON_PRIMARY, BUTTON_SECONDARY } from "@/components/ui/styles";
 import type { Digest, TopicDigest } from "@/lib/api/types/digest";
@@ -112,32 +112,52 @@ function TopicSection({
   dividedThreshold: number;
   use: UseToggle;
 }) {
+  const head = useRef<HTMLDivElement>(null);
+  const [headHeight, setHeadHeight] = useState(0);
+  const [open, setOpen] = useState(false);
+  // 1段目の高さを測り、2段目をその下に貼り付ける
+  useEffect(() => {
+    const el = head.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setHeadHeight(el.offsetHeight));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <section className="flex flex-col gap-4 border-t border-zinc-200 dark:border-zinc-800">
-      <div>
-        {/* トピックの題は、このトピックの節を見ている間は上に残す */}
-        <h2 className={STICKY_TOPIC}>
+    <section
+      className="flex flex-col gap-4 border-t border-zinc-200 dark:border-zinc-800"
+      style={{ "--topic-head": `${headHeight}px` } as React.CSSProperties}
+    >
+      {/* トピックの題と説明は、このトピックの節を見ている間は上に残す（説明は2行まで。押すと全部） */}
+      <div ref={head} className={STICKY_TOPIC}>
+        <h2 className="truncate text-base font-bold">
           <Link
             href={`/${slug}/topics/${t.id}`}
-            className="min-w-0 truncate text-base font-bold underline-offset-2 hover:underline"
+            className="underline-offset-2 hover:underline"
           >
             {t.title}
           </Link>
         </h2>
         {t.description && (
-          <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}
+            className={`mt-0.5 block text-left text-xs leading-5 text-zinc-600 dark:text-zinc-400 ${open ? "" : "line-clamp-2"}`}
+          >
             {t.description}
-          </p>
+          </button>
         )}
-        <p className="mt-1 text-xs leading-5 text-zinc-500">
-          分析の対象 {t.analyzed} 人
-          {t.sufficient &&
-            `（${RESIDENCY_ORDER.map((key) => {
-              const n = t.residency[key];
-              return `${RESIDENCY_SHORT_LABELS[key]} ${n == null ? "—" : `${n}人`}`;
-            }).join("・")}）`}
-        </p>
       </div>
+      <p className="-mt-2 text-xs leading-5 text-zinc-500">
+        分析の対象 {t.analyzed} 人
+        {t.sufficient &&
+          `（${RESIDENCY_ORDER.map((key) => {
+            const n = t.residency[key];
+            return `${RESIDENCY_SHORT_LABELS[key]} ${n == null ? "—" : `${n}人`}`;
+          }).join("・")}）`}
+      </p>
       {!t.sufficient ? (
         <p className="text-sm text-zinc-500">
           分析の対象が5人に満たないので、合意点などは出していません。

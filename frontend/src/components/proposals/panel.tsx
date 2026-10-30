@@ -161,7 +161,7 @@ function PermissionGate({
 
 /** 市民のまとめから提案するときに、フォームへ渡すもの */
 export type ProposalSource = {
-  parents: { id: string; title: string }[];
+  parents: { id: string; title: string; description: string }[];
   statements: string[];
 };
 
@@ -233,12 +233,28 @@ function ProposalForm({
       {from && from.parents.length > 0 && (
         <div className="mb-4 rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900">
           <p className="text-xs font-medium">元のトピック（まとめから）</p>
-          <ul className="mt-1 list-disc pl-5 text-xs leading-5 text-zinc-600 dark:text-zinc-400">
+          {/* 題を押すと説明が開く（元の論点を見ながら書けるように） */}
+          <ul className="mt-1 flex flex-col gap-1">
             {from.parents.map((p) => (
-              <li key={p.id}>{p.title}</li>
+              <li key={p.id}>
+                <details className="group text-xs leading-5">
+                  <summary className="cursor-pointer list-none text-zinc-700 dark:text-zinc-300">
+                    <span
+                      aria-hidden
+                      className="mr-1 inline-block text-zinc-400 transition-transform group-open:rotate-90"
+                    >
+                      ▶
+                    </span>
+                    {p.title}
+                  </summary>
+                  <p className="mt-1 pl-4 text-zinc-600 dark:text-zinc-400">
+                    {p.description || "（説明はありません）"}
+                  </p>
+                </details>
+              </li>
             ))}
           </ul>
-          <p className="mt-1 text-xs leading-5 text-zinc-500">
+          <p className="mt-2 text-xs leading-5 text-zinc-500">
             公開されると、元のトピックからこのトピックをたどれるようになります。
           </p>
         </div>

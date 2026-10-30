@@ -48,7 +48,12 @@ export function DigestItems({
       {items.map((item) => (
         <li
           key={item.statement_id}
-          className="rounded-2xl border border-zinc-200 p-4 break-inside-avoid dark:border-zinc-800"
+          className={`rounded-2xl border p-4 break-inside-avoid ${
+            item.kind === "consensus"
+              ? // 合意点は、タイムラインの「みんなの合意点」と同じ緑
+                "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40"
+              : "border-zinc-200 dark:border-zinc-800"
+          }`}
         >
           <div className="flex items-start gap-3">
             <p className="min-w-0 flex-1 leading-7">{item.body}</p>

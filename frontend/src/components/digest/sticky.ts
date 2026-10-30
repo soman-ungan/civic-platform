@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// まとめで画面の上に固定する見出し。重ねる位置がずれないよう、高さと位置はここだけで決める
-// （「みんなの意見」の components/analysis/sticky.ts と同じ考え方）
+// まとめで画面の上に固定する見出し（「みんなの意見」の components/analysis/sticky.ts と同じ考え方）。
+// 1段目（トピックの題と説明）は説明の長さで高さが変わるので、測った高さを CSS の変数 --topic-head に入れ、
+// 2段目はその下に貼り付ける。sticky は親の範囲の中でだけ貼り付くので、どちらもトピックの節（section）の直下に置く
 
-/** 1段目: トピックの題（1行に収め、高さを固定する）。そのトピックの節を表示している間だけ貼り付く */
+/** 1段目: トピックの題と説明。そのトピックの節を見ている間は上に残す */
 export const STICKY_TOPIC =
-  "sticky top-0 z-20 -mx-4 flex h-11 items-center gap-2 bg-background/95 px-4 backdrop-blur print:static";
+  "sticky top-0 z-20 -mx-4 bg-background/95 px-4 pt-2 pb-2 backdrop-blur print:static";
 
-/** 2段目: 節の見出し（合意点・意見が分かれた点・代表的な意見）。1段目（2.75rem）の下に貼り付き、節が終わると流れる */
+/** 2段目: 節の見出し（合意点・意見が分かれた点・代表的な意見）。1段目の下に貼り付き、節が終わると流れる */
 export const STICKY_BLOCK =
-  "sticky top-11 z-10 -mx-4 bg-background/95 px-4 py-1.5 backdrop-blur print:static";
+  "sticky top-[var(--topic-head,0px)] z-10 -mx-4 bg-background/95 px-4 py-1.5 backdrop-blur print:static";

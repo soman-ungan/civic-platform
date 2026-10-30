@@ -69,7 +69,11 @@ async function ProposalsView({
         }
       }
       from = {
-        parents: digest.topics.map((t) => ({ id: t.id, title: t.title })),
+        parents: digest.topics.map((t) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+        })),
         statements: [...used].flatMap((id) => bodies.get(id) ?? []),
       };
     }

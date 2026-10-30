@@ -44,35 +44,35 @@ export async function DigestDetailView({
 
   return (
     <>
-      <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800 print:border-0">
-        <div className="mx-auto w-full max-w-md px-4 pb-3 print:max-w-none">
-          {!inSheet && (
-            <Link
-              href={consensusMapHref(municipality.slug, {
-                focus: digest?.anchor ?? anchor,
-              })}
-              className="inline-flex h-10 items-center text-sm text-zinc-600 print:hidden dark:text-zinc-400"
-            >
-              ← みんなの合意点
-            </Link>
-          )}
-          <p className="mb-0.5 text-xs text-zinc-500">
-            {municipality.name}の市民の投票のまとめ
-          </p>
-          <h1 className="text-lg leading-snug font-bold">
-            {digest?.topics[0]?.title ?? "まとめ"}
-            {digest && digest.topics.length > 1 && (
-              <span className="text-sm font-normal text-zinc-500">
-                {" "}
-                ほか{digest.topics.length - 1}件
-              </span>
-            )}
-          </h1>
-        </div>
-      </header>
-
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain print:overflow-visible">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-8 px-4 pt-4 print:max-w-none">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-8 px-4 print:max-w-none">
+          {/* まとめの見出しは、スクロールすると流れる（トピックの題と説明を上に残すため） */}
+          <header className="-mx-4 border-b border-zinc-200 dark:border-zinc-800 print:border-0">
+            <div className="px-4 pb-3">
+              {!inSheet && (
+                <Link
+                  href={consensusMapHref(municipality.slug, {
+                    focus: digest?.anchor ?? anchor,
+                  })}
+                  className="inline-flex h-10 items-center text-sm text-zinc-600 print:hidden dark:text-zinc-400"
+                >
+                  ← みんなの合意点
+                </Link>
+              )}
+              <p className="mb-0.5 text-xs text-zinc-500">
+                {municipality.name}の市民の投票のまとめ
+              </p>
+              <h1 className="text-lg leading-snug font-bold">
+                {digest?.topics[0]?.title ?? "まとめ"}
+                {digest && digest.topics.length > 1 && (
+                  <span className="text-sm font-normal text-zinc-500">
+                    {" "}
+                    ほか{digest.topics.length - 1}件
+                  </span>
+                )}
+              </h1>
+            </div>
+          </header>
           {digest ? (
             <DigestView
               slug={municipality.slug}
