@@ -119,7 +119,10 @@ function TopicSection({
   useEffect(() => {
     const el = head.current;
     if (!el) return;
-    const observer = new ResizeObserver(() => setHeadHeight(el.offsetHeight));
+    // 小数まで測る（offsetHeight は整数に丸めるので、2段目との間に1px未満の隙間ができる）
+    const observer = new ResizeObserver(() =>
+      setHeadHeight(el.getBoundingClientRect().height),
+    );
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
@@ -127,7 +130,12 @@ function TopicSection({
   return (
     <section
       className="flex flex-col gap-4 border-t border-zinc-200 dark:border-zinc-800"
-      style={{ "--topic-head": `${headHeight}px` } as React.CSSProperties}
+      // 2段目は1段目に1pxだけ重ねる（端数で隙間ができ、下を流れる中身が見えないように）
+      style={
+        {
+          "--topic-head": `${Math.max(0, headHeight - 1)}px`,
+        } as React.CSSProperties
+      }
     >
       {/* トピックの題と説明は、このトピックの節を見ている間は上に残す（説明は2行まで。押すと全部） */}
       <div ref={head} className={STICKY_TOPIC}>
