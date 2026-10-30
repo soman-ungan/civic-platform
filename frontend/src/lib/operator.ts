@@ -9,6 +9,7 @@ export const OPERATOR_TABS = [
   { key: "scheduled", label: "公開待ち" },
   { key: "queue", label: "確認待ち" },
   { key: "published", label: "公開中" },
+  { key: "recommendations", label: "提言" },
 ] as const;
 
 export type OperatorTab = (typeof OPERATOR_TABS)[number]["key"];

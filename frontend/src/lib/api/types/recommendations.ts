@@ -68,3 +68,27 @@ export type RecommendationDetail = {
   second_round: RecommendationLink[];
   items: RecommendationItem[];
 };
+
+/** 提言にできるトピック（運営者の API） */
+export type RecommendationCandidate = {
+  id: string;
+  title: string;
+  closes_at: string | null;
+  participants: number;
+  /** 分野タグの名前 */
+  fields: string[];
+};
+
+/** GET /api/operator/municipalities/{slug}/recommendation-candidates */
+export type RecommendationCandidates = {
+  topics: RecommendationCandidate[];
+  /** まとまりの候補（同じ分野で似ているトピックの id） */
+  groups: string[][];
+  /** 子にできる公開済みの提言 */
+  recommendations: RecommendationSummary[];
+};
+
+/** 作る・AI に書き直してもらうときの応答。text_error は AI に頼めなかった理由 */
+export type RecommendationWithText = RecommendationDetail & {
+  text_error: string | null;
+};

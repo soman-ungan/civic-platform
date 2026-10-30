@@ -145,6 +145,10 @@ async function RecommendationView({
           />
 
           <p className="text-xs leading-5 text-zinc-500">
+            グループ
+            A・B…は、元のトピックごとの投票の傾向で分けた意見のグループです（年齢や住む地区などで分けたものではありません）。トピックが違えば、同じ記号でも別のグループです。
+          </p>
+          <p className="text-xs leading-5 text-zinc-500">
             この提言の文は、市民の投票した意見の原文です。見出しと前書きのほかは、AI
             も運営者も書き足していません。数字は提言を作ったときのものです。
           </p>

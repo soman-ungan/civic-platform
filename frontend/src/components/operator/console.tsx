@@ -10,6 +10,7 @@ import { OPERATOR_TABS, type OperatorTab, operatorHref } from "@/lib/operator";
 import { Drafts } from "./drafts";
 import { Published } from "./published";
 import { Queue } from "./queue";
+import { Recommendations } from "./recommendations";
 import { Scheduled } from "./scheduled";
 
 /**
@@ -74,6 +75,9 @@ export function OperatorConsole({
           {tab === "scheduled" && <Scheduled key={slug} slug={slug} />}
           {tab === "queue" && <Queue key={slug} slug={slug} />}
           {tab === "published" && <Published key={slug} slug={slug} />}
+          {tab === "recommendations" && (
+            <Recommendations key={slug} slug={slug} />
+          )}
         </div>
       </div>
     </>
