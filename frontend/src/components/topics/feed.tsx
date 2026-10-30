@@ -95,6 +95,13 @@ export function TopicFeed({
             ))}
           </ul>
         )}
+        {/* 市民からのトピックの提案（ADR 0005）。運営者が確かめてから公開する */}
+        <Link
+          href={`/${slug}/proposals`}
+          className="mt-4 flex h-12 items-center justify-center rounded-full border border-dashed border-zinc-400 text-sm text-zinc-700 dark:border-zinc-600 dark:text-zinc-300"
+        >
+          ＋ トピックを提案する
+        </Link>
       </div>
     </>
   );

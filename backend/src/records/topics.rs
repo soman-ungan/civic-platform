@@ -7,12 +7,15 @@
 
 use sqlx::SqlitePool;
 
+use crate::shared::limits::MAX_STATEMENT_CHARS;
 use crate::shared::status::Publication;
 
 #[derive(Debug, sqlx::FromRow)]
 pub struct DraftSummary {
     pub id: String,
     pub municipality_id: String,
+    /// assembly（会議録から）/ citizen（市民の提案）
+    pub source_type: String,
     pub title: String,
     pub created_at: String,
 }
@@ -20,7 +23,7 @@ pub struct DraftSummary {
 /// 下書きの一覧（古い順）
 pub async fn list(pool: &SqlitePool) -> Result<Vec<DraftSummary>, sqlx::Error> {
     sqlx::query_as(
-        "SELECT id, municipality_id, title, created_at FROM topics
+        "SELECT id, municipality_id, source_type, title, created_at FROM topics
          WHERE status = 'draft' ORDER BY created_at",
     )
     .fetch_all(pool)
@@ -63,13 +66,15 @@ pub struct TopicSummary {
     pub created_at: String,
     pub slug: String,
     pub status: String,
+    /// assembly（会議録から）/ citizen（市民の提案）
+    pub source_type: String,
     pub title: String,
 }
 
 /// すべてのトピック（下書き・公開済み・取り下げ。自治体ごとに古い順）
 pub async fn list_all(pool: &SqlitePool) -> Result<Vec<TopicSummary>, sqlx::Error> {
     sqlx::query_as(
-        "SELECT t.id, t.created_at, m.slug, t.status, t.title
+        "SELECT t.id, t.created_at, m.slug, t.status, t.source_type, t.title
          FROM topics t JOIN municipalities m ON m.id = t.municipality_id
          ORDER BY m.slug, t.created_at",
     )
@@ -93,6 +98,8 @@ pub struct DraftDetail {
     pub id: String,
     pub municipality_id: String,
     pub status: String,
+    /// assembly（会議録から）/ citizen（市民の提案。提案した人は出さない）
+    pub source_type: String,
     pub title: String,
     pub description: String,
     pub created_at: String,
@@ -114,6 +121,7 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
         id: String,
         municipality_id: String,
         status: String,
+        source_type: String,
         title: String,
         description: String,
         created_at: String,
@@ -121,7 +129,8 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
         closes_at: Option<String>,
     }
     let Some(row): Option<Row> = sqlx::query_as(
-        "SELECT id, municipality_id, status, title, description, created_at, published_at, closes_at
+        "SELECT id, municipality_id, status, source_type, title, description, created_at,
+                published_at, closes_at
          FROM topics WHERE id = $1",
     )
     .bind(topic_id)
@@ -171,6 +180,7 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
         id: row.id,
         municipality_id: row.municipality_id,
         status: row.status,
+        source_type: row.source_type,
         title: row.title,
         description: row.description,
         created_at: row.created_at,
@@ -186,9 +196,10 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
 impl DraftDetail {
     pub fn render(&self) -> String {
         let mut out = format!(
-            "{}  [{}]\n# {}\n\n{}\n（説明 {} 字）\n\n## 出典\n",
+            "{}  [{}]{}\n# {}\n\n{}\n（説明 {} 字）\n\n## 出典\n",
             self.id,
             self.status,
+            source_mark(&self.source_type),
             self.title,
             self.description,
             self.description.chars().count()
@@ -224,6 +235,15 @@ impl DraftDetail {
             out.push_str(&format!("- {name}（{id}、{by}）\n"));
         }
         out
+    }
+}
+
+/// 一覧と詳細で、市民の提案に付ける印（議会のトピックには付けない）
+pub fn source_mark(source_type: &str) -> &'static str {
+    if source_type == "citizen" {
+        "  市民の提案"
+    } else {
+        ""
     }
 }
 
@@ -285,9 +305,9 @@ pub enum EditError {
 fn check_body(body: &str) -> Result<String, EditError> {
     let body = body.trim();
     let chars = body.chars().count();
-    if !(1..=140).contains(&chars) {
+    if !(1..=MAX_STATEMENT_CHARS).contains(&chars) {
         return Err(EditError::Invalid(format!(
-            "意見は1〜140文字にしてください（{chars}文字）"
+            "意見は1〜{MAX_STATEMENT_CHARS}文字にしてください（{chars}文字）"
         )));
     }
     Ok(body.to_owned())

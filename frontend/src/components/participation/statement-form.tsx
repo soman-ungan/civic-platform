@@ -35,7 +35,7 @@ type Message =
 
 /**
  * 「自分の意見を追加」。返信やコメントではなく、投票カードに並ぶ新しい意見として投稿する。
- * 投稿できるかは backend の `posting` を見る（パスキーの登録・分析を見られること・1トピック1件。ADR 0005・0006）
+ * 投稿できるかは backend の `posting` を見る（パスキーの登録・分析を見られること・投稿の数の上限。ADR 0005・0006）
  */
 export function StatementForm({
   topicBase,
@@ -199,7 +199,7 @@ export function StatementForm({
         </PostingNote>
       ) : posting.status === "limit_reached" ? (
         <PostingNote>
-          このトピックには、もう意見を投稿しています（1トピック1件まで）。ほかの意見への投票は続けられます。
+          このトピックに投稿できる意見の数に達しました。ほかの意見への投票は続けられます。
         </PostingNote>
       ) : !open ? (
         <>
@@ -225,7 +225,7 @@ export function StatementForm({
             あなたの意見（{MAX_STATEMENT_CHARS}文字まで）
           </label>
           <p className="mt-1 text-xs text-zinc-500">
-            他の人の意見への返信ではなく、みんなが賛成・反対できる1つの意見として書いてください。人ではなく、政策や事業についての意見にしてください。投稿できるのは1トピック1件です。
+            他の人の意見への返信ではなく、みんなが賛成・反対できる1つの意見として書いてください。人ではなく、政策や事業についての意見にしてください。投稿できるのは1トピック1件です（トピックを提案した人は3件）。
           </p>
           <p className="mt-1 text-xs text-zinc-500">
             投稿は公開前に AI（Anthropic の

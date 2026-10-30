@@ -15,6 +15,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::parse::Utterance;
+use crate::shared::limits::{MAX_DESCRIPTION_CHARS, MAX_STATEMENT_CHARS, MAX_TITLE_CHARS};
 
 /// 1つの会議録から作るトピックの最大数。公の会議で論じられたものは取りこぼさないよう、
 /// 多めにして、すべて下書きにして運営者の承認を待つ（2026-10-28 ユーザーと決定。前は5件）。
@@ -26,10 +27,6 @@ pub const MAX_STATEMENTS: usize = 5;
 pub const MIN_STATEMENTS: usize = 3;
 /// 引用の最大文字数（topic_sources.quote と同じ）
 pub const MAX_QUOTE_CHARS: usize = 200;
-const MAX_TITLE_CHARS: usize = 60;
-/// 説明の目安の文字数（出典を除く）。超えても捨てず、運営者に知らせる
-pub const MAX_DESCRIPTION_CHARS: usize = 140;
-const MAX_STATEMENT_CHARS: usize = 140;
 
 pub const SYSTEM_PROMPT: &str = "\
 あなたは、自治体の課題について市民が意見を出し合い、立場を超えて合意できる点を探す Web サービスの編集者です。

@@ -222,7 +222,7 @@ cargo run -- import minutes -m otawara --file ../data/private/minutes/2026R08_02
 cargo run -- list budget [-m otawara]          # 予算（自治体・年度・状態・歳出）
 cargo run -- list settlement [-m otawara]      # 決算カード（年度・歳出・人口）
 cargo run -- list minutes [-m otawara]         # 取り込んだ会議録（作ったトピックの数・作り方）
-cargo run -- list topic [-m otawara]           # トピック（状態つき）
+cargo run -- list topic [-m otawara]           # トピック（状態つき。市民の提案には「市民の提案」）
 cargo run -- list topic --drafts               # 下書きのトピックだけ
 cargo run -- list statement                    # 確認待ち（flagged）と判定待ち（pending）の意見
 cargo run -- list statement --status approved --topic <id>

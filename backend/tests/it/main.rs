@@ -17,6 +17,7 @@ mod api {
     mod operator;
     mod participant;
     mod participation;
+    mod proposals;
     mod topics;
 }
 

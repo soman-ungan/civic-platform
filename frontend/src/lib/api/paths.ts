@@ -16,6 +16,11 @@ export function topicApi(slug: string, topicId: string): string {
   return `${municipalityApi(slug)}/topics/${enc(topicId)}`;
 }
 
+/** /api/municipalities/{slug}/proposals（トピックの提案と、自分の提案の一覧） */
+export function proposalsApi(slug: string): string {
+  return `${municipalityApi(slug)}/proposals`;
+}
+
 /** パスキーでの登録とログイン（ADR 0006） */
 export const AUTH_API = {
   me: "/api/auth/me",

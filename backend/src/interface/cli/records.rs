@@ -194,8 +194,12 @@ pub async fn list(ctx: &Ctx, args: ListArgs) -> anyhow::Result<()> {
             }
             for d in items {
                 println!(
-                    "{}  {}  [{}]  {}",
-                    d.id, d.created_at, d.municipality_id, d.title
+                    "{}  {}  [{}]  {}{}",
+                    d.id,
+                    d.created_at,
+                    d.municipality_id,
+                    d.title,
+                    topics::source_mark(&d.source_type)
                 );
             }
         }
@@ -210,8 +214,13 @@ pub async fn list(ctx: &Ctx, args: ListArgs) -> anyhow::Result<()> {
             }
             for r in rows {
                 println!(
-                    "{}  {}  {}  [{}]  {}",
-                    r.id, r.created_at, r.slug, r.status, r.title
+                    "{}  {}  {}  [{}]  {}{}",
+                    r.id,
+                    r.created_at,
+                    r.slug,
+                    r.status,
+                    r.title,
+                    topics::source_mark(&r.source_type)
                 );
             }
         }

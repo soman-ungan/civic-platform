@@ -231,7 +231,7 @@ fn without_spaces(text: &str) -> String {
 }
 
 /// 本文に含まれる公人の氏名。名字だけの一致は見ない（地名などと重なるため。AI の「人物」に任せる）
-fn official_name_in(body: &str, officials: &[String]) -> Option<String> {
+pub fn official_name_in(body: &str, officials: &[String]) -> Option<String> {
     let body = without_spaces(body);
     officials
         .iter()

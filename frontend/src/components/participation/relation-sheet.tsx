@@ -17,17 +17,20 @@ import type { ResidencyType } from "@/lib/api/types/participation";
 const RESIDENCY_TYPES = Object.keys(RESIDENCY_LABELS) as ResidencyType[];
 
 /**
- * その自治体で初めて投票する前に、1回だけ自治体との関わり方を聞くボトムシート。
+ * その自治体で初めて投票する（かトピックを提案する）前に、1回だけ自治体との関わり方を聞くボトムシート。
  * 地区は聞かない（市民を地区で分けると分断を煽るため。docs/adr/0002-participant-attributes.md）
  */
 export function RelationSheet({
   slug,
   onClose,
   onSaved,
+  submitLabel = "保存して投票する",
 }: {
   slug: string;
   onClose: () => void;
   onSaved: () => void;
+  /** 保存のボタンの文 */
+  submitLabel?: string;
 }) {
   const [residency, setResidency] = useState<ResidencyType | null>(null);
   const [saving, setSaving] = useState(false);
@@ -108,7 +111,7 @@ export function RelationSheet({
             disabled={!residency || saving}
             className={`h-12 flex-[2] text-sm ${BUTTON_PRIMARY}`}
           >
-            {saving ? "保存中…" : "保存して投票する"}
+            {saving ? "保存中…" : submitLabel}
           </button>
         </div>
       </form>

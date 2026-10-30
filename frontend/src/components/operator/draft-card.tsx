@@ -18,6 +18,7 @@ import type {
   OperatorTopic,
   TagChoice,
 } from "@/lib/api/types/operator";
+import { SOURCE_LABELS } from "@/lib/labels";
 import { STATEMENT_STATUS_LABELS, formatDateTime } from "@/lib/operator";
 import { MAX_STATEMENT_CHARS, countChars } from "@/lib/statement";
 
@@ -70,8 +71,18 @@ export function DraftCard({
   return (
     <article className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
       <p className="text-xs text-zinc-500">
+        {topic.source_type === "citizen" && (
+          <span className={`mr-2 rounded px-1.5 py-0.5 ${BADGE_AMBER}`}>
+            {SOURCE_LABELS.citizen}
+          </span>
+        )}
         作成 {formatDateTime(topic.created_at)}
       </p>
+      {topic.source_type === "citizen" && (
+        <p className="mt-2 text-xs leading-5 text-zinc-500">
+          市民からの提案です。説明が一方の立場に寄っていないか、提案した人と違う立場の意見がわざと弱く書かれていないか、すでにある論点と同じでないかを確かめてください。取り下げると、提案した人には「見送り」と表示されます。
+        </p>
+      )}
       <TitleEditor slug={slug} topic={topic} onChange={onChange} />
 
       {topic.sources.length > 0 && (
