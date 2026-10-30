@@ -11,10 +11,13 @@
 //! - 既存のトピック（公開中・下書き）と同じ論点なら、AI が `same_as` で印を付ける。
 //!   一覧に無いトピックへの印は無視する（docs/plans/2026-10-28-similar-topics.md）
 
+use std::collections::HashSet;
+
 use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::parse::Utterance;
+use crate::process::similarity;
 use crate::shared::limits::{MAX_DESCRIPTION_CHARS, MAX_STATEMENT_CHARS, MAX_TITLE_CHARS};
 
 /// 1つの会議録から作るトピックの最大数。公の会議で論じられたものは取りこぼさないよう、
@@ -118,6 +121,47 @@ pub struct ExistingTopic {
     pub status: String,
     pub title: String,
     pub description: String,
+}
+
+/// 既存のトピックがこれ以下なら、全部を AI に渡す
+pub const COMPARE_ALL_TOPICS: usize = 100;
+
+/// AI に渡す既存のトピック。多ければ、その日の発言に似ている順（`process::similarity`）の
+/// `COMPARE_ALL_TOPICS` 件に絞る（足りない分は新しいものから。並びは元の古い順のまま）。
+/// 印の確かめ（`check`）には絞る前の一覧を使う
+pub fn existing_for_prompt(
+    existing: &[ExistingTopic],
+    utterances: &[Utterance],
+) -> Vec<ExistingTopic> {
+    if existing.len() <= COMPARE_ALL_TOPICS {
+        return existing.to_vec();
+    }
+    let index = similarity::Index::build(
+        existing
+            .iter()
+            .map(|t| (t.id.clone(), format!("{} {}", t.title, t.description))),
+    );
+    let speech: String = utterances
+        .iter()
+        .map(|u| u.body.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut picked: HashSet<String> = index
+        .top_k(&speech, COMPARE_ALL_TOPICS)
+        .into_iter()
+        .map(|m| m.id)
+        .collect();
+    for t in existing.iter().rev() {
+        if picked.len() >= COMPARE_ALL_TOPICS {
+            break;
+        }
+        picked.insert(t.id.clone());
+    }
+    existing
+        .iter()
+        .filter(|t| picked.contains(&t.id))
+        .cloned()
+        .collect()
 }
 
 /// AI に渡す入力。既存のトピックの一覧と、番号を振った発言（職員は職名だけ）
@@ -549,6 +593,23 @@ mod tests {
             title: "放課後児童クラブをどう増やすか".into(),
             description: "説明".into(),
         }]
+    }
+
+    #[test]
+    fn narrows_existing_topics_only_when_many() {
+        assert_eq!(existing_for_prompt(&existing(), &utterances()), existing());
+        let mut many: Vec<ExistingTopic> = (0..COMPARE_ALL_TOPICS + 10)
+            .map(|i| ExistingTopic {
+                id: format!("t{i}"),
+                status: "published".into(),
+                title: format!("道路の舗装その{i}"),
+                description: "説明".into(),
+            })
+            .collect();
+        many.insert(3, existing()[0].clone());
+        let picked = existing_for_prompt(&many, &utterances());
+        assert_eq!(picked.len(), COMPARE_ALL_TOPICS);
+        assert!(picked.iter().any(|t| t.id == "t-open"));
     }
 
     #[test]

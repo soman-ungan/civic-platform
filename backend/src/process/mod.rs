@@ -7,9 +7,11 @@
 //! - `analysis`: Polis の数理（PCA・クラスタリング・代表意見・合意点。docs/polis-math.md）
 //! - `progress`: 参加のルール（進み具合・分析を見られるか・参加できるトピックか）
 //! - `publishing`: 下書きの自動公開（公開待ちを、決まった時刻に1件ずつ）
+//! - `similarity`: 文の似ている度合い（トピックと意見の類似判定の候補を絞る）
 
 pub mod analysis;
 pub mod moderation;
 pub mod progress;
 pub mod publishing;
+pub mod similarity;
 pub mod tagging;

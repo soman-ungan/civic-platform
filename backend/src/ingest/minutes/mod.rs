@@ -223,13 +223,14 @@ fn speeches(prepared: &Prepared) -> Vec<Utterance> {
 pub async fn prompt(pool: &SqlitePool, input: &Input) -> anyhow::Result<Prompt> {
     let prepared = prepare(pool, input).await?;
     let existing = existing_topics(pool, &input.municipality_id).await?;
+    let speeches = speeches(&prepared);
     Ok(Prompt {
         system: extract::SYSTEM_PROMPT.into(),
         user: extract::build_input(
             &input.title,
             &input.held_on,
-            &speeches(&prepared),
-            &existing,
+            &speeches,
+            &extract::existing_for_prompt(&existing, &speeches),
         ),
         schema: extract::schema(),
         attachment: None,
@@ -260,7 +261,12 @@ async fn call_api(
         purpose: Purpose::Extraction,
         model: model.to_owned(),
         system: extract::SYSTEM_PROMPT.into(),
-        user: extract::build_input(&input.title, &input.held_on, speeches, existing),
+        user: extract::build_input(
+            &input.title,
+            &input.held_on,
+            speeches,
+            &extract::existing_for_prompt(existing, speeches),
+        ),
         schema: extract::schema(),
         effort: Effort::Medium,
         max_tokens: 32_000,

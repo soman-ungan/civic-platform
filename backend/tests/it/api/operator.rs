@@ -631,3 +631,43 @@ async fn drafts_are_queued_and_publish_slots_are_managed_per_municipality() {
     .await;
     assert_eq!(res.status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn drafts_show_similar_topics_in_the_same_municipality() {
+    let pool = test_pool().await;
+    setup(&pool).await;
+    sqlx::raw_sql(
+        "UPDATE topics SET title = '路線バスを増便すべきか', description = '通学の足として路線バスの本数を増やす' WHERE id = 't1';
+         UPDATE topics SET title = '路線バスを増便すべきか', description = '通学の足として路線バスの本数を増やす' WHERE id = 't2';
+         INSERT INTO topics (id, municipality_id, title, description, source_type, status, created_at) VALUES
+            ('t3', '092100', '路線バスの本数を増やすべきか', '通学のために路線バスを増便する', 'assembly', 'published', '2026-10-27T00:00:00Z'),
+            ('t4', '092100', '図書館の開館時間', '夜まで開ける', 'assembly', 'published', '2026-10-27T00:00:00Z');",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let state = test_state(pool);
+    let op = cookie_for(&state, "u1");
+
+    let res = request(&state, "GET", &format!("{OTAWARA}/topics"), Some(&op), None).await;
+    let similar = &res.json["items"][0]["similar"];
+    let ids: Vec<&str> = similar
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["id"].as_str().unwrap())
+        .collect();
+    // 別の自治体の t2 は同じ文でも出さない。似ていない t4 も出さない
+    assert_eq!(ids, ["t3"]);
+    assert!(similar[0]["score"].as_f64().unwrap() >= 0.25);
+
+    let res = request(
+        &state,
+        "GET",
+        &format!("{OTAWARA}/topics/t1"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert_eq!(res.json["similar"][0]["id"], "t3");
+}

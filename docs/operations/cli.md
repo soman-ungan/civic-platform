@@ -231,6 +231,8 @@ cargo run -- list source                       # 収集先・規約の確認日�
 cargo run -- list operator                     # 運営者のアカウント（ID・登録日・パスキーの数）
 cargo run -- list queue -m otawara             # 公開待ち（公開する順と予定）
 cargo run -- list slot [-m otawara]            # 自動公開の時刻
+cargo run -- list similar -m otawara           # 似ているトピックの組（度合いつき。費用 0）
+cargo run -- list similar --topic <id>         # トピックの中の似ている意見の組
 ```
 
 ### show

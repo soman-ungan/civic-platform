@@ -94,6 +94,7 @@ export function DraftCard({
         </p>
       )}
       <TitleEditor slug={slug} topic={topic} onChange={onChange} />
+      <SimilarTopics topic={topic} />
 
       {topic.sources.length > 0 && (
         <section aria-label="出典" className="mt-4">
@@ -517,6 +518,33 @@ function TagPicker({
         </div>
       ))}
       {error && <p className={`mt-1 ${ERROR_TEXT}`}>{error}</p>}
+    </section>
+  );
+}
+
+/** 似ているトピック。同じ論点なら、取り下げるか、意見をそちらに足すかを運営者が決める */
+function SimilarTopics({ topic }: { topic: OperatorTopic }) {
+  if (topic.similar.length === 0) return null;
+  return (
+    <section aria-label="似ているトピック" className="mt-3">
+      <h3 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        似ているトピック（同じ論点でないか確かめてください）
+      </h3>
+      <ul className="mt-1 flex flex-col gap-1 text-sm">
+        {topic.similar.map((t) => (
+          <li key={t.id} className="flex items-baseline gap-2">
+            <span
+              className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${BADGE_AMBER}`}
+            >
+              {t.status === "draft" ? "下書き" : "公開中"}
+            </span>
+            <span className="min-w-0 flex-1">{t.title}</span>
+            <span className="shrink-0 text-xs tabular-nums text-zinc-500">
+              {Math.round(t.score * 100)}%
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

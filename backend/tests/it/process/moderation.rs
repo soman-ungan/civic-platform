@@ -218,3 +218,22 @@ async fn operator_can_approve_and_reject() {
     assert_eq!(stored(&pool, "s1").await.0, "rejected");
     assert!(!moderation::decide(&pool, "missing", true).await.unwrap());
 }
+
+#[test]
+fn compared_statements_narrow_only_when_many() {
+    let few: Vec<(String, String)> = (0..moderation::COMPARE_ALL_STATEMENTS)
+        .map(|i| (format!("s{i}"), format!("意見その{i}")))
+        .collect();
+    assert_eq!(
+        moderation::compared_statements(few.clone(), "何か").len(),
+        few.len()
+    );
+
+    let mut many: Vec<(String, String)> = (0..moderation::COMPARE_ALL_STATEMENTS + 20)
+        .map(|i| (format!("s{i}"), format!("公園の遊具の話その{i}")))
+        .collect();
+    many.push(("bus".into(), "路線バスを増便して通学を便利にする".into()));
+    let picked = moderation::compared_statements(many, "バスを増便して通学を楽に");
+    assert_eq!(picked.len(), moderation::COMPARED_CANDIDATES);
+    assert_eq!(picked[0].0, "bus");
+}
