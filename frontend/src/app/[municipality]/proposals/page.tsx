@@ -20,8 +20,9 @@ export const metadata: Metadata = {
 export default function ProposalsPage({
   params,
 }: PageProps<"/[municipality]/proposals">) {
+  // 画面の高さは固定（app/layout.tsx）なので、戻るリンクと見出しを固定のヘッダーにし、その下をスクロールする
   return (
-    <main className="mx-auto w-full max-w-md px-4 pb-10">
+    <main className="flex min-h-0 flex-1 flex-col">
       <Suspense>
         <ProposalsView params={params} />
       </Suspense>
@@ -45,20 +46,27 @@ async function ProposalsView({
 
   return (
     <>
-      <Link
-        href={`/${municipality.slug}`}
-        className="inline-flex h-10 items-center text-sm text-zinc-600 dark:text-zinc-400"
-      >
-        ← {municipality.name}のトピック
-      </Link>
-      <h1 className="mt-1 text-xl font-bold tracking-tight">
-        トピックを提案する
-      </h1>
-      <p className="mt-2 mb-5 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-        {municipality.name}
-        について、みんなで考えたい課題はありませんか。議会で話し合われていない課題も提案できます。
-      </p>
-      <ProposalPanel slug={municipality.slug} initial={proposals} />
+      <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="mx-auto w-full max-w-md px-4 pb-3">
+          <Link
+            href={`/${municipality.slug}`}
+            className="inline-flex h-10 items-center text-sm text-zinc-600 dark:text-zinc-400"
+          >
+            ← {municipality.name}のトピック
+          </Link>
+          <h1 className="text-lg leading-snug font-bold">トピックを提案する</h1>
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto w-full max-w-md px-4 pt-3 pb-10">
+          <p className="mb-5 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+            {municipality.name}
+            について、みんなで考えたい課題はありませんか。議会で話し合われていない課題も提案できます。
+          </p>
+          <ProposalPanel slug={municipality.slug} initial={proposals} />
+        </div>
+      </div>
     </>
   );
 }
