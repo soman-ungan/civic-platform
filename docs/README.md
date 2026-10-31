@@ -35,6 +35,7 @@
 | [0005](adr/0005-topic-lifecycle-and-funding.md) | トピックの期限・意見の数・分析を開く条件・お金と議論の切り離し・提言 |
 | [0006](adr/0006-passkey-authentication.md) | 認証はパスキーだけ。保存するのは公開鍵・ID・日時 |
 | [0007](adr/0007-statement-review.md) | 意見の審査（害・人物・投票できるか・似た意見）。立場では判断しない |
+| [0008](adr/0008-elected-officials-and-elections.md) | 議員ごとの記録（議会で取り上げたトピックと引用）。順位・評価・立場の推測はしない |
 
 ## その他
 | 文書 | 中身 |
