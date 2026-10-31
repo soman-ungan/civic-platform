@@ -122,26 +122,32 @@ function PublishedCard({
   }
 
   const label = deadlineLabel(topic) ?? "期限なし";
+  const approved = topic.statements.filter(
+    (s) => s.status === "approved",
+  ).length;
   return (
     <article className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-      <h2 className="text-sm font-semibold">
-        {/* next/link で移ると、/operator が「/[municipality]」の形に合うため、トピック詳細のレイヤ
-            （(tabs)/@sheet/(.)topics）に横取りされて「ページが見つかりません」になる。
-            普通のリンクで、別のタブに開く（管理画面の位置も保てる） */}
-        <a
-          href={`/${slug}/topics/${topic.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline-offset-2 hover:underline"
-        >
-          {topic.title}
-        </a>
-      </h2>
+      {/* トピック詳細へは移らない（管理画面で様子と説明が分かれば足りる。ユーザーと決定） */}
+      <h2 className="text-sm font-semibold">{topic.title}</h2>
       <p className="mt-1 text-xs text-zinc-500">
         {label}
         {topic.closes_at && `（${formatDateTime(topic.closes_at)}まで）`}
         {topic.published_at && `・公開 ${formatDateTime(topic.published_at)}`}
       </p>
+      <p className="mt-1 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+        意見 {approved} 件 ・ 参加 {topic.participant_count} 人
+      </p>
+      {topic.description && (
+        <details className="group mt-2 text-sm">
+          <summary className="cursor-pointer text-xs text-zinc-600 underline underline-offset-2 dark:text-zinc-400">
+            <span className="group-open:hidden">説明を読む</span>
+            <span className="hidden group-open:inline">説明を閉じる</span>
+          </summary>
+          <p className="mt-2 leading-6 whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
+            {topic.description}
+          </p>
+        </details>
+      )}
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="text-xs text-zinc-500">
           期限（その日の終わりまで）

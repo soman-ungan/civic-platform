@@ -80,7 +80,7 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 |---|---|
 | `GET /operator/municipalities` | すべての自治体（準備中も） |
 | `GET .../{slug}/tags` | 付けられるタグ（分野と、その自治体の地区） |
-| `GET .../{slug}/topics?status=draft\|published\|archived&after=&limit=` | トピック（出典・意見と根拠の発言・タグつき）。下書きは古い順、ほかは新しい順。下書きには `similar`（似ている同じ自治体の下書き・公開中のトピック。最大3件と度合い `score`） |
+| `GET .../{slug}/topics?status=draft\|published\|archived&after=&limit=` | トピック（出典・意見と根拠の発言・タグつき）。下書きは古い順、ほかは新しい順。下書きには `similar`（似ている同じ自治体の下書き・公開中のトピック。最大3件と度合い `score`）。どれにも投票した人の数 `participant_count`（誰かは返さない） |
 | `GET` / `PATCH .../topics/{id}` | 1件（種類 `source_type`: assembly / citizen。提案した人は返さない。市民のまとめからなら元のトピック `parents`）/ タイトル・説明の手直し |
 | `POST .../topics/{id}/publish` / `archive` | 公開（初めてなら90日の期限が付く）/ 取り下げ（市民の提案なら、本人には「見送り」） |
 | `POST` / `DELETE .../topics/{id}/queue` | 公開待ちに入れる（下書きだけ。ほかは 409）/ 外す。公開待ちのものは下書きの一覧（`?status=draft`）に出ない |

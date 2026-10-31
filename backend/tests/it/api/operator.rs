@@ -134,6 +134,23 @@ async fn drafts_are_listed_and_published_per_municipality() {
     )
     .await;
     assert_eq!(res.json["items"].as_array().unwrap().len(), 1);
+    // 公開中のトピックの様子（投票した人の数。誰かは返さない）
+    sqlx::query(
+        "INSERT INTO votes (id, user_id, statement_id, vote_value, created_at)
+         VALUES ('v-op', 'u2', 's1', 1, '2026-10-31T00:00:00Z')",
+    )
+    .execute(&state.pool)
+    .await
+    .unwrap();
+    let res = request(
+        &state,
+        "GET",
+        &format!("{OTAWARA}/topics?status=published"),
+        Some(&op),
+        None,
+    )
+    .await;
+    assert_eq!(res.json["items"][0]["participant_count"], 1);
     let res = request(
         &state,
         "GET",

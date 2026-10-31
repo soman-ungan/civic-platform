@@ -40,6 +40,8 @@ export type OperatorTopic = {
   parents: { id: string; title: string }[];
   /** 似ている同じ自治体のトピック（下書きだけ。同じ論点の重なりを確かめる候補） */
   similar: SimilarTopic[];
+  /** 1件以上投票した人の数（誰かは返らない） */
+  participant_count: number;
 };
 
 /** 似ているトピック。score は文字の重なりから計算した 0〜1（同じ論点かは運営者が決める） */
