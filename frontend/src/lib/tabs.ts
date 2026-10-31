@@ -12,6 +12,8 @@ export function tabsFor(pathname: string) {
   const tabs = [
     { href: `/${slug}`, label: "トピック", swipe: true },
     { href: `/${slug}/finances`, label: "まちのお金", swipe: false },
+    // 議員の記録（ADR 0008）
+    { href: `/${slug}/council`, label: "議会", swipe: true },
   ];
   return { tabs, current: tabs.findIndex((t) => t.href === pathname) };
 }

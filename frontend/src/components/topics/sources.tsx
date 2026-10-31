@@ -1,14 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import Link from "next/link";
+
 import type { TopicSource } from "@/lib/api/types/topics";
 import { formatDate } from "@/lib/dates";
 
 /**
  * 議会での議論（出典）。会議録の発言からの短い引用を、発言ごとの吹き出しで見せる
  * （トピックの説明と区別できるように、上に区切りの線と見出しを置く）。
- * 発言者は公人（首長・議員）なら氏名つき、職員は職名だけ（backend で決める）
+ * 発言者は公人（首長・議員）なら氏名つきで議員の記録へリンクし、職員は職名だけ（backend で決める）
  */
-export function TopicSources({ sources }: { sources: TopicSource[] }) {
+export function TopicSources({
+  slug,
+  sources,
+}: {
+  slug: string;
+  sources: TopicSource[];
+}) {
   if (sources.length === 0) return null;
   return (
     <section
@@ -22,7 +30,17 @@ export function TopicSources({ sources }: { sources: TopicSource[] }) {
         {sources.map((s, i) => (
           <li key={i}>
             <p className="mb-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              {s.speaker}
+              {s.official_id ? (
+                // 公人は議員の記録へ（ADR 0008）
+                <Link
+                  href={`/${slug}/council/${s.official_id}`}
+                  className="underline underline-offset-2"
+                >
+                  {s.speaker}
+                </Link>
+              ) : (
+                s.speaker
+              )}
             </p>
             <blockquote className="relative rounded-2xl rounded-tl-sm bg-zinc-100 px-3.5 py-2.5 text-sm leading-6 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
               「{s.quote}」

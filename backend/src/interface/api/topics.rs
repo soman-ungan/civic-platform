@@ -100,6 +100,8 @@ fn links(rows: Vec<(String, String)>) -> Vec<TopicLink> {
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct TopicSource {
     pub speaker: String,
+    /// 発言者が公人（首長・議員）なら、その人の ID（議員の記録へのリンク。ADR 0008）。職員は null
+    pub official_id: Option<String>,
     pub quote: String,
     pub document_title: String,
     pub held_on: Option<String>,
@@ -285,7 +287,7 @@ pub async fn detail(
         .await?
         .voted;
     let sources = sqlx::query_as(
-        "SELECT s.speaker_label AS speaker, s.quote, d.title AS document_title, d.held_on, d.url
+        "SELECT s.speaker_label AS speaker, s.official_id, s.quote, d.title AS document_title, d.held_on, d.url
          FROM topic_sources s JOIN documents d ON d.id = s.document_id
          WHERE s.topic_id = $1 ORDER BY s.position",
     )

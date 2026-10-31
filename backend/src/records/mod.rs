@@ -7,6 +7,7 @@
 pub mod accounts;
 pub mod budget;
 pub mod minutes;
+pub mod officials;
 pub mod proposals;
 pub mod publishing;
 pub mod settlement;

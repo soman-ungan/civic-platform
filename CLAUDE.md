@@ -27,14 +27,14 @@ docs の入口は `docs/README.md`。**設計判断で迷ったら、`docs/overv
 civic-platform/
 ├── backend/              Rust / axum / sqlx（API サーバー＋運営のコマンド）
 │   ├── src/shared/       システム内で共通に使うもの（config・db・limits（トピックと意見の文字数）・status（意見と公開の状態の型。DB の CHECK と同じ値）・util・llm）
-│   ├── src/interface/    外とのやりとり。api/（HTTP API: 自治体・トピック・投票・分析・まとめ（トピックマップ）・まちのお金）と cli/（運営のコマンド。clap。<動詞> <対象>。docs/operations/cli.md）
+│   ├── src/interface/    外とのやりとり。api/（HTTP API: 自治体・トピック・投票・分析・まとめ（トピックマップ）・議員の記録・まちのお金）と cli/（運営のコマンド。clap。<動詞> <対象>。docs/operations/cli.md）
 │   ├── src/ingest/       段階1 資料を DB に入れる（collect: 取得と置き場・決算カード、budget、minutes、extraction）
-│   ├── src/records/      段階2 DB を見る・直す（topics・budget・settlement・minutes・statements・tags）
+│   ├── src/records/      段階2 DB を見る・直す（topics・budget・settlement・minutes・officials・statements・tags）
 │   ├── src/process/      段階3 判定・計算（moderation・tagging・analysis（Polis の数理）・progress（参加のルール。ルールはここだけで変える）・similarity（似ているかの候補）・topic_map・digest（市民のまとめ））
 │   └── src/maintenance/  準備と保守（seed・eval）
 │       層の依存は interface → ingest / records / process / maintenance → shared。内部ロジックは interface を使わない（docs/plans/2026-10-28-backend-layers.md）
 ├── frontend/             Next.js (App Router) / TypeScript / Tailwind CSS
-│   ├── src/components/   画面の部品。まとまりは backend の interface/api/ にそろえる（topics・participation・analysis・digest・finances・auth）。ほかに ui/（よく使う見た目: チップ・横スクロールの行・切り替え・空の欄・説明の吹き出し・ボタンのクラス）と layout/（画面の枠）
+│   ├── src/components/   画面の部品。まとまりは backend の interface/api/ にそろえる（topics・participation・analysis・digest・officials・finances・auth）。ほかに ui/（よく使う見た目: チップ・横スクロールの行・切り替え・空の欄・説明の吹き出し・ボタンのクラス）と layout/（画面の枠）
 │   └── src/lib/          api/（backend とのやりとり: paths・server・client・use-api。型は api/types/ に backend のモジュールごと）、finances/（お金の表示の決まり）、auth/（パスキー）、画面をまたぐ小さな決まり（labels など）
 │       ファイル名はディレクトリ名と重なる部分を外す（components/finances/bars.tsx など）。型をまとめて export し直すファイルは作らない（docs/plans/2026-10-28-frontend-layout.md）
 ├── data/                 SQLite ファイル（*.db は git 管理しない）
@@ -63,7 +63,7 @@ civic-platform/
 - 意見の審査（ADR 0007）は主張や政治的な立場では判断しない。1回の呼び出しで、害・公序良俗／人物／投票できる意見か・トピックとの関係／似た意見 を別々に答えさせる。公人の政策・公務への批判は公開、人格攻撃・私生活・人物の評価や進退（ほめても同じ）は非公開。投票できない文・無関係な文は非公開（迷ったら公開）。公人の氏名は AI の前にプログラムで確かめる
 - **判定できないとき（通信の失敗・費用の上限）は pending のまま残し、自動承認しない。** refusal は flagged（人が確認）。
 - AI に送るのは本文と、公開済みのトピックの内容（審査ではタイトル・説明・承認済みの意見の本文、タグ付けはタイトルと説明）だけ。参加者 ID・関わり方・トピックや意見の ID は送らない。
-- 首長・議員などの人物はタグにしない。議員ごとの記録はフェーズ5で、会議録の発言者の記載から機械的に対応付ける（LLM に推測させない）。投票の対象の意見の文には議員名を入れない。
+- 首長・議員などの人物はタグにしない。議員ごとの記録（タブ「議会」。ADR 0008）は、会議録の発言者の記載から機械的に対応付けたもの（`topic_sources.official_id`）だけを見せる（LLM に推測させない。順位・評価・立場の推測・市民の投票の結果の議員ごとの集計はしない）。投票の対象の意見の文には議員名を入れない。
 - 行政資料の収集は「エージェント」にせず、設定に従う決まった手順のコードにする。原本は保持しない（`docs/design/collection.md`）。
 
 ## 会議録の原則（`docs/adr/0004-assembly-minutes.md`）

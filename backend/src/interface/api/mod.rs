@@ -9,6 +9,7 @@ pub mod error;
 pub mod finances;
 mod health;
 pub mod municipalities;
+pub mod officials;
 pub mod operator;
 pub mod participant;
 pub mod participation;
@@ -49,6 +50,11 @@ pub fn router() -> Router<AppState> {
         )
         .route("/municipalities/{slug}/topic-map", get(digest::map))
         .route("/municipalities/{slug}/digest", get(digest::digest))
+        .route("/municipalities/{slug}/officials", get(officials::list))
+        .route(
+            "/municipalities/{slug}/officials/{official_id}",
+            get(officials::detail),
+        )
         .route("/municipalities/{slug}/topics", get(topics::list))
         .route(
             "/municipalities/{slug}/topics/{topic_id}",

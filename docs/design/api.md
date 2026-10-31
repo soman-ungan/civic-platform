@@ -56,6 +56,12 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
   - **最初の意見すべてに投票するまでは `locked`（残り件数）**。全体の傾向に投票が左右されないようにするため。最初の意見が増えれば（公開の前の下書きでだけ起きる）再びロックされる。締め切ったトピックはロックしない
   - 数理は `docs/polis-math.md`
 
+## 議員の記録（`interface/api/officials.rs`。ADR 0008）
+議員の仕事ぶり（議会で取り上げたトピック）だけを返す。順位・評価・市民の投票の結果は返さない。対応付けは会議録の取り込みで機械的に入れた `topic_sources.official_id` だけ
+- `GET /municipalities/{slug}/officials` — `officials`（`id`・`name`・`role`（mayor / councilor）・`term_start`・`term_end`・`topic_count`（その人の発言が出典になった公開済みのトピックの数））。現職と、任期の終わった人のうち記録のある人。首長が先、議員は読み（`name_kana`。返さない）の順。`coverage`（取り込んだ会議録の最初と最後の会議の日 `{from, to}`。無ければ null）
+- `GET /municipalities/{slug}/officials/{id}` — その人と `topics`（その人の発言が出典になった公開済みのトピック。新しい会議の順。締め切ったものも）。各トピックに `closed`・`tags`・その人の引用 `quotes`（`quote`・`document_title`・`held_on`・`url`）。`coverage`。別の自治体の人は 404
+- トピックの詳細の `sources` には、発言者が公人なら `official_id`（職員は null）
+
 ## まちのお金
 - `GET /municipalities/{slug}/finances?year=` — 年度ごとに `settlement`（決算カード）と `budget`（公開済みの当初予算。主な事業つき）
   - 金額は千円、`per_capita` は円。年度を省くと最新（予算だけの年度を含む）

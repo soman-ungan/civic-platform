@@ -15,6 +15,7 @@ mod api {
     mod drafts;
     mod finances;
     mod health;
+    mod officials;
     mod operator;
     mod participant;
     mod participation;

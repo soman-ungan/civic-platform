@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 
 import { tabsFor, transitionTo } from "@/lib/tabs";
 
-/** タブ「トピック｜まちのお金」。URL を読むので、レイアウトでは Suspense の中に置く */
+/** タブ「トピック｜まちのお金｜議会」。URL を読むので、レイアウトでは Suspense の中に置く */
 export function TabNav() {
   return <Tabs pathname={usePathname()} />;
 }

@@ -50,6 +50,8 @@ export type TopicList = {
 export type TopicSource = {
   /** 公人は氏名つき（「〇〇議員」）、職員は職名だけ */
   speaker: string;
+  /** 発言者が公人なら、その人の ID（議員の記録へのリンク）。職員は null */
+  official_id: string | null;
   quote: string;
   document_title: string;
   held_on: string | null;

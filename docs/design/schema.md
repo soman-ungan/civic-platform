@@ -82,7 +82,7 @@ erDiagram
 | `collector_sources` | 収集先（`kind`: minutes / settlement_card / budget、アダプタと設定の JSON。規約の確認日は設定の中） |
 | `fetch_cache` | 条件付き取得の記録（ETag・更新日時・ハッシュ） |
 | `documents` | 取り込んだ資料の出典（URL・開催日・ハッシュ・`extraction`: api / manual）。原本は持たない |
-| `public_officials` | 公人（首長・議員）の名簿と任期。会議録の発言者を機械的に対応付ける |
+| `public_officials` | 公人（首長・議員）の名簿と任期。会議録の発言者を機械的に対応付ける。`name_kana`（読み）は議員の記録の一覧を並べるためだけに使い、返さない（ADR 0008） |
 | `topic_sources` | トピックの出典（会議録の発言からの引用。原文と一致する200字以内。発言者は公人なら氏名、職員は職名だけ） |
 | `statement_sources` | 最初の意見の根拠の発言（運営者の確認用。API では返さない） |
 
