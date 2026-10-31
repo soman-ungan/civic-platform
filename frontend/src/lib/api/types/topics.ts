@@ -38,8 +38,12 @@ export type Topic = {
 };
 
 export type TopicList = {
+  /** 受付中のトピックだけ（締め切ったものは合意点のページの地図から開く） */
   topics: Topic[];
+  /** 受付中のトピックに付いているタグ */
   tags: Tag[];
+  /** 締め切ったトピックの数 */
+  closed_count: number;
 };
 
 /** 議会のトピックの出典（会議録の発言からの引用） */

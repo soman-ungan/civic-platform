@@ -108,9 +108,12 @@ pub struct TopicSource {
 
 #[derive(Debug, Serialize)]
 pub struct TopicList {
+    /// 受付中のトピックだけ（締め切ったものは合意点のページの地図から開く）
     pub topics: Vec<Topic>,
-    /// この自治体のトピックに付いているタグ（絞り込みのチップ用。絞り込み前の全件）
+    /// 受付中のトピックに付いているタグ（絞り込みのチップ用。絞り込み前の全件）
     pub tags: Vec<Tag>,
+    /// 締め切ったトピックの数（合意点のページへの入口を出すかどうか）
+    pub closed_count: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -141,20 +144,27 @@ struct TopicTagRow {
     tag: Tag,
 }
 
-/// 自治体内のトピックに付いたタグを topic_id ごとにまとめる
+/// 締め切っていない（期限が無いか、まだ来ていない）。$N は今の日時
+fn open_condition(now: &str) -> String {
+    format!("(t.closes_at IS NULL OR t.closes_at > {now})")
+}
+
+/// 自治体内の受付中のトピックに付いたタグを topic_id ごとにまとめる
 async fn tags_by_topic(
     pool: &SqlitePool,
     municipality_id: &str,
 ) -> Result<HashMap<String, Vec<Tag>>, ApiError> {
-    let rows: Vec<TopicTagRow> = sqlx::query_as(
+    let rows: Vec<TopicTagRow> = sqlx::query_as(&format!(
         "SELECT tt.topic_id, g.id, g.kind, g.name
          FROM topic_tags tt
          JOIN tags g ON g.id = tt.tag_id
          JOIN topics t ON t.id = tt.topic_id
-         WHERE t.municipality_id = $1 AND t.status = 'published'
+         WHERE t.municipality_id = $1 AND t.status = 'published' AND {}
          ORDER BY g.kind, g.name",
-    )
+        open_condition("$2")
+    ))
     .bind(municipality_id)
+    .bind(now_iso())
     .fetch_all(pool)
     .await?;
 
@@ -189,8 +199,9 @@ fn into_topic(row: TopicRow, tags: Vec<Tag>, voted_count: i64) -> Topic {
     }
 }
 
-/// GET /api/municipalities/{slug}/topics?tag={tag_id} — 受付中を先に、それぞれ公開した日の新しい順
-/// （少しずつ公開するので、作った日ではなく公開した日。期限の決まりより前に公開したものは作った日）
+/// GET /api/municipalities/{slug}/topics?tag={tag_id} — 受付中のトピックを、公開した日の新しい順
+/// （少しずつ公開するので、作った日ではなく公開した日。期限の決まりより前に公開したものは作った日）。
+/// 締め切ったトピックは返さない（合意点のページの地図から開く。一覧が年々増え続けないように）
 pub async fn list(
     State(state): State<AppState>,
     Path(slug): Path<String>,
@@ -198,19 +209,30 @@ pub async fn list(
     MaybeParticipant(user_id): MaybeParticipant,
 ) -> Result<Json<TopicList>, ApiError> {
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
+    let now = now_iso();
 
     // PostgreSQL では型の決まらないパラメーターを IS NULL にできないため CAST する
     let rows: Vec<TopicRow> = sqlx::query_as(&format!(
         "{SELECT_TOPIC}
            AND (CAST($2 AS TEXT) IS NULL OR EXISTS (
                 SELECT 1 FROM topic_tags tt WHERE tt.topic_id = t.id AND tt.tag_id = $2))
-         ORDER BY CASE WHEN t.closes_at IS NOT NULL AND t.closes_at <= $3 THEN 1 ELSE 0 END,
-                  COALESCE(t.published_at, t.created_at) DESC, t.id DESC"
+           AND {}
+         ORDER BY COALESCE(t.published_at, t.created_at) DESC, t.id DESC",
+        open_condition("$3")
     ))
     .bind(&municipality.id)
     .bind(&query.tag)
-    .bind(now_iso())
+    .bind(&now)
     .fetch_all(&state.pool)
+    .await?;
+    let (closed_count,): (i64,) = sqlx::query_as(
+        "SELECT count(*) FROM topics t
+         WHERE t.municipality_id = $1 AND t.status = 'published'
+           AND t.closes_at IS NOT NULL AND t.closes_at <= $2",
+    )
+    .bind(&municipality.id)
+    .bind(&now)
+    .fetch_one(&state.pool)
     .await?;
 
     let mut tags_map = tags_by_topic(&state.pool, &municipality.id).await?;
@@ -233,6 +255,7 @@ pub async fn list(
     Ok(Json(TopicList {
         topics,
         tags: all_tags,
+        closed_count,
     }))
 }
 

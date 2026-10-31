@@ -51,7 +51,7 @@ async function Timeline({
     <>
       {/* 合意点があるか、締め切ったトピック（これまでの議論の地図に載る）があれば、合意点のページへの入口を出す */}
       {((consensus && consensus.length > 0) ||
-        list.topics.some((t) => t.closed)) && (
+        list.closed_count > 0) && (
         <ConsensusPins
           slug={municipality.slug}
           count={consensus?.length ?? 0}

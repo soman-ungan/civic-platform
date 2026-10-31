@@ -18,7 +18,8 @@ export type CarouselSection = {
 /**
  * まちのお金の欄を、横フリックでリングのように切り替える（最後の次は最初に戻る）。
  * 見出しの左右の矢印と点でも切り替えられる（フリックに気づかない人のため）。
- * 欄の中身は全部描いたまま、見えない欄を隠す（推移の費目の選び方などを、切り替えても保つため）。
+ * 欄の中身は初めて開いたときに描き、そのあとは描いたまま隠す（最初の表示を軽くし、
+ * 推移の費目の選び方などは切り替えても保つため）。
  * 中の横スクロール（`data-swipe-ignore`）の上で始めた操作では切り替えない
  */
 export function FinanceCarousel({ sections }: { sections: CarouselSection[] }) {
@@ -28,7 +29,12 @@ export function FinanceCarousel({ sections }: { sections: CarouselSection[] }) {
     id: sections[0]?.id ?? "",
     index: 0,
   });
-  const [direction, setDirection] = useState<"next" | "prev">("next");
+  // 切り替えの向き。最初の表示では動かさない（null）
+  const [direction, setDirection] = useState<"next" | "prev" | null>(null);
+  // 一度開いた欄の id（描いたまま残す）
+  const [visited, setVisited] = useState<Set<string>>(
+    () => new Set(sections[0] ? [sections[0].id] : []),
+  );
   const root = useRef<HTMLDivElement>(null);
   const start = useRef<{ x: number; y: number; t: number } | null>(null);
   const n = sections.length;
@@ -38,7 +44,9 @@ export function FinanceCarousel({ sections }: { sections: CarouselSection[] }) {
   function go(step: 1 | -1) {
     setDirection(step > 0 ? "next" : "prev");
     const next = (index + step + n) % n;
-    setOpen({ id: sections[next].id, index: next });
+    const id = sections[next].id;
+    setOpen({ id, index: next });
+    setVisited((v) => (v.has(id) ? v : new Set(v).add(id)));
   }
 
   function onTouchStart(e: React.TouchEvent) {
@@ -132,25 +140,28 @@ export function FinanceCarousel({ sections }: { sections: CarouselSection[] }) {
           ))}
         </div>
       </div>
-      {sections.map((s, i) => (
-        <section
-          key={s.id}
-          hidden={i !== index}
-          aria-label={s.title}
-          className={
-            i === index
-              ? direction === "next"
-                ? "carousel-next"
-                : "carousel-prev"
-              : undefined
-          }
-        >
-          {s.lead && (
-            <p className="mb-3 text-xs leading-5 text-zinc-500">{s.lead}</p>
-          )}
-          {s.content}
-        </section>
-      ))}
+      {sections.map((s, i) =>
+        // 年度を変えて開いている欄が無くなったときは、同じ位置の欄を（まだ開いていなくても）描く
+        i === index || visited.has(s.id) ? (
+          <section
+            key={s.id}
+            hidden={i !== index}
+            aria-label={s.title}
+            className={
+              i === index && direction
+                ? direction === "next"
+                  ? "carousel-next"
+                  : "carousel-prev"
+                : undefined
+            }
+          >
+            {s.lead && (
+              <p className="mb-3 text-xs leading-5 text-zinc-500">{s.lead}</p>
+            )}
+            {s.content}
+          </section>
+        ) : null,
+      )}
     </div>
   );
 }

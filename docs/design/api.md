@@ -16,7 +16,7 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 - `GET /municipalities` / `GET /municipalities/{slug}`（地区つき）— 公開中（`is_active`）の自治体だけ
 - `GET /municipalities/{slug}/topics?tag=` / `GET /municipalities/{slug}/topics/{id}`
   - Cookie があれば参加状態 `participation`（`none` / `in_progress` / `completed`）と `voted_count`（承認済みの意見だけで数える）
-  - 期限 `closes_at`（null は期限なし）と締め切ったか `closed`。一覧は受付中を先に、それぞれ公開した日（`published_at`。null なら作った日）の新しい順
+  - 期限 `closes_at`（null は期限なし）と締め切ったか `closed`。一覧は受付中のトピックだけを、公開した日（`published_at`。null なら作った日）の新しい順に返す。締め切ったトピックは数 `closed_count` だけ（合意点のページの地図から開く。詳細は開ける）。絞り込みのタグ `tags` も受付中のトピックに付いたものだけ
   - 新着 `is_new`（公開から3日以内で、Cookie の参加者が未投票。`progress::is_new`）、会期 `session`（議会のトピックだけ。出典の最初の会議の資料名と月から「令和8年 第2回定例会（6月）」。`records::minutes::session_label`）
   - 詳細には出典 `sources`（会議録の引用）と `finances`（分野タグに対応する目的別歳出（決算の総額と歳出に占める割合）と、同じ分野の主な事業5件まで（予算））。議会のトピックは会議の年度に合わせる: 予算は会議の日の年（1月だけ前年）の年度でその年度の予算が無ければ出さない、決算はそれより前で最新の年度（`finances::budget_year_of_meeting`）。市民の提案は最新の年度
   - 詳細には、市民のまとめから作ったトピックなら元のトピック `parents`、このトピックから生まれた公開済みのトピック `children`（どちらも `{id, title}` の配列）
