@@ -184,9 +184,11 @@ export function useMe() {
 
 /** ブラウザがパスキーの画面を閉じたとき（取り消し）は、エラーとして見せない */
 export function isCancelled(e: unknown): boolean {
-  if (e instanceof WebAuthnError) {
-    return e.code === "ERROR_CEREMONY_ABORTED";
+  if (e instanceof WebAuthnError && e.code === "ERROR_CEREMONY_ABORTED") {
+    return true;
   }
+  // 利用者が閉じた・時間切れは NotAllowedError。@simplewebauthn/browser は WebAuthnError に包み
+  // （code は ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY）、name に元の名前を入れる
   return e instanceof Error && e.name === "NotAllowedError";
 }
 

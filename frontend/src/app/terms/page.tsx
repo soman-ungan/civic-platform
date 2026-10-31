@@ -8,9 +8,10 @@ import {
   InfoPage,
   List,
   Section,
-  ToFill,
+  SiteValue,
 } from "@/components/info/prose";
 import { pageMetadata } from "@/lib/metadata";
+import { SITE_INFO } from "@/lib/site";
 
 export const metadata: Metadata = pageMetadata(
   "利用規約",
@@ -30,7 +31,8 @@ export default function TermsPage() {
         <p>
           本サービスは、自治体の議会・予算・決算の情報を見せ、トピックへの投票と意見の投稿を通じて、
           市民の合意点を見つける場です。運営者は
-          <ToFill>運営者の名前</ToFill>です（以下「運営者」）。
+          <SiteValue value={SITE_INFO.operatorName} env="SITE_OPERATOR_NAME" />
+          です（以下「運営者」）。
         </p>
       </Section>
 
@@ -143,7 +145,10 @@ export default function TermsPage() {
       <Section title="9. 準拠法と裁判所">
         <p>
           この規約は日本の法律に従います。本サービスについて争いが起きたときは、
-          <ToFill>管轄の裁判所（例: 宇都宮地方裁判所）</ToFill>
+          <SiteValue
+            value={SITE_INFO.jurisdictionCourt}
+            env="SITE_JURISDICTION_COURT"
+          />
           を第一審の専属的合意管轄裁判所とします。
         </p>
       </Section>

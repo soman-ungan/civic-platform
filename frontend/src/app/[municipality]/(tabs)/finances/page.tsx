@@ -8,6 +8,7 @@ import { FinanceHeader } from "@/components/finances/header";
 import { financeSections } from "@/components/finances/sections";
 import { FinanceSources } from "@/components/finances/sources";
 import { PageSlide } from "@/components/layout/page-slide";
+import { EmptyState } from "@/components/ui/empty-state";
 import { municipalityApi } from "@/lib/api/paths";
 import { apiGet } from "@/lib/api/server";
 import { KIND_LABEL, financeView, parseUnit } from "@/lib/finances/view";
@@ -56,8 +57,18 @@ async function FinancesView({
     apiGet<MunicipalityDetail>(path),
     apiGet<Finances>(`${path}/finances${query}`),
   ]);
-  if (!municipality || !f) {
+  if (!municipality) {
     notFound();
+  }
+  if (!f) {
+    // 決算も予算もまだ取り込んでいない自治体（自治体を切り替えたときなど）
+    return (
+      <div className="mx-auto w-full max-w-md px-4 pt-3">
+        <EmptyState>
+          {municipality.name}のお金のデータは、まだ取り込んでいません。
+        </EmptyState>
+      </div>
+    );
   }
   // 決算か予算か（URL の ?view=。無ければ決算、その年度に無ければある方）
   const v = financeView(

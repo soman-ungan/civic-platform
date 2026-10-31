@@ -8,9 +8,10 @@ import {
   InfoPage,
   List,
   Section,
-  ToFill,
+  SiteValue,
 } from "@/components/info/prose";
 import { pageMetadata } from "@/lib/metadata";
+import { SITE_INFO } from "@/lib/site";
 
 export const metadata: Metadata = pageMetadata(
   "このサービスについて",
@@ -105,10 +106,19 @@ export default function AboutPage() {
       <Section title="運営">
         <List>
           <li>
-            運営者: <ToFill>運営者の名前（個人名または屋号）</ToFill>
+            運営者:{" "}
+            <SiteValue
+              value={SITE_INFO.operatorName}
+              env="SITE_OPERATOR_NAME"
+            />
           </li>
           <li>
-            収支の公開: <ToFill>収支を公開するページの URL</ToFill>
+            収支の公開:{" "}
+            <SiteValue
+              value={SITE_INFO.financeReportUrl}
+              env="SITE_FINANCE_REPORT_URL"
+              href
+            />
           </li>
         </List>
       </Section>

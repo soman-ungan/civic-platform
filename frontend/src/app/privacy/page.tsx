@@ -8,9 +8,10 @@ import {
   InfoPage,
   List,
   Section,
-  ToFill,
+  SiteValue,
 } from "@/components/info/prose";
 import { pageMetadata } from "@/lib/metadata";
+import { SITE_INFO } from "@/lib/site";
 
 export const metadata: Metadata = pageMetadata(
   "プライバシーポリシー",
@@ -51,7 +52,11 @@ export default function PrivacyPage() {
             <strong>サーバーのアクセスの記録</strong>: IP
             アドレス・日時・ブラウザの種類など。
             障害の対応と不正な利用を防ぐためだけに使い、
-            <ToFill>保存する期間</ToFill>で消します
+            <SiteValue
+              value={SITE_INFO.accessLogRetention}
+              env="SITE_ACCESS_LOG_RETENTION"
+            />
+            で消します
           </li>
         </List>
         <p>
@@ -88,19 +93,19 @@ export default function PrivacyPage() {
         </p>
         <p>
           意見の本文に個人の情報を書かないでください。送った内容の扱いは、Anthropic
-          社の規約に従います
-          <ToFill>
-            Anthropic の API
-            のデータの扱い（保存の期間・学習に使わないこと）を確かめて書く
-          </ToFill>
-          。
+          社の規約に従います （
+          <SiteValue
+            value={SITE_INFO.aiDataHandling}
+            env="SITE_AI_DATA_HANDLING"
+          />
+          ）。
         </p>
       </Section>
 
       <Section title="5. 情報を渡す先">
         <p>
           法令に基づく場合を除き、集めた情報を第三者に渡しません。本サービスを動かすサーバーは
-          <ToFill>サーバーの事業者と国・地域</ToFill>
+          <SiteValue value={SITE_INFO.hosting} env="SITE_HOSTING" />
           にあります。
         </p>
       </Section>

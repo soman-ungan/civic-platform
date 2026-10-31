@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 
+import { EmptyState } from "@/components/ui/empty-state";
+
 import type { OfficialList } from "@/lib/api/types/officials";
 import { coverageText, roleLabel, termLabel } from "@/lib/officials";
 
@@ -18,6 +20,13 @@ export function OfficialListView({
   municipalityName: string;
   list: OfficialList;
 }) {
+  if (list.officials.length === 0) {
+    return (
+      <EmptyState>
+        {municipalityName}の議員の名簿は、まだ登録していません。
+      </EmptyState>
+    );
+  }
   const current = list.officials.filter((o) => o.term_end === null);
   const former = list.officials.filter((o) => o.term_end !== null);
   return (
