@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# cargo audit の設定（CI の audit ジョブ）
+
+[advisories]
+ignore = [
+    # rsa の Marvin Attack。sqlx の Cargo.lock には使わないドライバ（sqlx-mysql）も載るため検出されるが、
+    # mysql の機能は有効にしておらず、ビルドに入らない（`cargo tree -i rsa --target all` が空）。
+    # mysql を使うようにしたら、この除外を外して見直す（2026-10-31）
+    "RUSTSEC-2023-0071",
+]

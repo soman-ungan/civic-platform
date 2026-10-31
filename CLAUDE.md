@@ -34,7 +34,7 @@ civic-platform/
 │   └── src/maintenance/  準備と保守（seed・eval）
 │       層の依存は interface → ingest / records / process / maintenance → shared。内部ロジックは interface を使わない（docs/plans/2026-10-28-backend-layers.md）
 ├── frontend/             Next.js (App Router) / TypeScript / Tailwind CSS
-│   ├── src/components/   画面の部品。まとまりは backend の interface/api/ にそろえる（topics・participation・analysis・digest・officials・finances・auth）。ほかに ui/（よく使う見た目: チップ・横スクロールの行・切り替え・空の欄・説明の吹き出し・ボタンのクラス）と layout/（画面の枠）
+│   ├── src/components/   画面の部品。まとまりは backend の interface/api/ にそろえる（topics・participation・analysis・digest・officials・proposals・finances・auth・operator）。ほかに ui/（よく使う見た目: チップ・横スクロールの行・切り替え・空の欄・説明の吹き出し・会議録の引用・ボタンのクラス）、layout/（画面の枠・自治体の切り替え）、info/（このサービスについて・規約などの文章の枠）
 │   └── src/lib/          api/（backend とのやりとり: paths・server・client・use-api。型は api/types/ に backend のモジュールごと）、finances/（お金の表示の決まり）、auth/（パスキー）、画面をまたぐ小さな決まり（labels など）
 │       ファイル名はディレクトリ名と重なる部分を外す（components/finances/bars.tsx など）。型をまとめて export し直すファイルは作らない（docs/plans/2026-10-28-frontend-layout.md）
 ├── data/                 SQLite ファイル（*.db は git 管理しない）
@@ -138,7 +138,7 @@ civic-platform/
   - 書式は `010_municipality_092100_otawara.sql` に倣う。全 INSERT に `ON CONFLICT DO NOTHING` を付ける
   - 地区 ID は `<団体コード>-<ローマ字>`
   - 決算カードの収集先（`soumu_settlement_card`）を1行足して `fetch settlement -m <slug>` → `import settlement -m <slug>` すると、人口（`municipality_stats`）も決算カードから入る。設定は全市町村で同じ（大田原市の行をそのまま写し、id と municipality_id だけ変える）
-- CI は `.github/workflows/ci.yml`（PostgreSQL へのマイグレーションと seed の互換も確かめる）
+- CI は `.github/workflows/ci.yml`（PostgreSQL へのマイグレーションと seed の互換も確かめる。依存の既知の脆弱性は audit ジョブで、週1回も回す。cargo audit の除外は `backend/.cargo/audit.toml` に理由つきで書く）
 
 ## 開発フェーズ
 - 1 土台 → 2 コア → 3 分析 → 4 AI → 5 収集 → 6a パスキー・運営者 → 6b 参加の決まり → 6c 管理画面とトピックの期限 → 6d 市民からのトピックの提案 → タイムラインの流れ → 意見の取りまとめ（類似判定・トピックマップ・市民のまとめ） は済み（状況は `docs/overview.md`、各計画は `docs/plans/README.md`）

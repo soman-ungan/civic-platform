@@ -411,7 +411,7 @@ async fn budget(
     let of = |category: &str| -> Vec<&ItemRow> {
         items.iter().filter(|r| r.category == category).collect()
     };
-    let projects = projects(pool, "p.budget_id = $1", &id, population, None).await?;
+    let projects = projects(pool, &id, population, None).await?;
     Ok(Some(BudgetView {
         total,
         population,
@@ -434,33 +434,32 @@ struct ProjectRow {
     page: i64,
 }
 
-/// 主な事業（金額の大きい順）。`filter` は budget_projects p に対する条件（$1 を使う）。
+/// その予算の主な事業（金額の大きい順）。
 /// `topic_id` を渡すと、そのトピックの分野タグを持つ事業だけにする
 async fn projects(
     pool: &SqlitePool,
-    filter: &str,
-    arg: &str,
+    budget_id: &str,
     population: Option<i64>,
     topic_id: Option<&str>,
 ) -> Result<Vec<BudgetProject>, ApiError> {
-    let rows: Vec<ProjectRow> = sqlx::query_as(&format!(
+    let rows: Vec<ProjectRow> = sqlx::query_as(
         "SELECT p.id, p.name, p.amount, p.flag, p.plan_label, p.page FROM budget_projects p
-         WHERE {filter}
+         WHERE p.budget_id = $1
            AND (CAST($2 AS TEXT) IS NULL OR EXISTS (
                 SELECT 1 FROM budget_project_tags bt JOIN topic_tags tt ON tt.tag_id = bt.tag_id
                 WHERE bt.project_id = p.id AND tt.topic_id = $2))
-         ORDER BY p.amount DESC, p.position"
-    ))
-    .bind(arg)
+         ORDER BY p.amount DESC, p.position",
+    )
+    .bind(budget_id)
     .bind(topic_id)
     .fetch_all(pool)
     .await?;
-    let tags: Vec<(String, String, String)> = sqlx::query_as(&format!(
+    let tags: Vec<(String, String, String)> = sqlx::query_as(
         "SELECT bt.project_id, g.id, g.name FROM budget_project_tags bt
          JOIN tags g ON g.id = bt.tag_id JOIN budget_projects p ON p.id = bt.project_id
-         WHERE {filter} ORDER BY g.id"
-    ))
-    .bind(arg)
+         WHERE p.budget_id = $1 ORDER BY g.id",
+    )
+    .bind(budget_id)
     .fetch_all(pool)
     .await?;
     Ok(rows
@@ -614,7 +613,7 @@ async fn topic_budget(
     let population = latest_population(pool, municipality_id, fiscal_year)
         .await?
         .map(|(_, p)| p);
-    let mut projects = projects(pool, "p.budget_id = $1", &id, population, Some(topic_id)).await?;
+    let mut projects = projects(pool, &id, population, Some(topic_id)).await?;
     if projects.is_empty() {
         return Ok(None);
     }

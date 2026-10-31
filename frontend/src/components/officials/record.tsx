@@ -6,8 +6,8 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 
 import { ChipButton } from "@/components/ui/chip";
+import { MinutesQuote } from "@/components/ui/quote";
 import { ScrollRow } from "@/components/ui/scroll-row";
-import { formatDate } from "@/lib/dates";
 import type { OfficialDetail } from "@/lib/api/types/officials";
 import type { Tag } from "@/lib/api/types/topics";
 import { coverageText } from "@/lib/officials";
@@ -120,24 +120,12 @@ export function OfficialRecord({
             <ul className="mt-3 flex flex-col gap-3">
               {topic.quotes.map((q, i) => (
                 <li key={i}>
-                  <blockquote className="rounded-2xl rounded-tl-sm bg-zinc-100 px-3.5 py-2.5 text-sm leading-6 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
-                    「{q.quote}」
-                  </blockquote>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {q.url ? (
-                      <a
-                        href={q.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline underline-offset-2"
-                      >
-                        {q.document_title}
-                      </a>
-                    ) : (
-                      q.document_title
-                    )}
-                    {q.held_on && `、${formatDate(q.held_on)}`}
-                  </p>
+                  <MinutesQuote
+                    quote={q.quote}
+                    documentTitle={q.document_title}
+                    heldOn={q.held_on}
+                    url={q.url}
+                  />
                 </li>
               ))}
             </ul>
