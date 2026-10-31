@@ -31,3 +31,7 @@ Chrome の開発者ツール（CPU 4倍減速・低速4G）で、トピックタ
 ### 確かめ
 - `cargo test`・clippy・fmt、frontend の lint・型チェック・`npm run build`
 - 本番ビルド（`npm run build` → `npm start`）で、HTML の大きさと要素の数を前と比べる。LCP はユーザーが開発者ツールで測る（開発サーバーは JS が大きく遅いので、本番ビルドで測る）
+
+## 実装時の変更点
+- 1: 締め切ったかの判定は `progress::is_closed` と同じ（`closes_at` が今以前）。一覧の並びの「受付中を先に」は要らなくなったので外した
+- 2: A と C を入れた（`components/finances/carousel.tsx`）。本番ビルドで 2024年度の HTML は 260KB → 162KB（gzip 37KB → 28KB）、要素は約1,600 → 約480。残りの大きさは、まだ描いていない欄の中身も RSC のデータとして送っているため（主な事業が大きい）。B はユーザーが LCP を測り直してから決める
