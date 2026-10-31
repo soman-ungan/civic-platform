@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { ConsensusPins } from "@/components/topics/consensus-pins";
+import { ConsensusPins } from "@/components/analysis/consensus-pins";
 import { PageSlide } from "@/components/layout/page-slide";
 import { TopicFeed } from "@/components/topics/feed";
 import { municipalityApi } from "@/lib/api/paths";

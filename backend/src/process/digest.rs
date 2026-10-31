@@ -5,7 +5,7 @@
 //! - 起点の締め切ったトピックと、その近傍（`topic_map::Closed::neighbors`）から選んだトピックごとに、
 //!   合意点・意見が分かれた点・グループごとの代表的な意見を、原文と数字のまま並べる
 //! - 中身はプログラムだけで決める。AI で論点をまとめない。グループを AI で要約しない（人をひとくくりに名付けない。ADR 0002）
-//!   - 合意点: 全グループで (A+1)/(S+2) ≥ 0.8（タイムラインのピン留めと同じ）
+//!   - 合意点: 全グループで (A+1)/(S+2) ≥ 0.8（タイムラインのピン留めと同じ。`disclosure::is_consensus`）
 //!   - 意見が分かれた点: あるグループで (A+1)/(S+2) ≥ `DIVIDED_THRESHOLD`、かつ別のグループで (D+1)/(S+2) ≥ 同じ値。
 //!     5人未満のグループは数えない
 //! - 分析の対象が5人未満のトピックは、中身を出さない（分析の公表の決まりと同じ）
@@ -18,11 +18,11 @@ use sqlx::SqlitePool;
 
 use crate::process::analysis::conversation::ConvResult;
 use crate::process::analysis::disclosure::{
-    MIN_CELL_SIZE, MIN_DISPLAY_PARTICIPANTS, PIN_THRESHOLD, group_label, suppress,
+    MIN_CELL_SIZE, MIN_DISPLAY_PARTICIPANTS, agree_rate, group_label, is_consensus,
+    residency_breakdown, residency_types,
 };
 use crate::process::analysis::repness::RepfulFor;
 use crate::process::analysis::store::{self, Stored};
-use crate::process::progress::RESIDENCY_TYPES;
 use crate::process::topic_map::{self, Closed};
 
 /// 意見が分かれた点のしきい値（2026-10-30 に仮置き。変えるときはここだけ）
@@ -62,10 +62,6 @@ pub struct Item {
     pub groups: Vec<GroupVotes>,
 }
 
-fn agree_rate(a: u32, s: u32) -> f64 {
-    (f64::from(a) + 1.0) / (f64::from(s) + 2.0)
-}
-
 /// トピックの分析から、合意点と意見が分かれた点を選ぶ（合意点が先。それぞれ目立つ順）
 pub fn items(
     result: &ConvResult,
@@ -100,10 +96,7 @@ pub fn items(
                 })
                 .collect(),
         };
-        if counts
-            .iter()
-            .all(|(_, c)| agree_rate(c.a, c.s) >= PIN_THRESHOLD)
-        {
+        if is_consensus(result, tid) {
             let gac = result
                 .group_aware_consensus
                 .get(tid)
@@ -218,38 +211,6 @@ pub fn check_selection(
     Ok(ids)
 }
 
-/// 分析に含まれた参加者の、関わり方ごとの人数（二次秘匿の済んだもの）
-async fn residency(
-    pool: &SqlitePool,
-    municipality_id: &str,
-    in_conv: &[String],
-) -> Result<BTreeMap<String, Option<i64>>, sqlx::Error> {
-    let relations: HashMap<String, String> = sqlx::query_as::<_, (String, String)>(
-        "SELECT user_id, residency_type FROM user_municipality_relations WHERE municipality_id = $1",
-    )
-    .bind(municipality_id)
-    .fetch_all(pool)
-    .await?
-    .into_iter()
-    .collect();
-    let mut counts: HashMap<&str, i64> = HashMap::new();
-    for pid in in_conv {
-        if let Some(t) = relations.get(pid) {
-            *counts.entry(t.as_str()).or_default() += 1;
-        }
-    }
-    let values: Vec<i64> = RESIDENCY_TYPES
-        .iter()
-        .map(|t| counts.get(t).copied().unwrap_or(0))
-        .collect();
-    let visible = suppress(&values);
-    Ok(RESIDENCY_TYPES
-        .iter()
-        .zip(values.iter().zip(&visible))
-        .map(|(t, (n, v))| ((*t).to_owned(), v.then_some(*n)))
-        .collect())
-}
-
 /// まとめを作る（保存しない。締め切ったトピックは変わらないので、そのつど計算する）
 pub async fn digest(
     pool: &SqlitePool,
@@ -305,7 +266,8 @@ pub async fn digest(
                 out.consensus = consensus;
                 out.divided = divided;
                 out.groups = groups(&result, &bodies);
-                out.residency = residency(pool, municipality_id, &state.in_conv).await?;
+                let relations = residency_types(pool, municipality_id).await?;
+                out.residency = residency_breakdown(&state.in_conv, &relations);
             }
         }
         topics.push(out);

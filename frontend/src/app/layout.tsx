@@ -20,7 +20,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ja" className="h-full antialiased">
       {/* 画面の高さに固定し、スクロールは各ページの中で行う（ヘッダーとフッターを常に表示するため）。
-          印刷（提言の PDF）のときは高さを固定せず、全体を流す */}
+          印刷（まとめの PDF）のときは高さを固定せず、全体を流す */}
       <body className="flex h-dvh flex-col overflow-hidden print:block print:h-auto print:overflow-visible">
         {children}
         <SiteFooter />

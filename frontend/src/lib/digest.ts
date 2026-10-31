@@ -4,16 +4,6 @@
 
 const enc = encodeURIComponent;
 
-/** 締め切った日（日本時間の「2026年10月30日」） */
-export function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("ja-JP", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(new Date(iso));
-}
-
 /** 基準の割合の表記（0.6 → 「6割」） */
 export function ratioLabel(value: number): string {
   return `${Math.round(value * 10)}割`;

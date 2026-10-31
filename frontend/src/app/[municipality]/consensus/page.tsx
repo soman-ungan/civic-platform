@@ -5,8 +5,9 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { OperatorLink } from "@/components/auth/operator-link";
-import { MapTagList, TopicMapView } from "@/components/digest/map";
-import { ConsensusToggle } from "@/components/topics/consensus-list";
+import { TopicMapView } from "@/components/digest/map";
+import { MapTagList } from "@/components/digest/map-tags";
+import { ConsensusToggle } from "@/components/analysis/consensus-list";
 import { municipalityApi, topicMapApi } from "@/lib/api/paths";
 import { apiGet, requestCookie } from "@/lib/api/server";
 import type { MunicipalityConsensus } from "@/lib/api/types/analysis";

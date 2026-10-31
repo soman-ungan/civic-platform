@@ -85,57 +85,63 @@ fn operator_routes() -> Router<AppState> {
     Router::new()
         .route("/municipalities", get(operator::municipalities))
         .route(&format!("{M}/tags"), get(operator::tag_choices))
-        .route(&format!("{M}/topics"), get(operator::list_topics))
+        .route(&format!("{M}/topics"), get(operator::topics::list_topics))
         .route(
             &format!("{M}/topics/{{topic_id}}"),
-            get(operator::topic).patch(operator::edit_topic),
+            get(operator::topics::topic).patch(operator::topics::edit_topic),
         )
         .route(
             &format!("{M}/topics/{{topic_id}}/publish"),
-            post(operator::publish_topic),
+            post(operator::topics::publish_topic),
         )
         .route(
             &format!("{M}/topics/{{topic_id}}/archive"),
-            post(operator::archive_topic),
+            post(operator::topics::archive_topic),
         )
         .route(
             &format!("{M}/topics/{{topic_id}}/closes-at"),
-            put(operator::set_closes_at),
+            put(operator::topics::set_closes_at),
         )
         .route(
             &format!("{M}/topics/{{topic_id}}/queue"),
-            post(operator::enqueue).delete(operator::dequeue),
+            post(operator::publishing::enqueue).delete(operator::publishing::dequeue),
         )
-        .route(&format!("{M}/publishing"), get(operator::publishing))
-        .route(&format!("{M}/publish-slots"), post(operator::add_slot))
+        .route(
+            &format!("{M}/publishing"),
+            get(operator::publishing::publishing),
+        )
+        .route(
+            &format!("{M}/publish-slots"),
+            post(operator::publishing::add_slot),
+        )
         .route(
             &format!("{M}/publish-slots/{{slot_id}}"),
-            patch(operator::update_slot).delete(operator::delete_slot),
+            patch(operator::publishing::update_slot).delete(operator::publishing::delete_slot),
         )
         .route(
             &format!("{M}/topics/{{topic_id}}/statements"),
-            post(operator::add_statement),
+            post(operator::topics::add_statement),
         )
         .route(
             &format!("{M}/topics/{{topic_id}}/tags/{{tag_id}}"),
-            put(operator::put_tag).delete(operator::delete_tag),
+            put(operator::topics::put_tag).delete(operator::topics::delete_tag),
         )
-        .route(&format!("{M}/statements"), get(operator::queue))
+        .route(&format!("{M}/statements"), get(operator::statements::queue))
         .route(
             &format!("{M}/statements/{{statement_id}}"),
-            patch(operator::edit_statement),
+            patch(operator::statements::edit_statement),
         )
         .route(
             &format!("{M}/statements/{{statement_id}}/approve"),
-            post(operator::approve),
+            post(operator::statements::approve),
         )
         .route(
             &format!("{M}/statements/{{statement_id}}/reject"),
-            post(operator::reject),
+            post(operator::statements::reject),
         )
         .route(
             &format!("{M}/statements/{{statement_id}}/retry"),
-            post(operator::retry),
+            post(operator::statements::retry),
         )
 }
 

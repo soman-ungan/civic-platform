@@ -4,7 +4,6 @@
 
 import { useState } from "react";
 
-import { chipClass } from "@/components/ui/chip";
 import {
   BADGE_AMBER,
   BUTTON_PRIMARY,
@@ -12,22 +11,16 @@ import {
   ERROR_TEXT,
 } from "@/components/ui/styles";
 import { apiFetch } from "@/lib/api/client";
-import { operatorStatementApi, operatorTopicApi } from "@/lib/api/paths";
-import type {
-  OperatorStatement,
-  OperatorTopic,
-  TagChoice,
-} from "@/lib/api/types/operator";
+import { operatorTopicApi } from "@/lib/api/paths";
+import type { OperatorTopic, TagChoice } from "@/lib/api/types/operator";
 import { SOURCE_LABELS } from "@/lib/labels";
-import { STATEMENT_STATUS_LABELS, formatDateTime } from "@/lib/operator";
-import { MAX_STATEMENT_CHARS, countChars } from "@/lib/statement";
+import { formatDateTime } from "@/lib/operator";
 
 import { STICKY_CARD_HEAD } from "./sticky";
 import { useAction } from "./use-action";
-
-const INPUT =
-  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900";
-const SMALL_BUTTON = `h-8 px-3 text-xs ${BUTTON_SECONDARY}`;
+import { INPUT, SMALL_BUTTON } from "./styles";
+import { AddStatement, StatementRow } from "./draft-statements";
+import { TagPicker } from "./draft-tags";
 
 /**
  * 下書きのトピック1件: 出典と照らして、タイトル・説明・最初の意見・タグを直し、公開するか取り下げる。
@@ -287,244 +280,6 @@ function TitleEditor({
         </button>
       </div>
     </div>
-  );
-}
-
-function StatementRow({
-  slug,
-  statement,
-  onChanged,
-}: {
-  slug: string;
-  statement: OperatorStatement;
-  onChanged: () => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [body, setBody] = useState(statement.body);
-  const { busy, error, run } = useAction();
-  const api = operatorStatementApi(slug, statement.id);
-
-  async function save() {
-    const ok = await run(async () => {
-      await apiFetch(api, { method: "PATCH", body: { body } });
-      await onChanged();
-    }, "直せませんでした");
-    if (ok) setEditing(false);
-  }
-
-  async function remove() {
-    if (!window.confirm(`「${statement.body}」を取り下げます。よろしいですか`))
-      return;
-    await run(async () => {
-      await apiFetch(`${api}/reject`, { method: "POST" });
-      await onChanged();
-    }, "取り下げられませんでした");
-  }
-
-  return (
-    <li className="py-2">
-      {editing ? (
-        <BodyInput value={body} onChange={setBody} />
-      ) : (
-        <p className="text-sm leading-6">
-          {statement.status !== "approved" && (
-            <span
-              className={`mr-1 rounded px-1.5 py-0.5 text-xs ${BADGE_AMBER}`}
-            >
-              {STATEMENT_STATUS_LABELS[statement.status]}
-            </span>
-          )}
-          {statement.body}
-        </p>
-      )}
-      {statement.basis.length > 0 && (
-        <p className="mt-0.5 text-xs text-zinc-500">
-          根拠: {statement.basis.join("、")}
-        </p>
-      )}
-      {error && <p className={`mt-1 ${ERROR_TEXT}`}>{error}</p>}
-      <div className="mt-1.5 flex gap-2">
-        {editing ? (
-          <>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={save}
-              className={`h-8 px-4 text-xs ${BUTTON_PRIMARY}`}
-            >
-              保存
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              className={SMALL_BUTTON}
-            >
-              やめる
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => {
-                setBody(statement.body);
-                setEditing(true);
-              }}
-              className={SMALL_BUTTON}
-            >
-              直す
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={remove}
-              className={SMALL_BUTTON}
-            >
-              取り下げる
-            </button>
-          </>
-        )}
-      </div>
-    </li>
-  );
-}
-
-function BodyInput({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}) {
-  const chars = countChars(value);
-  const over = chars > MAX_STATEMENT_CHARS;
-  return (
-    <div>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={3}
-        placeholder={placeholder}
-        aria-label="意見の本文"
-        className={INPUT}
-      />
-      <p
-        className={`text-right text-xs ${over ? "text-rose-600" : "text-zinc-500"}`}
-      >
-        {chars} / {MAX_STATEMENT_CHARS}
-      </p>
-    </div>
-  );
-}
-
-function AddStatement({
-  slug,
-  topic,
-  onChange,
-}: {
-  slug: string;
-  topic: OperatorTopic;
-  onChange: (topic: OperatorTopic) => void;
-}) {
-  const [body, setBody] = useState("");
-  const { busy, error, run } = useAction();
-
-  async function add() {
-    const ok = await run(
-      async () =>
-        onChange(
-          await apiFetch<OperatorTopic>(
-            `${operatorTopicApi(slug, topic.id)}/statements`,
-            { method: "POST", body: { body } },
-          ),
-        ),
-      "足せませんでした",
-    );
-    if (ok) setBody("");
-  }
-
-  return (
-    <div className="mt-2">
-      <BodyInput
-        value={body}
-        onChange={setBody}
-        placeholder="最初の意見を足す（議会で実際に出た主張から）"
-      />
-      {error && <p className={ERROR_TEXT}>{error}</p>}
-      <button
-        type="button"
-        disabled={busy || body.trim().length === 0}
-        onClick={add}
-        className={SMALL_BUTTON}
-      >
-        足す
-      </button>
-    </div>
-  );
-}
-
-function TagPicker({
-  slug,
-  topic,
-  choices,
-  onChange,
-}: {
-  slug: string;
-  topic: OperatorTopic;
-  choices: TagChoice[];
-  onChange: (topic: OperatorTopic) => void;
-}) {
-  const { busy, error, run } = useAction();
-  const assigned = new Map(topic.tags.map((t) => [t.id, t.assigned_by]));
-
-  async function toggle(tag: TagChoice) {
-    await run(
-      async () =>
-        onChange(
-          await apiFetch<OperatorTopic>(
-            `${operatorTopicApi(slug, topic.id)}/tags/${encodeURIComponent(tag.id)}`,
-            { method: assigned.has(tag.id) ? "DELETE" : "PUT" },
-          ),
-        ),
-      "タグを変えられませんでした",
-    );
-  }
-
-  const groups = [
-    { label: "分野", tags: choices.filter((t) => t.kind === "field") },
-    { label: "地区", tags: choices.filter((t) => t.kind === "district") },
-  ];
-  return (
-    <section aria-label="タグ" className="mt-4">
-      <h3 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
-        タグ（AI が付けたものに「AI」）
-      </h3>
-      {groups.map((g) => (
-        <div key={g.label} className="mt-2">
-          <p className="text-xs text-zinc-500">{g.label}</p>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {g.tags.map((tag) => (
-              <button
-                key={tag.id}
-                type="button"
-                disabled={busy}
-                aria-pressed={assigned.has(tag.id)}
-                onClick={() => toggle(tag)}
-                className={chipClass(assigned.has(tag.id))}
-              >
-                {tag.name}
-                {assigned.get(tag.id) === "ai" && (
-                  <span className="ml-1 text-[10px] opacity-70">AI</span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-      {error && <p className={`mt-1 ${ERROR_TEXT}`}>{error}</p>}
-    </section>
   );
 }
 
