@@ -6,10 +6,14 @@ import { Suspense } from "react";
 import { OperatorLink } from "@/components/auth/operator-link";
 import { SwipeNav } from "@/components/layout/swipe-nav";
 import { TabNav, TabNavFallback } from "@/components/layout/tab-nav";
-import { municipalityApi } from "@/lib/api/paths";
+import { MunicipalitySwitcher } from "@/components/layout/municipality-switcher";
+import { MUNICIPALITIES_API, municipalityApi } from "@/lib/api/paths";
 import { MUNICIPALITY_NAME_ID } from "@/lib/tabs";
 import { apiGet } from "@/lib/api/server";
-import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
+import type {
+  Municipality,
+  MunicipalityDetail,
+} from "@/lib/api/types/municipalities";
 
 /**
  * 自治体のトップ（トピック・まちのお金）の共通の枠。自治体名とタブを固定のヘッダーとして常に表示し、
@@ -49,15 +53,19 @@ async function MunicipalityName({
   params,
 }: Pick<LayoutProps<"/[municipality]">, "params">) {
   const { municipality: slug } = await params;
-  const municipality = await apiGet<MunicipalityDetail>(municipalityApi(slug));
+  const [municipality, all] = await Promise.all([
+    apiGet<MunicipalityDetail>(municipalityApi(slug)),
+    apiGet<Municipality[]>(MUNICIPALITIES_API),
+  ]);
   if (!municipality) {
     notFound();
   }
+  // 自治体名を押すと、公開中の自治体の一覧から切り替えられる
   return (
-    <div>
-      <p className="text-xs text-zinc-500">{municipality.prefecture_name}</p>
-      <h1 className="text-xl font-bold tracking-tight">{municipality.name}</h1>
-    </div>
+    <MunicipalitySwitcher
+      current={municipality}
+      municipalities={all ?? [municipality]}
+    />
   );
 }
 

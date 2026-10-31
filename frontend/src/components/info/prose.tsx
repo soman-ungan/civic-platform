@@ -82,12 +82,38 @@ export function List({ children }: { children: React.ReactNode }) {
   return <ul className="list-disc space-y-1 pl-5">{children}</ul>;
 }
 
-/** 運営者が書き足すところ（公開の前に埋める） */
-export function ToFill({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded bg-amber-100 px-1 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
-      【要記入: {children}】
-    </span>
+/**
+ * 運営者ごとの値（`lib/site.ts` の `SITE_INFO`。`.env` から読む）。
+ * 未設定なら【要記入】の印を出す（公開の前に `.env` で埋める）。`href` があればリンクにする
+ */
+export function SiteValue({
+  value,
+  env,
+  href,
+}: {
+  value: string | null;
+  /** 未設定のときに案内する環境変数の名前 */
+  env: string;
+  href?: boolean;
+}) {
+  if (!value) {
+    return (
+      <span className="rounded bg-amber-100 px-1 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
+        【要記入: .env の {env}】
+      </span>
+    );
+  }
+  return href ? (
+    <a
+      href={value}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline underline-offset-2"
+    >
+      {value}
+    </a>
+  ) : (
+    <>{value}</>
   );
 }
 
