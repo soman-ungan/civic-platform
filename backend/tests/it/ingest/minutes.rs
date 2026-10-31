@@ -383,7 +383,9 @@ async fn published_topic_shows_sources() {
     assert_eq!(sources[2]["speaker"], "保健福祉部長");
     assert_eq!(sources[0]["held_on"], "2025-09-05");
     assert_eq!(res.json["source_type"], "assembly");
-    crate::common::assert_no_key(&res.json, "official_id");
+    // 公人には議員の記録へのリンクのための ID が付き、職員には付かない（ADR 0008）
+    assert!(sources[0]["official_id"].is_string());
+    assert!(sources[2]["official_id"].is_null());
     crate::common::assert_no_key(&res.json, "basis");
     assert!(!res.json.to_string().contains("佐藤"));
 }

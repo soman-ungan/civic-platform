@@ -7,38 +7,40 @@
 -- term_start（任期の開始日）は選挙の日。議員は 2023-11-19 の大田原市議会議員選挙
 -- 市長は 2022-03-20 の大田原市長選挙で初当選（2026-03-22 の選挙で2期目）。選挙の日を任期の開始日とする
 -- 【要確認】定例会の前に議員でなくなった2人の在職の期間と、補欠選挙で選ばれた2人の任期の開始日は仮の値
+-- name_kana（読み）は一覧を五十音で並べるためだけに使い、画面には出さない（ADR 0008）。
+-- 【要確認】読みは id のローマ字から書いた。市議会の議員名簿で確かめる
 -- 出典: 大田原市議会 令和8年第1回定例会 会議録（第1号〜第6号）の出席議員・発言者
 --   https://ssp.kaigiroku.net/tenant/ohtawara/MinuteView.html?council_id=608&schedule_id=2&is_search=false&view_years=2026
 --   令和8年第2回定例会 会議録（第1号の議席の変更。補欠選挙で選ばれた2人）
 --   https://ssp.kaigiroku.net/tenant/ohtawara/MinuteView.html?council_id=615&schedule_id=2&is_search=false&view_years=2026
-INSERT INTO public_officials (id, municipality_id, name, role, term_start, term_end, note) VALUES
-    ('092100-mayor-souma-kenichi',     '092100', '相馬憲一',     'mayor',     '2022-03-20', NULL, '市長。2022-03-20 の大田原市長選挙で初当選、2026-03-22 の選挙で2期目'),
-    ('092100-council-saitou-fujio',    '092100', '齋藤藤男',     'councilor', '2023-11-19', NULL, '1番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-iga-jun',         '092100', '伊賀純',       'councilor', '2023-11-19', NULL, '2番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-maeda-noritaka',  '092100', '前田則隆',     'councilor', '2023-11-19', NULL, '3番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-naitou-mikio',    '092100', '内藤幹夫',     'councilor', '2023-11-19', NULL, '5番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-kitahara-yuuko',  '092100', '北原裕子',     'councilor', '2023-11-19', NULL, '6番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-fujita-yoshiyuki','092100', '藤田善幸',     'councilor', '2023-11-19', NULL, '7番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-tsumori-nao',     '092100', '津守那音',     'councilor', '2023-11-19', NULL, '8番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-okano-tadashi',   '092100', '岡野忠',       'councilor', '2023-11-19', NULL, '9番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-ootsuka-masayoshi','092100','大塚正義',     'councilor', '2023-11-19', NULL, '10番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-akiyama-sachiko', '092100', '秋山幸子',     'councilor', '2023-11-19', NULL, '11番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-maeno-ryouzou',   '092100', '前野良三',     'councilor', '2023-11-19', NULL, '12番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-onodera-naotake', '092100', '小野寺尚武',   'councilor', '2023-11-19', NULL, '13番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-oomameuda-harumi','092100', '大豆生田春美', 'councilor', '2023-11-19', NULL, '14番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-nakagawa-masayuki','092100','中川雅之',     'councilor', '2023-11-19', NULL, '15番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-sakurai-junichirou','092100','櫻井潤一郎',  'councilor', '2023-11-19', NULL, '16番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-takase-shigetsugu','092100','髙瀨重嗣',     'councilor', '2023-11-19', NULL, '17番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-takita-ichirou',  '092100', '滝田一郎',     'councilor', '2023-11-19', NULL, '18番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-kikuchi-hisamitsu','092100','菊池久光',     'councilor', '2023-11-19', NULL, '19番。2023-11-19 の大田原市議会議員選挙で当選'),
-    ('092100-council-kimishima-takaaki','092100','君島孝明',     'councilor', '2023-11-19', NULL, '20番、議長。2023-11-19 の大田原市議会議員選挙で当選'),
+INSERT INTO public_officials (id, municipality_id, name, role, term_start, term_end, note, name_kana) VALUES
+    ('092100-mayor-souma-kenichi',     '092100', '相馬憲一',     'mayor',     '2022-03-20', NULL, '市長。2022-03-20 の大田原市長選挙で初当選、2026-03-22 の選挙で2期目', 'そうまけんいち'),
+    ('092100-council-saitou-fujio',    '092100', '齋藤藤男',     'councilor', '2023-11-19', NULL, '1番。2023-11-19 の大田原市議会議員選挙で当選', 'さいとうふじお'),
+    ('092100-council-iga-jun',         '092100', '伊賀純',       'councilor', '2023-11-19', NULL, '2番。2023-11-19 の大田原市議会議員選挙で当選', 'いがじゅん'),
+    ('092100-council-maeda-noritaka',  '092100', '前田則隆',     'councilor', '2023-11-19', NULL, '3番。2023-11-19 の大田原市議会議員選挙で当選', 'まえだのりたか'),
+    ('092100-council-naitou-mikio',    '092100', '内藤幹夫',     'councilor', '2023-11-19', NULL, '5番。2023-11-19 の大田原市議会議員選挙で当選', 'ないとうみきお'),
+    ('092100-council-kitahara-yuuko',  '092100', '北原裕子',     'councilor', '2023-11-19', NULL, '6番。2023-11-19 の大田原市議会議員選挙で当選', 'きたはらゆうこ'),
+    ('092100-council-fujita-yoshiyuki','092100', '藤田善幸',     'councilor', '2023-11-19', NULL, '7番。2023-11-19 の大田原市議会議員選挙で当選', 'ふじたよしゆき'),
+    ('092100-council-tsumori-nao',     '092100', '津守那音',     'councilor', '2023-11-19', NULL, '8番。2023-11-19 の大田原市議会議員選挙で当選', 'つもりなお'),
+    ('092100-council-okano-tadashi',   '092100', '岡野忠',       'councilor', '2023-11-19', NULL, '9番。2023-11-19 の大田原市議会議員選挙で当選', 'おかのただし'),
+    ('092100-council-ootsuka-masayoshi','092100','大塚正義',     'councilor', '2023-11-19', NULL, '10番。2023-11-19 の大田原市議会議員選挙で当選', 'おおつかまさよし'),
+    ('092100-council-akiyama-sachiko', '092100', '秋山幸子',     'councilor', '2023-11-19', NULL, '11番。2023-11-19 の大田原市議会議員選挙で当選', 'あきやまさちこ'),
+    ('092100-council-maeno-ryouzou',   '092100', '前野良三',     'councilor', '2023-11-19', NULL, '12番。2023-11-19 の大田原市議会議員選挙で当選', 'まえのりょうぞう'),
+    ('092100-council-onodera-naotake', '092100', '小野寺尚武',   'councilor', '2023-11-19', NULL, '13番。2023-11-19 の大田原市議会議員選挙で当選', 'おのでらなおたけ'),
+    ('092100-council-oomameuda-harumi','092100', '大豆生田春美', 'councilor', '2023-11-19', NULL, '14番。2023-11-19 の大田原市議会議員選挙で当選', 'おおまめうだはるみ'),
+    ('092100-council-nakagawa-masayuki','092100','中川雅之',     'councilor', '2023-11-19', NULL, '15番。2023-11-19 の大田原市議会議員選挙で当選', 'なかがわまさゆき'),
+    ('092100-council-sakurai-junichirou','092100','櫻井潤一郎',  'councilor', '2023-11-19', NULL, '16番。2023-11-19 の大田原市議会議員選挙で当選', 'さくらいじゅんいちろう'),
+    ('092100-council-takase-shigetsugu','092100','髙瀨重嗣',     'councilor', '2023-11-19', NULL, '17番。2023-11-19 の大田原市議会議員選挙で当選', 'たかせしげつぐ'),
+    ('092100-council-takita-ichirou',  '092100', '滝田一郎',     'councilor', '2023-11-19', NULL, '18番。2023-11-19 の大田原市議会議員選挙で当選', 'たきたいちろう'),
+    ('092100-council-kikuchi-hisamitsu','092100','菊池久光',     'councilor', '2023-11-19', NULL, '19番。2023-11-19 の大田原市議会議員選挙で当選', 'きくちひさみつ'),
+    ('092100-council-kimishima-takaaki','092100','君島孝明',     'councilor', '2023-11-19', NULL, '20番、議長。2023-11-19 の大田原市議会議員選挙で当選', 'きみしまたかあき'),
     -- 補欠選挙（無投票と聞いている）で選ばれた2人。【要確認】任期の開始日は、同じ時期の市長選挙の日による仮の値
-    ('092100-council-yada-masahiro',   '092100', '谷田雅洋',     'councilor', '2026-03-22', NULL, '令和8年第2回定例会で10番。補欠選挙で選出。任期の開始日は要確認'),
-    ('092100-council-hirayama-kazuhiro','092100','平山一浩',     'councilor', '2026-03-22', NULL, '令和8年第2回定例会で9番。補欠選挙で選出。任期の開始日は要確認'),
+    ('092100-council-yada-masahiro',   '092100', '谷田雅洋',     'councilor', '2026-03-22', NULL, '令和8年第2回定例会で10番。補欠選挙で選出。任期の開始日は要確認', 'やだまさひろ'),
+    ('092100-council-hirayama-kazuhiro','092100','平山一浩',     'councilor', '2026-03-22', NULL, '令和8年第2回定例会で9番。補欠選挙で選出。任期の開始日は要確認', 'ひらやまかずひろ'),
     -- 定例会の前に議員でなくなった人。発言者にはならないが、トピックの説明や意見に名前を入れないために登録する
     -- 【要確認】在職の期間。term_end は会議録に書かれた日（辞職願の提出日・報告の日）による仮の値
-    ('092100-council-hikichi-tatsuo',  '092100', '引地達雄',     'councilor', '2026-02-20', '2026-02-20', '2026-02-20 に辞職願を提出（第1号の会議録で報告）。在職の期間は要確認'),
-    ('092100-council-fukasawa-masao',  '092100', '深澤正夫',     'councilor', '2026-02-24', '2026-02-24', '第1号の会議録で死去を報告。在職の期間は要確認')
+    ('092100-council-hikichi-tatsuo',  '092100', '引地達雄',     'councilor', '2026-02-20', '2026-02-20', '2026-02-20 に辞職願を提出（第1号の会議録で報告）。在職の期間は要確認', 'ひきちたつお'),
+    ('092100-council-fukasawa-masao',  '092100', '深澤正夫',     'councilor', '2026-02-24', '2026-02-24', '第1号の会議録で死去を報告。在職の期間は要確認', 'ふかさわまさお')
 ON CONFLICT (id) DO UPDATE SET
     name = excluded.name, role = excluded.role, term_start = excluded.term_start,
-    term_end = excluded.term_end, note = excluded.note;
+    term_end = excluded.term_end, note = excluded.note, name_kana = excluded.name_kana;

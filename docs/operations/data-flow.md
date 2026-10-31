@@ -177,7 +177,7 @@ sequenceDiagram
 | `010_municipality_<団体コード>_<slug>.sql` | `municipalities` `districts` `collector_sources` | 自治体を足すとき |
 | `020_field_tags.sql` | `tags`（分野の共通の語彙） | 語彙を見直すとき |
 | `025_settlement_item_tags.sql` | `settlement_item_tags`（費目 ↔ 分野） | 対応を見直すとき |
-| `030_officials_<団体コード>_<slug>.sql` | `public_officials`（首長・議員と任期） | 選挙のあと |
+| `030_officials_<団体コード>_<slug>.sql` | `public_officials`（首長・議員と任期・読み） | 選挙のあと |
 
 ## サーバーの中で自動で動くもの
 
