@@ -2,7 +2,6 @@
 
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -126,12 +125,17 @@ function PublishedCard({
   return (
     <article className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
       <h2 className="text-sm font-semibold">
-        <Link
+        {/* next/link で移ると、/operator が「/[municipality]」の形に合うため、トピック詳細のレイヤ
+            （(tabs)/@sheet/(.)topics）に横取りされて「ページが見つかりません」になる。
+            普通のリンクで、別のタブに開く（管理画面の位置も保てる） */}
+        <a
           href={`/${slug}/topics/${topic.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
           className="underline-offset-2 hover:underline"
         >
           {topic.title}
-        </Link>
+        </a>
       </h2>
       <p className="mt-1 text-xs text-zinc-500">
         {label}
