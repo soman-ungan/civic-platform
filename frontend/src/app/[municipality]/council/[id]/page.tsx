@@ -58,23 +58,30 @@ async function OfficialView({
     notFound();
   }
   return (
-    <>
-      <div className="flex items-center justify-between gap-4">
-        <Link
-          href={`/${m.slug}/council`}
-          className="inline-flex h-10 items-center text-sm text-zinc-600 dark:text-zinc-400"
-        >
-          ← {m.name}の議会
-        </Link>
-        <OperatorLink />
-      </div>
-      <p className="mt-1 text-xs text-zinc-500">
-        {roleTitle(m.name, official.role)}
-      </p>
-      <h1 className="text-xl font-bold tracking-tight">{official.name}</h1>
-      <p className="mt-1 text-xs text-zinc-500">任期 {termLabel(official)}</p>
-      <OfficialRecord slug={m.slug} official={official} />
-    </>
+    <OfficialRecord
+      slug={m.slug}
+      official={official}
+      header={
+        <>
+          <div className="flex items-center justify-between gap-4">
+            <Link
+              href={`/${m.slug}/council`}
+              className="inline-flex h-10 items-center text-sm text-zinc-600 dark:text-zinc-400"
+            >
+              ← {m.name}の議会
+            </Link>
+            <OperatorLink />
+          </div>
+          <p className="mt-1 text-xs text-zinc-500">
+            {roleTitle(m.name, official.role)}
+          </p>
+          <h1 className="text-xl font-bold tracking-tight">{official.name}</h1>
+          <p className="mt-1 text-xs text-zinc-500">
+            任期 {termLabel(official)}
+          </p>
+        </>
+      }
+    />
   );
 }
 
