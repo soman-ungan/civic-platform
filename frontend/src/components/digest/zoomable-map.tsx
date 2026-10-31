@@ -52,11 +52,15 @@ export function ZoomableMap({
   useEffect(() => {
     const el = outerRef.current;
     if (!el) return;
-    const measure = () =>
+    const measure = () => {
+      // 隠れている間（display: none）は幅が 0 になる。そのときは前の大きさのままにする
+      // （0 で割って viewBox が Infinity になるため）
+      if (el.clientWidth === 0) return;
       setFull({
         w: el.clientWidth,
         h: window.innerHeight * MAP_HEIGHT.large,
       });
+    };
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     window.addEventListener("resize", measure);
@@ -68,7 +72,7 @@ export function ZoomableMap({
   const size = { w: full.w * scale, h: full.h * scale };
 
   // 地図の座標で見える範囲（縦横比は枠に合わせる。-1〜1 と余白が必ず入る。縮めても縦横比は同じ）
-  const aspect = full.w / Math.max(full.h, 1);
+  const aspect = Math.max(full.w, 1) / Math.max(full.h, 1);
   const base = 1 + PAD;
   const hx = (aspect >= 1 ? base * aspect : base) / view.k;
   const hy = (aspect >= 1 ? base : base / aspect) / view.k;
