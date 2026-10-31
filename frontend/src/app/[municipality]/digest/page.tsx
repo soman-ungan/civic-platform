@@ -3,8 +3,20 @@
 import { Suspense } from "react";
 
 import { DigestDetailView, DigestSkeleton } from "@/components/digest/detail";
+import { municipalityMetadata } from "@/lib/metadata";
 
 /** 市民のまとめ（?anchor=起点&topics=近傍から選んだトピック）。保存しないので、URL で共有・印刷できる */
+export function generateMetadata({
+  params,
+}: PageProps<"/[municipality]/digest">) {
+  return municipalityMetadata(
+    params,
+    (name) => `${name}の議論のまとめ`,
+    () =>
+      "締め切ったトピックの合意点・意見が分かれた点・グループの代表的な意見を、原文と数字のまま見られます。",
+  );
+}
+
 export default function DigestPage({
   params,
   searchParams,

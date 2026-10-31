@@ -435,3 +435,66 @@ async fn operator_passkeys_are_marked_in_their_name() {
     .await;
     assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+#[tokio::test]
+async fn deleting_the_account_removes_passkeys_but_keeps_votes_anonymously() {
+    let (pool, state) = setup().await;
+    let token = accounts::create_operator_invite(&pool).await.unwrap();
+    let cookie = anonymous(&state).await;
+    vote(&state, &cookie, "a1", 1).await;
+    let mut device = Device::new();
+    let (_, cookie) = register(&state, &mut device, Some(&cookie), Some(&token)).await;
+    let cookie = cookie.unwrap();
+    let account = only_registered_user(&pool).await;
+
+    let relations = |pool: SqlitePool, account: String| async move {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_municipality_relations WHERE user_id = $1",
+        )
+        .bind(account)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+    };
+    assert_eq!(
+        relations(pool.clone(), account.clone()).await,
+        1,
+        "最初に関わり方を答えている"
+    );
+
+    let res = request(&state, "DELETE", "/api/auth/me", Some(&cookie), None).await;
+    assert_eq!(res.status, StatusCode::OK, "{:?}", res.json);
+    assert_eq!(res.json["credential_ids"].as_array().unwrap().len(), 1);
+    assert!(res.cookie.unwrap().ends_with('='), "Cookie を消す");
+
+    // パスキー・関わり方・登録と運営者の印は消え、票は匿名のまま残る
+    let count = |sql: &'static str| {
+        let pool = pool.clone();
+        let account = account.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(sql)
+                .bind(account)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+        }
+    };
+    assert_eq!(
+        count("SELECT COUNT(*) FROM passkeys WHERE user_id = $1").await,
+        0
+    );
+    assert_eq!(
+        count("SELECT COUNT(*) FROM user_municipality_relations WHERE user_id = $1").await,
+        0
+    );
+    assert_eq!(votes_of(&pool, &account).await, [("a1".to_string(), 1)]);
+    assert_eq!(
+        me(&state, Some(&cookie)).await,
+        json!({"registered": false, "operator": false})
+    );
+    assert!(accounts::list_operators(&pool).await.unwrap().is_empty());
+    // 消したパスキーではもうログインできない
+    let res = login(&state, &mut device, None).await;
+    assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(res.json["error"]["code"], "passkey_invalid");
+}

@@ -308,6 +308,26 @@ pub async fn logout(jar: SignedCookieJar) -> (StatusCode, SignedCookieJar) {
     (StatusCode::NO_CONTENT, participant::logout(jar))
 }
 
+#[derive(Debug, Serialize)]
+pub struct Deleted {
+    /// 消したパスキーの ID。画面はこれで端末にも知らせる（`PublicKeyCredential.signalUnknownCredential`）
+    pub credential_ids: Vec<String>,
+}
+
+/// DELETE /api/auth/me — 退会。パスキー・関わり方・登録と運営者の印を消し、Cookie を消す。
+/// 票と意見は匿名のまま残す（`accounts::delete_account`）。その端末は、次の投票から新しい匿名の参加者として続く
+pub async fn delete_me(
+    State(state): State<AppState>,
+    MaybeParticipant(user_id): MaybeParticipant,
+    jar: SignedCookieJar,
+) -> Result<(SignedCookieJar, Json<Deleted>), ApiError> {
+    let credential_ids = match user_id {
+        Some(id) => accounts::delete_account(&state.pool, &id).await?,
+        None => Vec::new(),
+    };
+    Ok((participant::logout(jar), Json(Deleted { credential_ids })))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

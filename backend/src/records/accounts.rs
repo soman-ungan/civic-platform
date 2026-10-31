@@ -151,6 +151,28 @@ pub async fn merge_anonymous(
     tx.commit().await
 }
 
+/// 退会: パスキー・関わり方・登録済みの印・運営者の印を消し、消したパスキーの ID（credential ID）を返す。
+/// 票と意見は残す（もとから誰のものかを外に出さず、パスキーが無くなれば、残る ID は本人にもたどれない乱数になる。
+/// 分析も変えない）。利用者の行は、票と意見が指しているので残す
+pub async fn delete_account(pool: &SqlitePool, user_id: &str) -> Result<Vec<String>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let credential_ids: Vec<String> =
+        sqlx::query_scalar("SELECT id FROM passkeys WHERE user_id = $1 ORDER BY created_at")
+            .bind(user_id)
+            .fetch_all(&mut *tx)
+            .await?;
+    for sql in [
+        "DELETE FROM passkeys WHERE user_id = $1",
+        "DELETE FROM user_municipality_relations WHERE user_id = $1",
+        "DELETE FROM webauthn_challenges WHERE user_id = $1",
+        "UPDATE users SET registered_at = NULL, is_operator = FALSE WHERE id = $1",
+    ] {
+        sqlx::query(sql).bind(user_id).execute(&mut *tx).await?;
+    }
+    tx.commit().await?;
+    Ok(credential_ids)
+}
+
 // ===== 登録・ログインの途中の状態 =====
 
 /// 途中の状態を保存し、その ID を返す。期限の切れたものは、ついでに消す

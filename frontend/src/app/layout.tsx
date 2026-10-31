@@ -3,11 +3,17 @@
 import type { Metadata, Viewport } from "next";
 
 import { SiteFooter } from "@/components/layout/site-footer";
+import { SITE_DESCRIPTION, SITE_NAME, pageMetadata } from "@/lib/metadata";
 import "./globals.css";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
 export const metadata: Metadata = {
-  title: "市民参加プラットフォーム",
-  description: "自治体の議事録・予算・決算を可視化し、市民の合意点を見つける場",
+  ...pageMetadata(SITE_NAME, SITE_DESCRIPTION),
+  // 共有したときの URL の基準（本番のドメイン）
+  metadataBase: siteUrl ? new URL(siteUrl) : undefined,
+  // 子のページの題は「題 | サービス名」
+  title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
 };
 
 export const viewport: Viewport = {
