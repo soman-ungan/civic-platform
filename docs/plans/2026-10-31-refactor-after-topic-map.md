@@ -25,3 +25,12 @@
 ### 確かめ
 - ステップごとに `cargo test`・clippy・fmt、frontend の lint・型チェック・`npm run build`
 - CLAUDE.md のリポジトリ構成の説明を直す
+
+## 実装時の変更点
+- A: `disclosure.rs` に `agree_rate`・`is_consensus`・`residency_types`・`residency_breakdown` を置き、ピン留め・分析の画面（グループの構成）・まとめから使う
+- B4: `components/digest/` の `map.tsx`（地図の画面）・`zoomable-map.tsx`（拡大縮小と移動）・`map-cards.tsx`（吹き出しとカード）・`map-tags.tsx`（タグの一覧）・`use-shrinking-scale.ts`（縮む地図の倍率）
+- B5: `lib/dates.ts` の `formatDate`。会議の日付（日付だけの文字列）も、UTC の0時として読んで日本時間で同じ日になるので、同じ関数で書ける。運営者の画面の日時（`formatDateTime`）は `lib/operator.ts` のまま
+- C7: `interface/api/operator/` の `mod.rs`（運営者の確かめ・一覧の分け方・自治体とタグ）・`topics.rs`・`publishing.rs`・`statements.rs`。ルートは `operator::topics::…` などで書く
+- C8: `interface/cli/records/` の `mod.rs`（対象と引数）・`list.rs`・`show.rs`・`edit.rs`・`publish.rs`。`cli/mod.rs` からは今までどおり `records::list` などで呼ぶ
+- C9: `components/operator/` の `draft-card.tsx`・`draft-statements.tsx`・`draft-tags.tsx`、入力欄と小さいボタンの見た目は `styles.ts`
+- 確かめ: ステップごとに `cargo test`（すべて通る）・clippy・fmt、frontend の lint・型チェック、最後に `npm run build`
