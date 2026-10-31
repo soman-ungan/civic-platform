@@ -119,6 +119,8 @@ pub struct DraftDetail {
     pub tags: Vec<(String, String, String)>,
     /// 市民のまとめから作ったトピックの、元のトピック（ID, 題）
     pub parents: Vec<(String, String)>,
+    /// 1件以上投票した人の数（公開中のトピックの様子を見るため。誰かは出さない）
+    pub participant_count: i64,
 }
 
 pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetail>, sqlx::Error> {
@@ -183,7 +185,15 @@ pub async fn show(pool: &SqlitePool, topic_id: &str) -> Result<Option<DraftDetai
     .bind(topic_id)
     .fetch_all(pool)
     .await?;
+    let participant_count: i64 = sqlx::query_scalar(
+        "SELECT count(DISTINCT v.user_id) FROM votes v
+         JOIN statements s ON s.id = v.statement_id WHERE s.topic_id = $1",
+    )
+    .bind(topic_id)
+    .fetch_one(pool)
+    .await?;
     Ok(Some(DraftDetail {
+        participant_count,
         id: row.id,
         municipality_id: row.municipality_id,
         status: row.status,

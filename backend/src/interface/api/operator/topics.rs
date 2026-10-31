@@ -75,6 +75,8 @@ pub struct OperatorTopic {
     pub parents: Vec<TopicParent>,
     /// 似ている同じ自治体のトピック（下書きだけ。同じ論点の重なりを確かめる候補。process::similarity）
     pub similar: Vec<SimilarTopic>,
+    /// 1件以上投票した人の数（公開中のトピックの様子。誰かは返さない）
+    pub participant_count: i64,
 }
 
 impl From<DraftDetail> for OperatorTopic {
@@ -127,6 +129,7 @@ impl From<DraftDetail> for OperatorTopic {
             queued_at: d.queued_at,
             closes_at: d.closes_at,
             similar: Vec::new(),
+            participant_count: d.participant_count,
         }
     }
 }
