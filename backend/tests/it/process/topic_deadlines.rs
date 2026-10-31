@@ -98,13 +98,15 @@ async fn closed_topics_stop_votes_and_posts_but_show_results_to_everyone() {
 }
 
 #[tokio::test]
-async fn open_topics_come_before_closed_ones() {
+async fn the_list_shows_only_open_topics_and_counts_closed_ones() {
     let pool = test_pool().await;
     crate::common::seed_fixture(&pool).await;
     sqlx::raw_sql(
         "INSERT INTO topics (id, municipality_id, title, source_type, created_at) VALUES
             ('t-old', '092100', '古い受付中', 'citizen', '2026-10-01T00:00:00Z'),
-            ('t-new-closed', '092100', '新しいが締め切り', 'citizen', '2026-10-27T00:00:00Z');",
+            ('t-new-closed', '092100', '新しいが締め切り', 'citizen', '2026-10-27T00:00:00Z');
+         INSERT INTO tags (id, kind, name) VALUES ('g-closed-only', 'field', '締め切りだけ');
+         INSERT INTO topic_tags (topic_id, tag_id) VALUES ('t-new-closed', 'g-closed-only');",
     )
     .execute(&pool)
     .await
@@ -125,7 +127,25 @@ async fn open_topics_come_before_closed_ones() {
         .iter()
         .map(|t| t["id"].as_str().unwrap())
         .collect();
-    assert_eq!(ids, ["t1", "t-old", "t-new-closed"]);
+    // 締め切ったトピックは一覧に出さず、数だけ返す（詳細は今までどおり開ける）
+    assert_eq!(ids, ["t1", "t-old"]);
     assert_eq!(list.json["topics"][0]["closed"], false);
-    assert_eq!(list.json["topics"][2]["closed"], true);
+    assert_eq!(list.json["closed_count"], 1);
+    // 絞り込みのタグも、受付中のトピックに付いたものだけ
+    assert!(
+        !list.json["tags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["id"] == "g-closed-only")
+    );
+    let detail = request(
+        &state,
+        "GET",
+        "/api/municipalities/otawara/topics/t-new-closed",
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(detail.json["closed"], true);
 }
