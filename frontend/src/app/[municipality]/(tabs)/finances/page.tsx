@@ -13,6 +13,18 @@ import { apiGet } from "@/lib/api/server";
 import { KIND_LABEL, financeView, parseUnit } from "@/lib/finances/view";
 import type { Finances } from "@/lib/api/types/finances";
 import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
+import { municipalityMetadata } from "@/lib/metadata";
+
+export function generateMetadata({
+  params,
+}: PageProps<"/[municipality]/finances">) {
+  return municipalityMetadata(
+    params,
+    (name) => `${name}のお金`,
+    (name) =>
+      `${name}の決算と当初予算を、分野ごと・1人あたりの金額で見られます。`,
+  );
+}
 
 export default function FinancesPage({
   params,

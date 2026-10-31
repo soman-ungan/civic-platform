@@ -11,6 +11,16 @@ import { apiGet, requestCookie } from "@/lib/api/server";
 import type { MunicipalityConsensus } from "@/lib/api/types/analysis";
 import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
 import type { TopicList } from "@/lib/api/types/topics";
+import { municipalityMetadata } from "@/lib/metadata";
+
+export function generateMetadata({ params }: PageProps<"/[municipality]">) {
+  return municipalityMetadata(
+    params,
+    (name) => `${name}のトピック`,
+    (name) =>
+      `${name}の議会で話し合われていることや、市民から提案されたトピックに投票して、みんなの合意点を見つけましょう。`,
+  );
+}
 
 export default function MunicipalityPage({
   params,
@@ -50,8 +60,7 @@ async function Timeline({
   return (
     <>
       {/* 合意点があるか、締め切ったトピック（これまでの議論の地図に載る）があれば、合意点のページへの入口を出す */}
-      {((consensus && consensus.length > 0) ||
-        list.closed_count > 0) && (
+      {((consensus && consensus.length > 0) || list.closed_count > 0) && (
         <ConsensusPins
           slug={municipality.slug}
           count={consensus?.length ?? 0}

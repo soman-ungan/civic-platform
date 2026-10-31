@@ -103,6 +103,25 @@ export function PasskeyChoices({
           {other.label}
         </button>
       </div>
+      <p className="mt-2 text-center text-xs leading-5 text-zinc-500">
+        パスキーを作ると、
+        <a
+          href="/terms"
+          target="_blank"
+          className="underline underline-offset-2"
+        >
+          利用規約
+        </a>
+        と
+        <a
+          href="/privacy"
+          target="_blank"
+          className="underline underline-offset-2"
+        >
+          プライバシーポリシー
+        </a>
+        に同意したことになります。
+      </p>
     </>
   );
 }

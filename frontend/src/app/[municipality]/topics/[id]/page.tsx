@@ -5,6 +5,26 @@ import { Suspense } from "react";
 
 import { OperatorLink } from "@/components/auth/operator-link";
 import { TopicDetailView, TopicSkeleton } from "@/components/topics/detail";
+import { apiGet } from "@/lib/api/server";
+import type { TopicDetail } from "@/lib/api/types/topics";
+import { pageMetadata } from "@/lib/metadata";
+import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
+import { municipalityApi, topicApi } from "@/lib/api/paths";
+
+/** 共有したときに、トピックの題と説明が出るように */
+export async function generateMetadata({
+  params,
+}: PageProps<"/[municipality]/topics/[id]">) {
+  const { municipality: slug, id } = await params;
+  const [m, topic] = await Promise.all([
+    apiGet<MunicipalityDetail>(municipalityApi(slug)),
+    apiGet<TopicDetail>(topicApi(slug, id)),
+  ]);
+  if (!m || !topic) {
+    return {};
+  }
+  return pageMetadata(`${topic.title}（${m.name}）`, topic.description);
+}
 
 export default function TopicPage({
   params,

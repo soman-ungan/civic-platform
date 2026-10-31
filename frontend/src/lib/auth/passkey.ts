@@ -69,6 +69,42 @@ export async function logout(): Promise<void> {
   notifyAuthChanged();
 }
 
+/**
+ * 退会（`DELETE /api/auth/me`）。パスキー・関わり方・登録の印を消す。票と意見は匿名のまま残る。
+ * 端末のパスキーはサーバーからは消せないので、対応するブラウザには「もう使えない鍵」だと知らせる
+ * （パスワードの管理の一覧から消える）。対応していなければ、端末の設定から消してもらう。
+ * 端末にも消えたと知らせられたかを返す
+ */
+export async function deleteAccount(): Promise<boolean> {
+  const { credential_ids } = await apiFetch<{ credential_ids: string[] }>(
+    AUTH_API.me,
+    { method: "DELETE" },
+  );
+  forgetPasskey();
+  notifyAuthChanged();
+  const signal = (
+    window.PublicKeyCredential as
+      | {
+          signalUnknownCredential?: (o: {
+            rpId: string;
+            credentialId: string;
+          }) => Promise<void>;
+        }
+      | undefined
+  )?.signalUnknownCredential;
+  if (!signal || credential_ids.length === 0) return false;
+  const results = await Promise.allSettled(
+    credential_ids.map((credentialId) =>
+      signal.call(window.PublicKeyCredential, {
+        // パスキーの rp_id は本番のドメイン（= この画面のホスト名）
+        rpId: window.location.hostname,
+        credentialId,
+      }),
+    ),
+  );
+  return results.every((r) => r.status === "fulfilled");
+}
+
 // この端末でパスキーを作ったか・ログインしたかの印。ログアウトしても残す（次に「ログイン」を先に案内するため）。
 // サーバーはログアウトした端末のパスキーを知らず、ブラウザにも端末のパスキーを調べる手段が無いので、ここに持つ。
 // 中身は印だけで、利用者の ID などは入れない。消えても案内の順番が変わるだけ
@@ -79,6 +115,14 @@ function rememberPasskey() {
     window.localStorage.setItem(HAS_PASSKEY_KEY, "1");
   } catch {
     // 保存できないブラウザ（プライベートモードなど）では、印を残さない
+  }
+}
+
+function forgetPasskey() {
+  try {
+    window.localStorage.removeItem(HAS_PASSKEY_KEY);
+  } catch {
+    // 保存できないブラウザでは、もとから印が無い
   }
 }
 

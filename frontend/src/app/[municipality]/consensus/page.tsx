@@ -14,11 +14,23 @@ import type { MunicipalityConsensus } from "@/lib/api/types/analysis";
 import type { TopicMap } from "@/lib/api/types/digest";
 import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
 import { MAP_ANCHOR } from "@/lib/digest";
+import { municipalityMetadata } from "@/lib/metadata";
 
 /**
  * みんなの合意点（ADR 0005「市民のまとめ」）: 上に合意点の一覧、下に「これまでの議論」（締め切ったトピックの地図 → まとめ → 提案）。
  * 合意点を押すと、元のトピックを起点にした地図を開く（?focus=）。地図の分野は ?tag=
  */
+export function generateMetadata({
+  params,
+}: PageProps<"/[municipality]/consensus">) {
+  return municipalityMetadata(
+    params,
+    (name) => `${name}のみんなの合意点`,
+    (name) =>
+      `${name}のトピックで、意見のグループをこえて賛成の多かった点と、これまでの議論の地図です。`,
+  );
+}
+
 export default function ConsensusPage({
   params,
   searchParams,
