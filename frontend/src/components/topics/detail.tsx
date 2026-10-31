@@ -128,7 +128,10 @@ export async function TopicDetailView({
                     </ul>
                   </section>
                 )}
-                <TopicSources sources={topic.sources} />
+                <TopicSources
+                  slug={municipality.slug}
+                  sources={topic.sources}
+                />
                 <TopicFinances
                   slug={municipality.slug}
                   finances={topic.finances}

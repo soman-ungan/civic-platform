@@ -16,6 +16,16 @@ export function topicApi(slug: string, topicId: string): string {
   return `${municipalityApi(slug)}/topics/${enc(topicId)}`;
 }
 
+/** /api/municipalities/{slug}/officials（議員の記録の一覧） */
+export function officialsApi(slug: string): string {
+  return `${municipalityApi(slug)}/officials`;
+}
+
+/** /api/municipalities/{slug}/officials/{id}（議員ごとのトピックと引用） */
+export function officialApi(slug: string, officialId: string): string {
+  return `${officialsApi(slug)}/${enc(officialId)}`;
+}
+
 /** /api/municipalities/{slug}/proposals（トピックの提案と、自分の提案の一覧） */
 export function proposalsApi(slug: string): string {
   return `${municipalityApi(slug)}/proposals`;
