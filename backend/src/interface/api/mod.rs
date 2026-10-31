@@ -30,7 +30,7 @@ use error::ApiError;
 pub fn router() -> Router<AppState> {
     let api = Router::new()
         .route("/health", get(health::health))
-        .route("/auth/me", get(auth::me))
+        .route("/auth/me", get(auth::me).delete(auth::delete_me))
         .route("/auth/register/start", post(auth::register_start))
         .route("/auth/register/finish", post(auth::register_finish))
         .route("/auth/login/start", post(auth::login_start))

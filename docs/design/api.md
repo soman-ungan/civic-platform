@@ -66,6 +66,7 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 - `POST /auth/register/start` → `finish` — 今の参加者にパスキーを付ける（投票はそのまま）。運営者の招待のトークン `operator_token` を start にも渡すと、パスキーの名前に「運営者」と入る（運営者にするのは finish）
 - `POST /auth/login/start` → `finish` — 名前を入力しないパスキー。その端末の匿名の投票をアカウントに移す
 - `POST /auth/logout`
+- `DELETE /auth/me` — 退会。その人のパスキー・関わり方・登録と運営者の印を消し、Cookie を消す。票と意見は匿名のまま残す（分析を変えない。意見を消したい人は問い合わせから）。消したパスキーの ID `credential_ids` を返す（画面が `PublicKeyCredential.signalUnknownCredential` で端末に知らせる）
 - 実装は webauthn-rs（`interface/api/auth.rs`）、アカウントの処理は `records/accounts.rs`。保存するのは公開鍵・ID・日時だけ。設定は `WEBAUTHN_RP_ID`・`WEBAUTHN_ORIGIN`（既定は localhost）。テストはソフトウェアのパスキー（`backend/tests/it/api/auth.rs`）
 - 画面の流れ（投票の前の「ログインして投票しますか」・端末の印・アカウントが2つになる限界）は `docs/plans/2026-10-28-phase6a-passkeys.md` の「ログインの流れ」
 
