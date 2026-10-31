@@ -16,6 +16,9 @@ export function tabsFor(pathname: string) {
   return { tabs, current: tabs.findIndex((t) => t.href === pathname) };
 }
 
+/** 固定のヘッダーの自治体名の行の id（タイムラインから開いたトピック詳細のレイヤの上端をここの下端にそろえ、タブは隠す） */
+export const MUNICIPALITY_NAME_ID = "municipality-name";
+
 /** 右のタブへは nav-forward、左のタブへは nav-back（globals.css のスライドの向き） */
 export function transitionTo(from: number, to: number): string[] {
   return [to > from ? "nav-forward" : "nav-back"];

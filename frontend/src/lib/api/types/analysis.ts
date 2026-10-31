@@ -82,4 +82,6 @@ export type MunicipalityConsensus = {
   statement_id: string;
   body: string;
   gac: number;
+  /** 元のトピックが締め切ったか（締め切ったものはトピックマップに載る） */
+  closed: boolean;
 };

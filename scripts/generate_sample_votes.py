@@ -42,6 +42,17 @@ TOPICS = {
         (42, "DAPPADA"),
         (36, "AAAAADA"),
     ],
+    # 締め切った路線バス（提言を試す）: 公共サービスとして守る派 / 効率化する派。01（時刻表）と 04（運転手）は全員賛成
+    "sample-092100-4": [
+        (64, "ADAAP"),
+        (56, "AADAA"),
+    ],
+    # 締め切った通学のバス: 補助する派 / 家庭に任せる派。04（雨の日）は全員賛成。
+    # 違いが2件だけだと、分析のクラスタリングが片寄った分け方（98人と6人など）に落ち着くので、05 も分ける
+    "sample-092100-5": [
+        (62, "AADAA"),
+        (58, "PDAAP"),
+    ],
 }
 
 VALUE = {"A": AGREE, "D": DISAGREE, "P": PASS}
@@ -84,7 +95,9 @@ def main() -> None:
                     if value != PASS and rng.random() < NOISE_FLIP:
                         value = -value
                     minute += 1
-                    at = f"2026-10-2{1 + t_index}T{minute // 60:02d}:{minute % 60:02d}:00.000Z"
+                    # 締め切ったトピック（4・5）は、公開していた7〜9月に投票したことにする
+                    day = f"2026-10-2{1 + t_index}" if t_index < 3 else f"2026-08-0{t_index}"
+                    at = f"{day}T{minute // 60:02d}:{minute % 60:02d}:00.000Z"
                     sid = f"{topic_id}-{n:02d}"
                     rows.append(f"    ('{sid}-{voter}', '{voter}', '{sid}', {value}, '{at}')")
             cursor += size

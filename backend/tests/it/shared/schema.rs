@@ -96,6 +96,7 @@ async fn all_tables_exist() {
             "statements",
             "tags",
             "topic_analyses",
+            "topic_parents",
             "topic_sources",
             "topic_tags",
             "topics",

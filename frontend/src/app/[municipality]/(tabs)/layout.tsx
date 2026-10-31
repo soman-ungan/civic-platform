@@ -7,22 +7,28 @@ import { OperatorLink } from "@/components/auth/operator-link";
 import { SwipeNav } from "@/components/layout/swipe-nav";
 import { TabNav, TabNavFallback } from "@/components/layout/tab-nav";
 import { municipalityApi } from "@/lib/api/paths";
+import { MUNICIPALITY_NAME_ID } from "@/lib/tabs";
 import { apiGet } from "@/lib/api/server";
 import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
 
 /**
  * 自治体のトップ（トピック・まちのお金）の共通の枠。自治体名とタブを固定のヘッダーとして常に表示し、
- * 本体は左右のスワイプで切り替える。URL はタブごとに別（共有された URL だけで開ける）
+ * 本体は左右のスワイプで切り替える。URL はタブごとに別（共有された URL だけで開ける）。
+ * `sheet` は、ここから開いたトピック詳細を上に重ねるレイヤ（`@sheet/(.)topics/[id]`。開いていなければ何も出さない）
  */
 export default function TabsLayout({
   children,
+  sheet,
   params,
 }: LayoutProps<"/[municipality]">) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto w-full max-w-md px-4 pt-3">
-          <div className="flex items-start justify-between gap-4">
+          <div
+            id={MUNICIPALITY_NAME_ID}
+            className="flex items-start justify-between gap-4"
+          >
             <Suspense fallback={<NameSkeleton />}>
               <MunicipalityName params={params} />
             </Suspense>
@@ -34,6 +40,7 @@ export default function TabsLayout({
         </div>
       </header>
       <SwipeNav>{children}</SwipeNav>
+      {sheet}
     </div>
   );
 }

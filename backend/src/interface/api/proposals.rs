@@ -12,8 +12,8 @@ use crate::interface::api::AppState;
 use crate::interface::api::error::{ApiError, ApiJson};
 use crate::interface::api::municipalities;
 use crate::interface::api::participant::MaybeParticipant;
-use crate::process::moderation;
 use crate::process::progress::{self, ProposePermission};
+use crate::process::{digest, moderation, topic_map};
 use crate::records::proposals::{self, MyProposal};
 use crate::shared::limits::{MAX_DESCRIPTION_CHARS, MAX_STATEMENT_CHARS, MAX_TITLE_CHARS};
 
@@ -24,6 +24,9 @@ pub struct ProposalInput {
     pub title: String,
     pub description: String,
     pub statements: Vec<String>,
+    /// 市民のまとめから提案するときの元のトピック（起点が先。起点の近傍の締め切ったトピックだけ。ADR 0005）
+    #[serde(default)]
+    pub parent_ids: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -127,6 +130,15 @@ pub async fn create(
         check_length(body, "意見", MAX_STATEMENT_CHARS)?;
     }
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
+    // 元のトピックは、起点（最初の1件）の近傍の締め切ったトピックだけ（まとめのページと同じ確かめ）
+    let parents = match input.parent_ids.split_first() {
+        None => Vec::new(),
+        Some((anchor, rest)) => {
+            let closed = topic_map::closed(&state.pool, &municipality.id).await?;
+            digest::check_selection(&closed, anchor, rest)
+                .map_err(|e| ApiError::validation("invalid_parents", e.to_string()))?
+        }
+    };
 
     // パスキーの登録・関わり方の登録・自治体ごとに週1件（ADR 0005。ルールは progress::propose_permission）
     match progress::propose_permission(&state.pool, &municipality.id, user_id.as_deref()).await? {
@@ -175,6 +187,7 @@ pub async fn create(
         title,
         description,
         &statements,
+        &parents,
     )
     .await?;
     let created = proposals::mine(&state.pool, &municipality.id, &user_id)

@@ -115,7 +115,7 @@ async fn dev_seeds_are_enough_for_analysis() {
     let pool = crate::common::test_pool().await;
     seed::run(&pool, seeds_dir()).await.unwrap();
     seed::run(&pool, dev_seeds_dir()).await.unwrap();
-    assert_eq!(run_all(&pool, false).await.unwrap(), 3);
+    assert_eq!(run_all(&pool, false).await.unwrap(), 5);
 
     let state = crate::common::test_state(pool.clone());
     let topics: Vec<String> = sqlx::query_scalar("SELECT id FROM topics ORDER BY id")
@@ -175,4 +175,33 @@ async fn dev_seeds_are_enough_for_analysis() {
     )
     .await;
     assert!(!pins.json.as_array().unwrap().is_empty());
+
+    // 締め切ったサンプル（4・5）でトピックマップとまとめを試せる: 交通のタグの地図に載り、互いに近傍で、
+    // 合意点と意見が分かれた点の両方が出る
+    let map = backend::process::topic_map::topic_map(&pool, "092100", Some("field-koutsu"), None)
+        .await
+        .unwrap();
+    let mut ids: Vec<&str> = map.points.iter().map(|p| p.id.as_str()).collect();
+    ids.sort();
+    assert_eq!(ids, ["sample-092100-4", "sample-092100-5"]);
+    assert_eq!(map.edges.len(), 1);
+    let digest = backend::process::digest::digest(
+        &pool,
+        "092100",
+        "sample-092100-4",
+        &["sample-092100-5".to_owned()],
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(digest.topics.len(), 2);
+    for t in &digest.topics {
+        assert!(
+            t.sufficient && !t.consensus.is_empty() && !t.divided.is_empty(),
+            "{}",
+            t.id
+        );
+        assert!(t.groups.iter().all(|g| !g.representative.is_empty()));
+        assert!(t.residency.values().any(Option::is_some));
+    }
 }

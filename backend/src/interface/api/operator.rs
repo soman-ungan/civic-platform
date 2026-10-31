@@ -79,6 +79,12 @@ pub struct TopicStatement {
 }
 
 #[derive(Debug, Serialize)]
+pub struct TopicParent {
+    pub id: String,
+    pub title: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct TopicTag {
     pub id: String,
     pub name: String,
@@ -104,6 +110,8 @@ pub struct OperatorTopic {
     pub sources: Vec<Source>,
     pub statements: Vec<TopicStatement>,
     pub tags: Vec<TopicTag>,
+    /// 市民のまとめから作ったトピックなら、元のトピック（`{id, title}`）
+    pub parents: Vec<TopicParent>,
     /// 似ている同じ自治体のトピック（下書きだけ。同じ論点の重なりを確かめる候補。process::similarity）
     pub similar: Vec<SimilarTopic>,
 }
@@ -142,6 +150,11 @@ impl From<DraftDetail> for OperatorTopic {
                     name,
                     assigned_by,
                 })
+                .collect(),
+            parents: d
+                .parents
+                .into_iter()
+                .map(|(id, title)| TopicParent { id, title })
                 .collect(),
             id: d.id,
             status: d.status,

@@ -5,8 +5,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use axum::Json;
-use axum::extract::{Path, State};
-use serde::Serialize;
+use axum::extract::{Path, Query, State};
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::interface::api::AppState;
@@ -14,17 +14,12 @@ use crate::interface::api::error::ApiError;
 use crate::interface::api::municipalities;
 use crate::interface::api::participant::MaybeParticipant;
 use crate::process::analysis::conversation::{self, ConvResult, ConvState};
+use crate::process::analysis::disclosure::{
+    MIN_DISPLAY_PARTICIPANTS, PIN_THRESHOLD, group_label, suppress,
+};
 use crate::process::analysis::repness::RepfulFor;
 use crate::process::analysis::store::{self, Stored};
 use crate::process::progress::{self, RESIDENCY_TYPES};
-
-/// グループを表示する最小の参加者数（分析に含まれる人数）。
-/// 少人数ではグループの集計が個人の投票そのものになるため（Polis にはない、このプロジェクトの判断）
-pub const MIN_DISPLAY_PARTICIPANTS: usize = 5;
-/// 居住地属性ごとの集計で、これ未満の人数のセルは出さない
-pub const MIN_CELL_SIZE: i64 = 5;
-/// タイムラインにピン留めする合意点の条件: 全グループで (A+1)/(S+2) がこの値以上
-pub const PIN_THRESHOLD: f64 = 0.8;
 
 #[derive(Debug, Serialize)]
 pub struct RepresentativeOut {
@@ -172,10 +167,6 @@ async fn approved_bodies(
     Ok(rows.into_iter().collect())
 }
 
-fn group_label(index: usize) -> String {
-    char::from(b'A' + (index % 26) as u8).to_string()
-}
-
 /// 承認済みの意見（投稿順）ごとに、各グループの賛成・反対・投票数を並べる。
 /// 分析の後に投稿された意見は、分析に含まれていないので出さない
 async fn statements_by_group(
@@ -297,36 +288,6 @@ async fn locate_you(
             .map(|g| g.id)
     });
     Ok(Some(You { x, y, group_id }))
-}
-
-/// 居住地属性ごとの、意見ごとの賛成数と投票数（人数が少ないセルは null）
-/// 二次秘匿: どの区分を表示してよいかを返す（`counts` と同じ順の bool）。
-/// 1. 5人未満の区分を隠す
-/// 2. 隠した区分の合計が 1〜4 人なら、見えている区分のうち最も少ないものも隠す（引き算で逆算されないように）
-/// 3. 合計が5人以上になるか、すべて隠れるまで 2 を繰り返す
-pub fn suppress(counts: &[i64]) -> Vec<bool> {
-    let mut visible: Vec<bool> = counts.iter().map(|c| *c >= MIN_CELL_SIZE).collect();
-    loop {
-        let hidden: i64 = counts
-            .iter()
-            .zip(&visible)
-            .filter(|(_, v)| !**v)
-            .map(|(c, _)| *c)
-            .sum();
-        if hidden == 0 || hidden >= MIN_CELL_SIZE {
-            return visible;
-        }
-        let smallest = counts
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| visible[*i])
-            .min_by_key(|(_, c)| **c)
-            .map(|(i, _)| i);
-        match smallest {
-            Some(i) => visible[i] = false,
-            None => return visible,
-        }
-    }
 }
 
 /// 意見グループごとの、このまちとの関わり方の構成（Polis のレポートの「各グループの内訳」に相当）。
@@ -577,40 +538,57 @@ pub struct MunicipalityConsensus {
     pub statement_id: String,
     pub body: String,
     pub gac: f64,
+    /// 元のトピックが締め切ったか（締め切ったものはトピックマップに載る）
+    pub closed: bool,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ConsensusQuery {
+    /// 締め切ったトピックの合意点を、投票を問わず出す（合意点のページ。締め切ったトピックの分析は誰にでも見せる。ADR 0005）
+    #[serde(default)]
+    pub include_closed: bool,
+}
+
+/// 合意点のページに出す件数の上限
+const MAX_LISTED: usize = 100;
 
 /// タイムラインにピン留めする件数の上限（画面では最初の数件だけを出し、残りは「もっと見る」）
 const MAX_PINNED: usize = 20;
 
-/// GET /api/municipalities/{slug}/consensus — 自治体内の合意点（ピン留め用）。
-/// 分析と同じく、その参加者がすべての意見に投票したトピックの合意点だけを返す
+/// GET /api/municipalities/{slug}/consensus?include_closed= — 自治体内の合意点（ピン留め・合意点のページ）。
+/// 分析と同じく、その参加者がすべての意見に投票したトピックの合意点だけを返す。
+/// `include_closed` なら、締め切ったトピックの合意点は投票を問わず返す
 pub async fn municipality_consensus(
     State(state): State<AppState>,
     Path(slug): Path<String>,
+    Query(query): Query<ConsensusQuery>,
     MaybeParticipant(user_id): MaybeParticipant,
 ) -> Result<Json<Vec<MunicipalityConsensus>>, ApiError> {
-    let Some(user_id) = user_id else {
+    if user_id.is_none() && !query.include_closed {
         return Ok(Json(Vec::new()));
-    };
+    }
     let municipality = municipalities::resolve(&state.pool, &slug).await?;
-    let topics: Vec<(String, String)> = sqlx::query_as(
-        "SELECT id, title FROM topics WHERE municipality_id = $1 AND status = 'published'",
+    let topics: Vec<(String, String, Option<String>)> = sqlx::query_as(
+        "SELECT id, title, closes_at FROM topics WHERE municipality_id = $1 AND status = 'published'",
     )
     .bind(&municipality.id)
     .fetch_all(&state.pool)
     .await?;
 
     let progress =
-        progress::progress_by_topic(&state.pool, &municipality.id, Some(&user_id)).await?;
+        progress::progress_by_topic(&state.pool, &municipality.id, user_id.as_deref()).await?;
 
     let mut out = Vec::new();
-    for (topic_id, title) in topics {
-        let Some(p) = progress.get(&topic_id) else {
-            continue;
-        };
-        // 投票していないトピックは出さない（最初の意見が無いトピックは、投票しなくても分析が開くため）
-        if p.voted == 0 || !p.analysis_unlocked() {
-            continue;
+    for (topic_id, title, closes_at) in topics {
+        let closed = progress::is_closed(closes_at.as_deref());
+        if !(closed && query.include_closed) {
+            let Some(p) = progress.get(&topic_id) else {
+                continue;
+            };
+            // 投票していないトピックは出さない（最初の意見が無いトピックは、投票しなくても分析が開くため）
+            if user_id.is_none() || p.voted == 0 || !p.analysis_unlocked() {
+                continue;
+            }
         }
         let Some(Stored::Ready { result, .. }) = store::load(&state.pool, &topic_id).await? else {
             continue;
@@ -631,6 +609,7 @@ pub async fn municipality_consensus(
                 statement_id: c.statement_id,
                 body: c.body,
                 gac: c.gac,
+                closed,
             });
         }
     }
@@ -639,34 +618,10 @@ pub async fn municipality_consensus(
             .partial_cmp(&a.gac)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    out.truncate(MAX_PINNED);
+    out.truncate(if query.include_closed {
+        MAX_LISTED
+    } else {
+        MAX_PINNED
+    });
     Ok(Json(out))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::suppress;
-
-    #[test]
-    fn nothing_hidden() {
-        assert_eq!(suppress(&[6, 5, 7]), [true, true, true]);
-    }
-
-    #[test]
-    fn hidden_total_of_five_or_more_is_safe() {
-        // 3 + 2 = 5 人を隠すだけでよい
-        assert_eq!(suppress(&[3, 2, 9]), [false, false, true]);
-    }
-
-    #[test]
-    fn small_hidden_total_hides_next_smallest() {
-        // 3 人だけ隠すと逆算できるので、次に少ない 5 も隠す
-        assert_eq!(suppress(&[6, 5, 3, 0]), [true, false, false, false]);
-    }
-
-    #[test]
-    fn may_hide_everything() {
-        assert_eq!(suppress(&[7, 1]), [false, false]);
-        assert_eq!(suppress(&[0, 0]), [false, false]);
-    }
 }

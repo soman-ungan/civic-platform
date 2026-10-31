@@ -5,7 +5,13 @@ import Link from "next/link";
 import { ChipLink } from "@/components/ui/chip";
 import { SegmentedSwitch } from "@/components/ui/segmented-switch";
 import type { Municipality } from "@/lib/api/types/municipalities";
-import { OPERATOR_TABS, type OperatorTab, operatorHref } from "@/lib/operator";
+import {
+  OPERATOR_GROUPS,
+  type OperatorTab,
+  groupOf,
+  operatorHref,
+  tabsOf,
+} from "@/lib/operator";
 
 import { Drafts } from "./drafts";
 import { Published } from "./published";
@@ -26,6 +32,8 @@ export function OperatorConsole({
   tab: OperatorTab;
 }) {
   const slug = municipality.slug;
+  const group = groupOf(tab);
+  const subTabs = tabsOf(group);
   return (
     <>
       <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
@@ -55,17 +63,31 @@ export function OperatorConsole({
           ) : (
             <p className="text-sm text-zinc-500">{municipality.name}</p>
           )}
+          {/* 上の段で「トピック」か「意見」か、下の段でその中の作業を選ぶ（下の段は2つ以上のときだけ） */}
           <div className="mt-3 text-sm">
             <SegmentedSwitch
-              label="管理する内容"
-              current={tab}
-              options={OPERATOR_TABS.map((t) => ({
-                key: t.key,
-                label: t.label,
-                href: operatorHref(slug, t.key),
+              label="管理するもの"
+              current={group}
+              options={OPERATOR_GROUPS.map((g) => ({
+                key: g.key,
+                label: g.label,
+                href: operatorHref(slug, tabsOf(g.key)[0].key),
               }))}
             />
           </div>
+          {subTabs.length > 1 && (
+            <div className="mt-2 text-xs">
+              <SegmentedSwitch
+                label={`${OPERATOR_GROUPS.find((g) => g.key === group)?.label}の作業`}
+                current={tab}
+                options={subTabs.map((t) => ({
+                  key: t.key,
+                  label: t.label,
+                  href: operatorHref(slug, t.key),
+                }))}
+              />
+            </div>
+          )}
         </div>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">

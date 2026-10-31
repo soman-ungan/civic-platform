@@ -36,6 +36,8 @@ export type OperatorTopic = {
   sources: OperatorSource[];
   statements: OperatorStatement[];
   tags: { id: string; name: string; assigned_by: "ai" | "admin" }[];
+  /** 市民のまとめから作ったトピックなら、元のトピック */
+  parents: { id: string; title: string }[];
   /** 似ている同じ自治体のトピック（下書きだけ。同じ論点の重なりを確かめる候補） */
   similar: SimilarTopic[];
 };

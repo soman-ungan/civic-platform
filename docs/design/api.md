@@ -19,7 +19,15 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
   - 期限 `closes_at`（null は期限なし）と締め切ったか `closed`。一覧は受付中を先に、それぞれ公開した日（`published_at`。null なら作った日）の新しい順
   - 新着 `is_new`（公開から3日以内で、Cookie の参加者が未投票。`progress::is_new`）、会期 `session`（議会のトピックだけ。出典の最初の会議の資料名と月から「令和8年 第2回定例会（6月）」。`records::minutes::session_label`）
   - 詳細には出典 `sources`（会議録の引用）と `finances`（分野タグに対応する目的別歳出（決算の総額と歳出に占める割合）と、同じ分野の主な事業5件まで（予算））。議会のトピックは会議の年度に合わせる: 予算は会議の日の年（1月だけ前年）の年度でその年度の予算が無ければ出さない、決算はそれより前で最新の年度（`finances::budget_year_of_meeting`）。市民の提案は最新の年度
-- `GET /municipalities/{slug}/consensus` — タイムラインにピン留めする合意点（全グループで (A+1)/(S+2) ≥ 0.8）。分析を見られて、1件以上投票したトピックの分だけ（Cookie が無ければ空）
+  - 詳細には、市民のまとめから作ったトピックなら元のトピック `parents`、このトピックから生まれた公開済みのトピック `children`（どちらも `{id, title}` の配列）
+- `GET /municipalities/{slug}/consensus?include_closed=` — 合意点（全グループで (A+1)/(S+2) ≥ 0.8）。分析を見られて、1件以上投票したトピックの分だけ（Cookie が無ければ空）。`include_closed=true`（合意点のページ）なら、締め切ったトピックの合意点は投票を問わず返す（上限100件。ほかは20件）。各件に `closed`（元のトピックが締め切ったか）
+
+## トピックマップと市民のまとめ（`interface/api/digest.rs`。ADR 0005「市民のまとめ」）
+締め切ったトピックだけを扱う。保存はせず、そのつど計算する。AI は使わない。
+- `GET /municipalities/{slug}/topic-map?tag=&focus=` — 地図。`tag` が無ければ、`focus` のトピックに付いたタグのうち、一覧で先のもの（分野・締め切ったトピックの多い順）を開く。`tags`（締め切ったトピックに付いているタグと数）、`tag` を渡すと `points`（`id`・`title`・`closes_at`・`participants`・座標 `x`・`y`（-1〜1。似ている度合いの表を PCA で2次元に））と `edges`（似ている度合いが目安 0.25 以上の組 `{a, b, score}`。起点の近傍の判定と同じ）
+- `GET /municipalities/{slug}/digest?anchor=&topics=` — まとめ。起点 `anchor` と、その近傍から選んだ `topics`（カンマ区切り。合わせて10件まで）。近傍の外・受付中・別の自治体のものは 422 `invalid_selection`
+  - `topics[]`: `score`（起点との似ている度合い）・`analyzed`（分析の対象の人数）・`sufficient`（5人以上で中身を出したか）・`residency`（関わり方ごとの人数。少人数は null）・`consensus`・`divided`（意見の本文と、全体・グループごとの票）・`groups`（グループごとの代表的な意見 `representative`）
+  - `divided_threshold`: 意見が分かれた点の基準（0.6）
 
 ## 参加（投票・投稿）
 - `PUT /municipalities/{slug}/relation` — このまちとの関わり方（投票の前に必要）。地区は受け取らない（ADR 0002）
@@ -39,6 +47,7 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 - `POST /municipalities/{slug}/proposals` — `{title, description, statements}`（タイトル1〜60字・説明1〜140字・意見1〜10件で各140字以内。文字数は `shared/limits.rs`）。下書き（`source_type = 'citizen'`）として保存し、意見は承認済みの最初の意見になる。201 で提案1件
   - 未登録は 401 `registration_required`、関わり方が未登録は 409 `relation_required`、その自治体に直近7日で提案していたら 409 `proposal_limit`（見送りになった提案も数える）
   - 入力の誤りは 422 `invalid_proposal`、公人の氏名が入っていたら 422 `official_name`（AI の審査は呼ばない。運営者が全件を見る）
+  - 市民のまとめから提案するときは `parent_ids`（元のトピック。起点が先）。起点の近傍の締め切ったトピックでなければ 422 `invalid_parents`。`topic_parents` に残す。週1件などの決まりは普通の提案と同じ
   - 提案した人（`topics.proposed_by`）はどの API にも返さない。提案した人の票は自動で入れない（Polis の seed と同じ。公開のあと、ほかの人と同じく投票する）
 
 ## 分析
@@ -71,7 +80,7 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 | `GET /operator/municipalities` | すべての自治体（準備中も） |
 | `GET .../{slug}/tags` | 付けられるタグ（分野と、その自治体の地区） |
 | `GET .../{slug}/topics?status=draft\|published\|archived&after=&limit=` | トピック（出典・意見と根拠の発言・タグつき）。下書きは古い順、ほかは新しい順。下書きには `similar`（似ている同じ自治体の下書き・公開中のトピック。最大3件と度合い `score`） |
-| `GET` / `PATCH .../topics/{id}` | 1件（種類 `source_type`: assembly / citizen。提案した人は返さない）/ タイトル・説明の手直し |
+| `GET` / `PATCH .../topics/{id}` | 1件（種類 `source_type`: assembly / citizen。提案した人は返さない。市民のまとめからなら元のトピック `parents`）/ タイトル・説明の手直し |
 | `POST .../topics/{id}/publish` / `archive` | 公開（初めてなら90日の期限が付く）/ 取り下げ（市民の提案なら、本人には「見送り」） |
 | `POST` / `DELETE .../topics/{id}/queue` | 公開待ちに入れる（下書きだけ。ほかは 409）/ 外す。公開待ちのものは下書きの一覧（`?status=draft`）に出ない |
 | `GET .../{slug}/publishing` | 公開待ち `queue`（公開する順と予定 `planned_at`。時刻が無ければ null）と公開の時刻 `slots` |

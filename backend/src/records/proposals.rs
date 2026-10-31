@@ -11,6 +11,7 @@ use crate::shared::util::{new_id, now_iso};
 
 /// 提案を保存する。意見は提案した人の意見として承認済みの最初の意見にする（運営者が下書きで確かめる）。
 /// 提案した人の票は入れない（Polis の seed と同じ。反対の立場の意見も書けるように。公開のあと、ほかの人と同じく投票する）。
+/// `parents` は市民のまとめで選んだ元のトピック（起点が先。近傍かは呼ぶ側で確かめておく）。
 /// 入力の確かめ（文字数・公人の氏名）は呼ぶ側で済ませておく。戻り値はトピックの ID
 pub async fn create(
     pool: &SqlitePool,
@@ -19,6 +20,7 @@ pub async fn create(
     title: &str,
     description: &str,
     statements: &[&str],
+    parents: &[String],
 ) -> Result<String, sqlx::Error> {
     let topic_id = new_id();
     let now = now_iso();
@@ -46,6 +48,16 @@ pub async fn create(
         .bind(user_id)
         .bind(body)
         .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+    }
+    for (i, parent) in parents.iter().enumerate() {
+        sqlx::query(
+            "INSERT INTO topic_parents (topic_id, parent_id, position) VALUES ($1, $2, $3)",
+        )
+        .bind(&topic_id)
+        .bind(parent)
+        .bind(i as i64)
         .execute(&mut *tx)
         .await?;
     }

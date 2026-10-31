@@ -4,6 +4,7 @@
 
 pub mod analysis;
 pub mod auth;
+pub mod digest;
 pub mod error;
 pub mod finances;
 mod health;
@@ -46,6 +47,8 @@ pub fn router() -> Router<AppState> {
             "/municipalities/{slug}/proposals",
             get(proposals::mine).post(proposals::create),
         )
+        .route("/municipalities/{slug}/topic-map", get(digest::map))
+        .route("/municipalities/{slug}/digest", get(digest::digest))
         .route("/municipalities/{slug}/topics", get(topics::list))
         .route(
             "/municipalities/{slug}/topics/{topic_id}",

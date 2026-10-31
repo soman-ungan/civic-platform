@@ -11,6 +11,7 @@ mod common;
 mod api {
     mod analysis;
     mod auth;
+    mod digest;
     mod drafts;
     mod finances;
     mod health;
