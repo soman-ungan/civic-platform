@@ -30,7 +30,7 @@ export async function generateMetadata({
   }
   return pageMetadata(
     `${official.name}（${roleTitle(m.name, official.role)}）の議会での記録`,
-    `${roleTitle(m.name, official.role)}の${official.name}さんが議会で取り上げたことと、そこから生まれたトピックを、会議録の引用で見られます。`,
+    `${roleTitle(m.name, official.role)}の${official.name}氏が議会で取り上げたことと、そこから生まれたトピックを、会議録の引用で見られます。`,
   );
 }
 

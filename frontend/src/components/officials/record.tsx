@@ -34,7 +34,7 @@ export function OfficialRecord({
       <p className="mt-4 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
         {coverageText(official.coverage)}
         この中には、{official.name}
-        さんの発言が出典になったトピックはありません。
+        氏の発言が出典になったトピックはありません。
       </p>
     );
   }
@@ -43,7 +43,7 @@ export function OfficialRecord({
     <>
       <p className="mt-2 text-xs leading-5 text-zinc-500">
         {official.name}
-        さんの議会での発言が出典になったトピックです（新しい会議の順）。
+        氏の議会での発言が出典になったトピックです（新しい会議の順）。
         {coverageText(official.coverage)}
       </p>
       {fields.length > 0 && (
