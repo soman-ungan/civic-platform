@@ -1,15 +1,74 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! 分析の結果を公表するときの決まり（分析の API と提言で共通。ADR 0002）。
-//! 少人数の集計は個人の投票そのものになるので出さない。関わり方の区分は二次秘匿する
+//! 分析の結果を公表するときの決まり（分析の API と市民のまとめで共通。ADR 0002・0005）。
+//! 少人数の集計は個人の投票そのものになるので出さない。関わり方の区分は二次秘匿する。
+//! 合意点の判定と関わり方の内訳は、ここだけで決める（ピン留め・分析の画面・まとめで同じにするため）
+
+use std::collections::{BTreeMap, HashMap};
+
+use sqlx::SqlitePool;
+
+use super::conversation::ConvResult;
+use crate::process::progress::RESIDENCY_TYPES;
 
 /// グループを表示する最小の参加者数（分析に含まれる人数）。
 /// 少人数ではグループの集計が個人の投票そのものになるため（Polis にはない、このプロジェクトの判断）
 pub const MIN_DISPLAY_PARTICIPANTS: usize = 5;
 /// 関わり方ごとの集計で、これ未満の人数のセルは出さない
 pub const MIN_CELL_SIZE: i64 = 5;
-/// 合意点（タイムラインのピン留め・提言）の条件: 全グループで (A+1)/(S+2) がこの値以上
+/// 合意点（タイムラインのピン留め・まとめ）の条件: 全グループで (A+1)/(S+2) がこの値以上
 pub const PIN_THRESHOLD: f64 = 0.8;
+
+/// 賛成（または反対）の割合の見積もり (A+1)/(S+2)（Polis と同じ。少ない票で 0 や 1 にならない）
+pub fn agree_rate(a: u32, s: u32) -> f64 {
+    (f64::from(a) + 1.0) / (f64::from(s) + 2.0)
+}
+
+/// 合意点か: 意見 `tid` に、どのグループでも (A+1)/(S+2) ≥ `PIN_THRESHOLD`
+pub fn is_consensus(result: &ConvResult, tid: &str) -> bool {
+    result.groups.iter().all(|g| {
+        let c = g.votes[tid];
+        agree_rate(c.a, c.s) >= PIN_THRESHOLD
+    })
+}
+
+/// 自治体の参加者の関わり方（参加者 ID → residency_type）
+pub async fn residency_types(
+    pool: &SqlitePool,
+    municipality_id: &str,
+) -> Result<HashMap<String, String>, sqlx::Error> {
+    Ok(sqlx::query_as::<_, (String, String)>(
+        "SELECT user_id, residency_type FROM user_municipality_relations WHERE municipality_id = $1",
+    )
+    .bind(municipality_id)
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .collect())
+}
+
+/// 参加者の集まりの、関わり方ごとの人数（二次秘匿の済んだもの。隠した区分は None。区分は `RESIDENCY_TYPES` の順）
+pub fn residency_breakdown<'a>(
+    participants: impl IntoIterator<Item = &'a String>,
+    relations: &HashMap<String, String>,
+) -> BTreeMap<String, Option<i64>> {
+    let mut counts: HashMap<&str, i64> = HashMap::new();
+    for pid in participants {
+        if let Some(t) = relations.get(pid) {
+            *counts.entry(t.as_str()).or_default() += 1;
+        }
+    }
+    let values: Vec<i64> = RESIDENCY_TYPES
+        .iter()
+        .map(|t| counts.get(t).copied().unwrap_or(0))
+        .collect();
+    let visible = suppress(&values);
+    RESIDENCY_TYPES
+        .iter()
+        .zip(values.iter().zip(&visible))
+        .map(|(t, (n, v))| ((*t).to_owned(), v.then_some(*n)))
+        .collect()
+}
 
 /// 意見グループの表示名（A, B, C…）。`index` は分析の結果のグループの並び
 pub fn group_label(index: usize) -> String {

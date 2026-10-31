@@ -15,7 +15,8 @@ use crate::interface::api::municipalities;
 use crate::interface::api::participant::MaybeParticipant;
 use crate::process::analysis::conversation::{self, ConvResult, ConvState};
 use crate::process::analysis::disclosure::{
-    MIN_DISPLAY_PARTICIPANTS, PIN_THRESHOLD, group_label, suppress,
+    MIN_DISPLAY_PARTICIPANTS, group_label, is_consensus, residency_breakdown, residency_types,
+    suppress,
 };
 use crate::process::analysis::repness::RepfulFor;
 use crate::process::analysis::store::{self, Stored};
@@ -216,11 +217,7 @@ fn pinned_consensus(
         .iter()
         .filter_map(|tid| {
             let body = bodies.get(tid)?;
-            let pinned = result.groups.iter().all(|g| {
-                let c = g.votes[tid];
-                (f64::from(c.a) + 1.0) / (f64::from(c.s) + 2.0) >= PIN_THRESHOLD
-            });
-            pinned.then(|| ConsensusView {
+            is_consensus(result, tid).then(|| ConsensusView {
                 statement_id: tid.clone(),
                 body: body.clone(),
                 gac: result.group_aware_consensus[tid],
@@ -298,14 +295,7 @@ async fn group_composition(
     result: &ConvResult,
     state: &ConvState,
 ) -> Result<Vec<GroupComposition>, ApiError> {
-    let relations: HashMap<String, String> = sqlx::query_as::<_, (String, String)>(
-        "SELECT user_id, residency_type FROM user_municipality_relations WHERE municipality_id = $1",
-    )
-    .bind(municipality_id)
-    .fetch_all(pool)
-    .await?
-    .into_iter()
-    .collect();
+    let relations = residency_types(pool, municipality_id).await?;
     let members: HashMap<i64, &Vec<String>> = state
         .base_clusters
         .iter()
@@ -315,31 +305,15 @@ async fn group_composition(
     Ok(result
         .groups
         .iter()
-        .map(|g| {
-            let mut counts: HashMap<&str, i64> = HashMap::new();
-            for pid in g
-                .base_ids
-                .iter()
-                .filter_map(|b| members.get(b))
-                .flat_map(|m| m.iter())
-            {
-                if let Some(t) = relations.get(pid) {
-                    *counts.entry(t.as_str()).or_default() += 1;
-                }
-            }
-            let values: Vec<i64> = RESIDENCY_TYPES
-                .iter()
-                .map(|t| counts.get(t).copied().unwrap_or(0))
-                .collect();
-            let visible = suppress(&values);
-            GroupComposition {
-                group_id: g.id,
-                by_type: RESIDENCY_TYPES
+        .map(|g| GroupComposition {
+            group_id: g.id,
+            by_type: residency_breakdown(
+                g.base_ids
                     .iter()
-                    .zip(values.iter().zip(&visible))
-                    .map(|(t, (n, v))| ((*t).to_owned(), v.then_some(*n)))
-                    .collect(),
-            }
+                    .filter_map(|b| members.get(b))
+                    .flat_map(|m| m.iter()),
+                &relations,
+            ),
         })
         .collect())
 }
