@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 
+import { MinutesQuote } from "@/components/ui/quote";
 import type { TopicSource } from "@/lib/api/types/topics";
-import { formatDate } from "@/lib/dates";
 
 /**
  * 議会での議論（出典）。会議録の発言からの短い引用を、発言ごとの吹き出しで見せる
@@ -42,24 +42,12 @@ export function TopicSources({
                 s.speaker
               )}
             </p>
-            <blockquote className="relative rounded-2xl rounded-tl-sm bg-zinc-100 px-3.5 py-2.5 text-sm leading-6 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
-              「{s.quote}」
-            </blockquote>
-            <p className="mt-1 text-xs text-zinc-500">
-              {s.url ? (
-                <a
-                  href={s.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2"
-                >
-                  {s.document_title}
-                </a>
-              ) : (
-                s.document_title
-              )}
-              {s.held_on && `、${formatDate(s.held_on)}`}
-            </p>
+            <MinutesQuote
+              quote={s.quote}
+              documentTitle={s.document_title}
+              heldOn={s.held_on}
+              url={s.url}
+            />
           </li>
         ))}
       </ul>
