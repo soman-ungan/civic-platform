@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { TopicSource } from "@/lib/api/types/topics";
-
-/** 2025-09-05 → 2025年9月5日 */
-function formatDate(isoDate: string): string {
-  const [y, m, d] = isoDate.split("-").map(Number);
-  return `${y}年${m}月${d}日`;
-}
+import { formatDate } from "@/lib/dates";
 
 /**
  * 議会での議論（出典）。会議録の発言からの短い引用を、発言ごとの吹き出しで見せる

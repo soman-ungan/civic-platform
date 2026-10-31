@@ -21,6 +21,7 @@ import type {
   ProposePermission,
 } from "@/lib/api/types/proposals";
 import { useApi } from "@/lib/api/use-api";
+import { formatDate } from "@/lib/dates";
 import {
   MAX_DESCRIPTION_CHARS,
   MAX_STATEMENT_CHARS,
@@ -451,9 +452,3 @@ function MyProposals({ slug, items }: { slug: string; items: Proposal[] }) {
 }
 
 /** ISO8601 → 「2026年10月29日」。サーバーとブラウザで同じになるよう、日本時間で表示する */
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("ja-JP", {
-    dateStyle: "long",
-    timeZone: "Asia/Tokyo",
-  });
-}
