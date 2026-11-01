@@ -11,7 +11,6 @@ import {
   SiteValue,
 } from "@/components/info/prose";
 import { pageMetadata } from "@/lib/metadata";
-import { SITE_INFO } from "@/lib/site";
 
 export const metadata: Metadata = pageMetadata(
   "利用規約",
@@ -31,7 +30,7 @@ export default function TermsPage() {
         <p>
           本サービスは、自治体の議会・予算・決算の情報を見せ、トピックへの投票と意見の投稿を通じて、
           市民の合意点を見つける場です。運営者は
-          <SiteValue value={SITE_INFO.operatorName} env="SITE_OPERATOR_NAME" />
+          <SiteValue field="operatorName" />
           です（以下「運営者」）。
         </p>
       </Section>
@@ -145,10 +144,7 @@ export default function TermsPage() {
       <Section title="9. 準拠法と裁判所">
         <p>
           この規約は日本の法律に従います。本サービスについて争いが起きたときは、
-          <SiteValue
-            value={SITE_INFO.jurisdictionCourt}
-            env="SITE_JURISDICTION_COURT"
-          />
+          <SiteValue field="jurisdictionCourt" />
           を第一審の専属的合意管轄裁判所とします。
         </p>
       </Section>

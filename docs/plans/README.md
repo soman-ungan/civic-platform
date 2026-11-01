@@ -67,3 +67,8 @@
 | [2026-10-28-refactor-pre-phase6](2026-10-28-refactor-pre-phase6.md) | フェーズ6の前のコードの整理 |
 | [2026-10-29-docs-restructure](2026-10-29-docs-restructure.md) | docs の構造化（この索引を作った） |
 | [2026-10-31-refactor-after-topic-map](2026-10-31-refactor-after-topic-map.md) | トピックマップのあとのコードの整理（合意点の判定と関わり方の内訳を1か所に・大きいファイルを分ける） |
+
+## リリースの準備
+| 計画 | 中身 |
+|---|---|
+| [2026-11-01-phase7-release](2026-11-01-phase7-release.md) | フェーズ7: コンテナ化・本番の守り・バックアップ・デプロイ先とドメイン・仮公開・公開。本番の DB は当面 SQLite |

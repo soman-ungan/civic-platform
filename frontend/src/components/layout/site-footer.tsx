@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { AccountLinks } from "@/components/auth/account-links";
+import { runningSourceUrl } from "@/lib/source";
 
 const LINK =
   "underline underline-offset-2 hover:text-zinc-800 dark:hover:text-zinc-200";
@@ -12,7 +13,8 @@ const LINK =
  * 利用規約・プライバシーポリシー・問い合わせは「このサービスについて」から（フッターは常に出るので1行に収める）
  */
 export function SiteFooter() {
-  const sourceUrl = process.env.NEXT_PUBLIC_SOURCE_URL;
+  // 動いているコミットのソースへ（AGPL 第13条）
+  const sourceUrl = runningSourceUrl();
 
   return (
     <footer className="shrink-0 border-t border-zinc-200 dark:border-zinc-800">

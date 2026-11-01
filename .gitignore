@@ -17,3 +17,6 @@ node_modules/
 .next/
 
 .DS_Store
+
+# 本番の値（deploy/.env.example を写して作る）
+deploy/.env

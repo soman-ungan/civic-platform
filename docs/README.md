@@ -7,6 +7,7 @@
 |---|---|
 | [operations/cli.md](operations/cli.md) | 運営のコマンドの使い方と、よくある流れ（自治体の追加・決算・予算・会議録） |
 | [operations/data-flow.md](operations/data-flow.md) | 資料がどこから来て、どのコマンドで DB のどこに入り、画面に出るまで。1年の作業の目安・困ったとき |
+| [operations/deploy.md](operations/deploy.md) | 本番の動かし方: compose の構成・値（deploy/.env）・イメージ・更新とロールバック・コンテナの中での運営のコマンド |
 
 下書きのトピックの公開、確認待ちの意見の採否、トピックの期限は、管理画面（`/operator`）でもできます。
 
