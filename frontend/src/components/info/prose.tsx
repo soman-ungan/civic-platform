@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import Link from "next/link";
+import { connection } from "next/server";
+import { Suspense } from "react";
+
+import { SITE_FIELDS, type SiteField, siteValue } from "@/lib/site";
 
 /**
  * このサービスについて・利用規約・プライバシーポリシー・アカウントのページの枠。
@@ -83,24 +87,48 @@ export function List({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * 運営者ごとの値（`lib/site.ts` の `SITE_INFO`。`.env` から読む）。
- * 未設定なら【要記入】の印を出す（公開の前に `.env` で埋める）。`href` があればリンクにする
+ * 運営者ごとの値（`lib/site.ts`。`.env` から、リクエストのときに読む）。
+ * 未設定なら【要記入】の印を出す（公開の前に `.env` で埋める）。`href` があればリンクにする。
+ * ページのほかの部分は静的に作り、ここだけをリクエストのときに埋める
  */
 export function SiteValue({
-  value,
-  env,
+  field,
   href,
 }: {
-  value: string | null;
-  /** 未設定のときに案内する環境変数の名前 */
-  env: string;
+  field: SiteField;
   href?: boolean;
 }) {
+  return (
+    <Suspense fallback={<span className="text-zinc-400">…</span>}>
+      <SiteValueAtRequest field={field} href={href} />
+    </Suspense>
+  );
+}
+
+async function SiteValueAtRequest({
+  field,
+  href,
+}: {
+  field: SiteField;
+  href?: boolean;
+}) {
+  await connection();
+  const value = siteValue(field);
   if (!value) {
     return (
       <span className="rounded bg-amber-100 px-1 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
-        【要記入: .env の {env}】
+        【要記入: .env の {SITE_FIELDS[field]}】
       </span>
+    );
+  }
+  if (field === "contactEmail") {
+    return (
+      <a
+        href={`mailto:${value}`}
+        className="font-medium underline underline-offset-2"
+      >
+        {value}
+      </a>
     );
   }
   return href ? (
@@ -117,21 +145,7 @@ export function SiteValue({
   );
 }
 
-/**
- * 問い合わせ先のメールアドレス（`.env` の `NEXT_PUBLIC_CONTACT_EMAIL`）。
- * 未設定なら、まだ受け付けていないと書く
- */
+/** 問い合わせ先のメールアドレス（`.env` の `SITE_CONTACT_EMAIL`） */
 export function ContactEmail() {
-  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
-  if (!email) {
-    return <span>（問い合わせの窓口は準備中です）</span>;
-  }
-  return (
-    <a
-      href={`mailto:${email}`}
-      className="font-medium underline underline-offset-2"
-    >
-      {email}
-    </a>
-  );
+  return <SiteValue field="contactEmail" />;
 }

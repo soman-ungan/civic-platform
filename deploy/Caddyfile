@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# リバースプロキシ（HTTPS の証明書は Caddy が自動で取る）。
+# /api は backend へ、ほかは frontend へ（ブラウザから見て同じオリジン。ADR 0001）。
+# 公開の前は BASIC_AUTH=on でベーシック認証をかけ、本人だけで確かめる（docs/plans/2026-11-01-phase7-release.md）
+
+(auth-off) {
+}
+
+(auth-on) {
+	basic_auth {
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+}
+
+{$SITE_DOMAIN} {
+	import auth-{$BASIC_AUTH:off}
+
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

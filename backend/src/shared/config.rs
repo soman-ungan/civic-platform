@@ -48,47 +48,53 @@ pub struct Config {
 impl Config {
     /// 環境変数から読み込む。未設定の項目は開発用のデフォルト値を使う。
     /// `SESSION_SECRET` だけは既定値を持たず、未設定ならエラーにする。
+    /// 空の値は未設定と同じに扱う（docker compose は未設定の変数を空で渡すため）
     pub fn from_env() -> anyhow::Result<Self> {
-        let session_secret = env::var("SESSION_SECRET").map_err(|_| {
+        let session_secret = var("SESSION_SECRET").map_err(|_| {
             anyhow::anyhow!("SESSION_SECRET が設定されていません（.env.example を参照）")
         })?;
         Ok(Self {
-            database_url: env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.into()),
-            bind_addr: env::var("BIND_ADDR").unwrap_or_else(|_| DEFAULT_BIND_ADDR.into()),
-            seeds_dir: env::var("SEEDS_DIR").unwrap_or_else(|_| DEFAULT_SEEDS_DIR.into()),
-            dev_seeds_dir: env::var("DEV_SEEDS_DIR")
-                .unwrap_or_else(|_| DEFAULT_DEV_SEEDS_DIR.into()),
-            private_dir: env::var("PRIVATE_DIR").unwrap_or_else(|_| DEFAULT_PRIVATE_DIR.into()),
+            database_url: var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.into()),
+            bind_addr: var("BIND_ADDR").unwrap_or_else(|_| DEFAULT_BIND_ADDR.into()),
+            seeds_dir: var("SEEDS_DIR").unwrap_or_else(|_| DEFAULT_SEEDS_DIR.into()),
+            dev_seeds_dir: var("DEV_SEEDS_DIR").unwrap_or_else(|_| DEFAULT_DEV_SEEDS_DIR.into()),
+            private_dir: var("PRIVATE_DIR").unwrap_or_else(|_| DEFAULT_PRIVATE_DIR.into()),
             session_secret,
-            cookie_secure: env::var("COOKIE_SECURE").is_ok_and(|v| v == "true"),
-            analysis_interval_secs: env::var("ANALYSIS_INTERVAL_SECS")
+            cookie_secure: var("COOKIE_SECURE").is_ok_and(|v| v == "true"),
+            analysis_interval_secs: var("ANALYSIS_INTERVAL_SECS")
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(10),
-            anthropic_api_key: env::var("ANTHROPIC_API_KEY")
+            anthropic_api_key: var("ANTHROPIC_API_KEY")
                 .ok()
                 .filter(|v| !v.trim().is_empty()),
-            moderation_model: env::var("MODERATION_MODEL")
+            moderation_model: var("MODERATION_MODEL")
                 .unwrap_or_else(|_| DEFAULT_MODERATION_MODEL.into()),
-            tagging_model: env::var("TAGGING_MODEL")
-                .unwrap_or_else(|_| DEFAULT_TAGGING_MODEL.into()),
-            llm_daily_budget_usd: env::var("LLM_DAILY_BUDGET_USD")
+            tagging_model: var("TAGGING_MODEL").unwrap_or_else(|_| DEFAULT_TAGGING_MODEL.into()),
+            llm_daily_budget_usd: var("LLM_DAILY_BUDGET_USD")
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(DEFAULT_LLM_DAILY_BUDGET_USD),
-            extraction_model: env::var("EXTRACTION_MODEL")
+            extraction_model: var("EXTRACTION_MODEL")
                 .unwrap_or_else(|_| DEFAULT_EXTRACTION_MODEL.into()),
-            llm_extraction_daily_budget_usd: env::var("LLM_EXTRACTION_DAILY_BUDGET_USD")
+            llm_extraction_daily_budget_usd: var("LLM_EXTRACTION_DAILY_BUDGET_USD")
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(DEFAULT_LLM_EXTRACTION_DAILY_BUDGET_USD),
-            collector_contact: env::var("COLLECTOR_CONTACT")
+            collector_contact: var("COLLECTOR_CONTACT")
                 .ok()
                 .filter(|v| !v.trim().is_empty()),
-            webauthn_rp_id: env::var("WEBAUTHN_RP_ID")
-                .unwrap_or_else(|_| DEFAULT_WEBAUTHN_RP_ID.into()),
-            webauthn_origin: env::var("WEBAUTHN_ORIGIN")
+            webauthn_rp_id: var("WEBAUTHN_RP_ID").unwrap_or_else(|_| DEFAULT_WEBAUTHN_RP_ID.into()),
+            webauthn_origin: var("WEBAUTHN_ORIGIN")
                 .unwrap_or_else(|_| DEFAULT_WEBAUTHN_ORIGIN.into()),
         })
+    }
+}
+
+/// 環境変数（空や空白だけなら未設定と同じ）
+fn var(name: &str) -> Result<String, env::VarError> {
+    match env::var(name) {
+        Ok(v) if v.trim().is_empty() => Err(env::VarError::NotPresent),
+        other => other,
     }
 }

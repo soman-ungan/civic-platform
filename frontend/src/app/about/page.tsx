@@ -11,7 +11,7 @@ import {
   SiteValue,
 } from "@/components/info/prose";
 import { pageMetadata } from "@/lib/metadata";
-import { SITE_INFO } from "@/lib/site";
+import { GIT_SHA, runningSourceUrl } from "@/lib/source";
 
 export const metadata: Metadata = pageMetadata(
   "このサービスについて",
@@ -19,7 +19,7 @@ export const metadata: Metadata = pageMetadata(
 );
 
 export default function AboutPage() {
-  const sourceUrl = process.env.NEXT_PUBLIC_SOURCE_URL;
+  const sourceUrl = runningSourceUrl();
   return (
     <InfoPage title="このサービスについて" updated="2026年10月31日">
       <p className="mt-3">
@@ -106,19 +106,10 @@ export default function AboutPage() {
       <Section title="運営">
         <List>
           <li>
-            運営者:{" "}
-            <SiteValue
-              value={SITE_INFO.operatorName}
-              env="SITE_OPERATOR_NAME"
-            />
+            運営者: <SiteValue field="operatorName" />
           </li>
           <li>
-            収支の公開:{" "}
-            <SiteValue
-              value={SITE_INFO.financeReportUrl}
-              env="SITE_FINANCE_REPORT_URL"
-              href
-            />
+            収支の公開: <SiteValue field="financeReportUrl" href />
           </li>
         </List>
       </Section>
@@ -141,6 +132,12 @@ export default function AboutPage() {
             </>
           )}
         </p>
+        {GIT_SHA && (
+          <p className="text-xs text-zinc-500">
+            いま動いているのは、コミット <code>{GIT_SHA.slice(0, 7)}</code>{" "}
+            のコードです。
+          </p>
+        )}
       </Section>
 
       <Section id="contact" title="お問い合わせ">

@@ -54,3 +54,13 @@
 
 ## ライセンス
 Caddy・Litestream は Apache-2.0。ベースのイメージは採用するときに確かめる。
+
+## 実装時の変更点
+### 7a
+- 運営者ごとの値（`SITE_*`）は、ビルドのときに静的な HTML に焼き込まれていた。イメージは CI で作って GHCR に置くので、個人の値が入らないよう、リクエストのときに読むようにした（`lib/site.ts` の `siteValue`、`SiteValue` は `connection()` で待つ小さな穴。ページのほかは静的なまま）。問い合わせのメールも `NEXT_PUBLIC_CONTACT_EMAIL` から、サーバーだけで読む `SITE_CONTACT_EMAIL` に
+- backend の設定は、空の値を未設定と同じに扱う（compose は未設定の変数を空で渡すため。空のモデル名で API を呼ばないように）
+- パスキー（webauthn-rs）が OpenSSL を使うので、backend のイメージに libssl を入れた（OpenSSL 3 は Apache-2.0。外部への HTTP は rustls のまま）
+- 公開の前のベーシック認証は Caddy の snippet を `BASIC_AUTH=on|off` で切り替える。ハッシュの `$` は `$$` に書く
+- 手元で試すため、ポート（`HTTP_PORT`・`HTTPS_PORT`）と `PUBLIC_ORIGIN` を変えられるようにした
+- 動いているコミットは、フッターの「ソースコード（AGPL）」がそのコミットのツリーを開き、about に短い SHA を出す（`lib/source.ts`）
+- 確かめ: 手元で compose を `https://localhost:8443` で動かし、ベーシック認証・各ページ・コンテナの中の seed・運営者の招待からのパスキーの登録（headless の Chromium の仮想の認証器）・Cookie の Secure と HttpOnly・リクエストのときの `SITE_*`・コミットのリンクを確かめた。イメージは backend 108MB・frontend 270MB

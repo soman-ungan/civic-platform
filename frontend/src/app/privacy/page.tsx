@@ -11,7 +11,6 @@ import {
   SiteValue,
 } from "@/components/info/prose";
 import { pageMetadata } from "@/lib/metadata";
-import { SITE_INFO } from "@/lib/site";
 
 export const metadata: Metadata = pageMetadata(
   "プライバシーポリシー",
@@ -52,10 +51,7 @@ export default function PrivacyPage() {
             <strong>サーバーのアクセスの記録</strong>: IP
             アドレス・日時・ブラウザの種類など。
             障害の対応と不正な利用を防ぐためだけに使い、
-            <SiteValue
-              value={SITE_INFO.accessLogRetention}
-              env="SITE_ACCESS_LOG_RETENTION"
-            />
+            <SiteValue field="accessLogRetention" />
             で消します
           </li>
         </List>
@@ -94,10 +90,7 @@ export default function PrivacyPage() {
         <p>
           意見の本文に個人の情報を書かないでください。送った内容の扱いは、Anthropic
           社の規約に従います （
-          <SiteValue
-            value={SITE_INFO.aiDataHandling}
-            env="SITE_AI_DATA_HANDLING"
-          />
+          <SiteValue field="aiDataHandling" />
           ）。
         </p>
       </Section>
@@ -105,7 +98,7 @@ export default function PrivacyPage() {
       <Section title="5. 情報を渡す先">
         <p>
           法令に基づく場合を除き、集めた情報を第三者に渡しません。本サービスを動かすサーバーは
-          <SiteValue value={SITE_INFO.hosting} env="SITE_HOSTING" />
+          <SiteValue field="hosting" />
           にあります。
         </p>
       </Section>

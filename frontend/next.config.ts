@@ -29,6 +29,8 @@ if (
 const apiInternalUrl = apiInternalUrlOf();
 
 const nextConfig: NextConfig = {
+  // 本番のイメージ（frontend/Dockerfile）は .next/standalone の server.js で動かす
+  output: "standalone",
   cacheComponents: true,
   partialPrefetching: true,
   async rewrites() {

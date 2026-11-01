@@ -1,0 +1,17 @@
+# イメージを作るときに送らないもの（秘密の値・DB・ビルドの成果物・本番に要らないもの）
+.git
+.github
+.env
+.env.*
+!.env.example
+deploy/.env
+data/*.db
+data/*.db-*
+data/private/
+data/dev-seeds/
+**/target/
+**/node_modules/
+**/.next/
+evals/
+docs/
+scripts/
