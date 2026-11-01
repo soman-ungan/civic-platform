@@ -6,6 +6,8 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 
 ## 共通
 - エラーは `{"error": {"code", "message"}}`。`message` は画面にそのまま出せる日本語
+- 書き込みの回数の制限（`interface/api/rate_limit.rs`）: 同じ IP から、投票は1分に300回・意見の投稿は1分に30回・提案は1時間に20回・パスキーの手続き（`/auth/*` と退会）と関わり方の登録はそれぞれ1分に60回まで。超えると 429 `rate_limited`。運営者の API と読み出しは数えない。スマホの回線は多くの人が同じ IP を分け合うので、人の操作より十分に大きくしている。本番では Caddy が付ける `X-Forwarded-For` で接続元を見る（`TRUST_FORWARDED_FOR=true`）
+- 送ってくる本文は 64KB まで
 - **投稿者の情報は、どの API でも返さない**（運営者の API でも。匿名性）
 - 自治体に属するデータは、パスの `slug` の自治体で絞る。無効な自治体・別の自治体のものは 404
 - 下書き（`topics.status = 'draft'`、予算の draft）は、運営者の API 以外のどこにも出さない

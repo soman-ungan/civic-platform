@@ -20,6 +20,17 @@
 - `SITE_*`: このサービスについて・規約・プライバシーポリシーに載せる値。frontend が**リクエストのときに読む**ので、変えたら `docker compose up -d frontend` で入れ直すだけです（作り直しは要りません）
 - 空の値は「未設定」と同じに扱います
 
+## 守り（フェーズ7b）
+- **セキュリティのヘッダー**（Caddyfile）: HSTS（1年）・`X-Content-Type-Options`・`Referrer-Policy`・ほかのサイトへの埋め込みの禁止（`frame-ancestors 'none'`）・`Permissions-Policy`。`Server` は出さない
+- **書き込みの回数の制限**（backend）: 同じ IP からの投票・投稿・提案・パスキーの手続きを数え、超えたら 429（`docs/design/api.md`）。Caddy は、信頼しない相手から来た `X-Forwarded-For` を捨てて接続元を入れ直すので、利用者がそのヘッダーを偽っても逃れられない
+- **起動のときの確かめ**: `WEBAUTHN_ORIGIN` が https なのに `COOKIE_SECURE` が true でない、本番のドメインなのに http、のときは backend が起動しない。本番では `seed --dev`（【サンプル】の架空のデータ）を入れられない
+- **アクセスの記録**: Caddy が `caddy_data` のボリュームの `access.log` に JSON で残し、`ACCESS_LOG_KEEP`（既定 `2160h` = 90日）を過ぎたら消す。プライバシーポリシーに出す `SITE_ACCESS_LOG_RETENTION` と同じ期間にする。Cookie と Authorization の値は記録されない（`REDACTED`）
+- **コンテナのログ**: 1つ10MB・5つまで（compose の `x-logging`）
+- **SQLite**: WAL・`synchronous=NORMAL`・書き込みの待ち 5秒。待ちを超えた（`database is locked`）エラーは、ログに `sqlite_busy=true` が付く。これが出始めたら PostgreSQL への移行の目安（ADR 0001）
+  ```sh
+  docker compose logs backend | grep 'sqlite_busy=true'
+  ```
+
 ## イメージ
 main に入ると、CI がイメージを作って GHCR に置きます（`.github/workflows/ci.yml` の `images`）。
 

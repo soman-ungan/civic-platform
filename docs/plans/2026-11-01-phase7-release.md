@@ -64,3 +64,12 @@ Caddy・Litestream は Apache-2.0。ベースのイメージは採用すると�
 - 手元で試すため、ポート（`HTTP_PORT`・`HTTPS_PORT`）と `PUBLIC_ORIGIN` を変えられるようにした
 - 動いているコミットは、フッターの「ソースコード（AGPL）」がそのコミットのツリーを開き、about に短い SHA を出す（`lib/source.ts`）
 - 確かめ: 手元で compose を `https://localhost:8443` で動かし、ベーシック認証・各ページ・コンテナの中の seed・運営者の招待からのパスキーの登録（headless の Chromium の仮想の認証器）・Cookie の Secure と HttpOnly・リクエストのときの `SITE_*`・コミットのリンクを確かめた。イメージは backend 108MB・frontend 270MB
+
+### 7b
+- 回数の制限は、新しい crate を入れず、backend の中で時間の窓ごとに数える（`interface/api/rate_limit.rs`。サーバー1台・再起動で消えてよい）。スマホの回線は同じ IP を分け合うので、上限は大きめ（投票300/分・投稿30/分・提案20/時・パスキーの手続きと関わり方60/分）。テストでは数えない（`AppState::new` は無効。`with_rate_limiter` で有効に）
+- 接続元の IP は、`TRUST_FORWARDED_FOR=true`（compose）のとき Caddy が付ける `X-Forwarded-For` の一番右、それ以外は接続元のアドレス（`into_make_service_with_connect_info`）
+- 本番の判定は「`WEBAUTHN_RP_ID` が localhost 以外」（`Config::is_production`）。起動の確かめ（`check_for_serving`）と `seed --dev` の拒否に使う
+- アクセスの記録の期間は、Caddy の `roll_keep_for`（`ACCESS_LOG_KEEP`）で時間で決める（大きさで回すのではなく）。`deploy/.env.example` の `SITE_ACCESS_LOG_RETENTION` の例を「90日」にそろえた
+- 送ってくる本文の上限は 64KB（`DefaultBodyLimit`）
+- 確かめ: 手元の compose で、ヘッダー・偽の `X-Forwarded-For` を付けても31回目で 429・アクセスの記録で Authorization が `REDACTED`・食い違った設定で backend が起動しない・本番で `seed --dev` が拒まれる、を確かめた
+

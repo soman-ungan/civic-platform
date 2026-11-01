@@ -12,6 +12,9 @@ use serde_json::json;
 pub enum ApiError {
     #[error("見つかりません")]
     NotFound,
+    /// 書き込みの回数の制限（429。`rate_limit`）
+    #[error("操作が多すぎます。少し時間をおいてから、もう一度お試しください")]
+    TooManyRequests,
     /// 入力値の検証エラー（422）
     #[error("{message}")]
     Validation { code: &'static str, message: String },
@@ -68,14 +71,23 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, code, message) = match self {
             Self::NotFound => (StatusCode::NOT_FOUND, "not_found", self.to_string()),
+            Self::TooManyRequests => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "rate_limited",
+                self.to_string(),
+            ),
             Self::Validation { code, message } => (StatusCode::UNPROCESSABLE_ENTITY, code, message),
             Self::Unauthorized { code, message } => (StatusCode::UNAUTHORIZED, code, message),
             Self::Forbidden { code, message } => (StatusCode::FORBIDDEN, code, message),
             Self::Conflict { code, message } => (StatusCode::CONFLICT, code, message),
             Self::InvalidRequest { status, message } => (status, "invalid_request", message),
             Self::Database(err) => {
-                // 詳細はログにだけ出し、クライアントには返さない
-                tracing::error!(error = %err, "database error");
+                // 詳細はログにだけ出し、クライアントには返さない。
+                // 書き込みの待ち（SQLite の BUSY）は、PostgreSQL への移行の目安なので印を付ける（ADR 0001）
+                let busy = err.as_database_error().is_some_and(|e| {
+                    e.code().as_deref() == Some("5") || e.message().contains("database is locked")
+                });
+                tracing::error!(error = %err, sqlite_busy = busy, "database error");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "internal",

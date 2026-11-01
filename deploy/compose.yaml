@@ -7,6 +7,13 @@
 
 name: civic-platform
 
+# コンテナのログ（標準出力）が増え続けないように
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   backend:
     image: ghcr.io/soman-ungan/civic-platform-backend:${IMAGE_TAG:-latest}
@@ -14,9 +21,12 @@ services:
       context: ..
       dockerfile: backend/Dockerfile
     restart: unless-stopped
+    logging: *logging
     environment:
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET を deploy/.env に}
       COOKIE_SECURE: "true"
+      # 接続元の IP は Caddy が付ける X-Forwarded-For から読む（回数の制限）
+      TRUST_FORWARDED_FOR: "true"
       WEBAUTHN_RP_ID: ${SITE_DOMAIN:?SITE_DOMAIN を deploy/.env に}
       # 手元で 443 以外のポートで試すときは PUBLIC_ORIGIN（例: https://localhost:8443）
       WEBAUTHN_ORIGIN: ${PUBLIC_ORIGIN:-https://${SITE_DOMAIN}}
@@ -41,6 +51,7 @@ services:
         NEXT_PUBLIC_SITE_URL: https://${SITE_DOMAIN}
         NEXT_PUBLIC_GIT_SHA: ${GIT_SHA:-}
     restart: unless-stopped
+    logging: *logging
     environment:
       API_INTERNAL_URL: http://backend:8080
       SITE_OPERATOR_NAME: ${SITE_OPERATOR_NAME:-}
@@ -56,6 +67,7 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    logging: *logging
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
@@ -65,6 +77,8 @@ services:
       BASIC_AUTH: ${BASIC_AUTH:-off}
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-}
+      # アクセスの記録を残す期間（例: 2160h = 90日）。プライバシーポリシーの SITE_ACCESS_LOG_RETENTION と合わせる
+      ACCESS_LOG_KEEP: ${ACCESS_LOG_KEEP:-2160h}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
