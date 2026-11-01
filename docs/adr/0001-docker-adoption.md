@@ -94,3 +94,16 @@
 - AWS Lightsail FAQ: https://aws.amazon.com/lightsail/faq/
 - Cloudflare R2 Pricing: https://developers.cloudflare.com/r2/pricing/
 - Oracle Cloud 無料枠の縮小: https://terminalbytes.com/oracle-cloud-free-tier-changes-2026/
+
+## 改訂（2026-11-01）: 本番の DB は当面 SQLite
+
+**決定**: 公開は SQLite（WAL）で行い、Litestream で Cloudflare R2 に常に複製する。PostgreSQL への移行は、次のどれかが起きたときに判断する（時期の見込みはフェーズ8 の途中）。
+- サーバーを2台以上にしたい（止めずに更新・負荷を分けたい）
+- 書き込みの待ち（`database is locked`）がログに出始める
+- フェーズ8 で近隣の自治体を増やし、参加者が数万人の規模になる
+- 時点を指定した復元や、DB の外部サービスに任せたくなった
+
+**理由**: パイロットの規模（人口約7万人、参加者は数千人まで）では、書き込みは投票1票ずつの小さなもので、1台の SQLite で十分に足りる。DB のサーバーを別に管理しなくてよく、ワンオペと「小さな VPS 1台」の構成に合う。
+
+**移行のときに要ること**: SQL は両対応で書き、CI でマイグレーションと seed が PostgreSQL に入ることは確かめているが、コードは SQLite の接続の型（`SqlitePool`）を広く使い、個々の SQL を PostgreSQL で動かす確かめはしていない。移行は、接続の型の置き換え・SQL の確かめ・データの移し替えとリハーサルを含む、1つの計画にする（docs/plans/2026-11-01-phase7-release.md）
+
