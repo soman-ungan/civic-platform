@@ -175,7 +175,7 @@ body {
   }
 }
 
-/* 初めて開いたときだけのカバー（components/layout/cover.tsx）。
+/* その日に初めて開いたときだけのカバー（components/layout/cover.tsx）。
    ロゴを少し大きくしながら出し、1.2 秒後に 0.4 秒で消える。消えたあとはタップを邪魔しない */
 .cover {
   position: fixed;
