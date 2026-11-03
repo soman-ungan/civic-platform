@@ -10,7 +10,7 @@ import { apiGet } from "@/lib/api/server";
 import { municipalityApi } from "@/lib/api/paths";
 import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
 
-export const SITE_NAME = "市民参加プラットフォーム";
+export const SITE_NAME = "まちのこえ";
 export const SITE_DESCRIPTION =
   "自治体の議会・予算・決算を分かりやすく見せ、市民の合意点を見つける場";
 

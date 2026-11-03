@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { MUNICIPALITIES_API } from "@/lib/api/paths";
+import { SITE_NAME } from "@/lib/metadata";
 import { apiGet } from "@/lib/api/server";
 import type { Municipality } from "@/lib/api/types/municipalities";
 
@@ -14,9 +15,7 @@ export default function Home() {
     <main className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex w-full max-w-md flex-col px-4 py-8">
         <header className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight">
-            市民参加プラットフォーム
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight">{SITE_NAME}</h1>
           <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
             まちの議事録・予算・決算をわかりやすく見せ、みんなの合意点を見つける場所です。
           </p>
