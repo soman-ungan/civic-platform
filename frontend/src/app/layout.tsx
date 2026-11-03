@@ -2,6 +2,7 @@
 
 import type { Metadata, Viewport } from "next";
 
+import { COVER_SCRIPT, Cover } from "@/components/layout/cover";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SITE_DESCRIPTION, SITE_NAME, pageMetadata } from "@/lib/metadata";
 import "./globals.css";
@@ -24,10 +25,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ja" className="h-full antialiased">
+    // data-cover は <head> のスクリプトが描く前に付ける（React の描いたものと違ってよい）
+    <html lang="ja" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: COVER_SCRIPT }} />
+      </head>
       {/* 画面の高さに固定し、スクロールは各ページの中で行う（ヘッダーとフッターを常に表示するため）。
           印刷（まとめの PDF）のときは高さを固定せず、全体を流す */}
       <body className="flex h-dvh flex-col overflow-hidden print:block print:h-auto print:overflow-visible">
+        <Cover />
         {children}
         <SiteFooter />
       </body>

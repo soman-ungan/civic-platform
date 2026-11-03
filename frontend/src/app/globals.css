@@ -174,3 +174,41 @@ body {
     --treemap-unlisted: #3f3f46;
   }
 }
+
+/* 初めて開いたときだけのカバー（components/layout/cover.tsx）。
+   ロゴを少し大きくしながら出し、1.2 秒後に 0.4 秒で消える。消えたあとはタップを邪魔しない */
+.cover {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #fff2cc url("/cover.webp") center / min(60vw, 280px) no-repeat;
+  animation:
+    cover-in 500ms ease-out both,
+    cover-out 400ms ease-in 1200ms forwards;
+}
+html[data-cover="seen"] .cover {
+  display: none;
+}
+@keyframes cover-in {
+  from {
+    background-size: min(54vw, 252px);
+    opacity: 0.6;
+  }
+}
+@keyframes cover-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+/* 動きを減らす設定では、大きくする動きをやめ、薄くなって消えるだけにする */
+@media (prefers-reduced-motion: reduce) {
+  .cover {
+    animation: cover-out 400ms ease-in 1200ms forwards;
+  }
+}
+@media print {
+  .cover {
+    display: none;
+  }
+}
