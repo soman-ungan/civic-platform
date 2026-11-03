@@ -38,3 +38,14 @@ backend/tests/fixtures/polis-biodiversity/
   sub-licensed under CC BY 4.0 with Attribution to The Computational Democracy Project.
   https://compdemocracy.org/case-studies/2019-scoop-hivemind-biodiversity
   https://creativecommons.org/licenses/by/4.0/
+
+------------------------------------------------------------------------
+ロゴ（AGPL の対象外）
+------------------------------------------------------------------------
+「まちのこえ」のロゴの画像は、AGPL の対象外です。このサービスを動かす目的のほかに、
+複製・改変・再配布はできません。ほかの人が自分でサービスを動かすときは、別のロゴに差し替えてください。
+  frontend/public/cover.webp
+  frontend/src/app/icon.png
+  frontend/src/app/apple-icon.png
+  frontend/src/app/favicon.ico
+Copyright (C) 2026 soman-ungan
