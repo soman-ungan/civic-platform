@@ -34,3 +34,44 @@ export function siteValue(field: SiteField): string | null {
   const v = process.env[SITE_FIELDS[field]]?.trim();
   return v ? v : null;
 }
+
+/** SNS などのリンク（表示名と URL） */
+export type SocialLink = { label: string; url: string };
+
+/** よく使う SNS の表示名（ドメインから。ほかはドメインをそのまま出す） */
+const SOCIAL_LABELS: Record<string, string> = {
+  "x.com": "X",
+  "twitter.com": "X",
+  "bsky.app": "Bluesky",
+  "instagram.com": "Instagram",
+  "threads.net": "Threads",
+  "threads.com": "Threads",
+  "facebook.com": "Facebook",
+  "youtube.com": "YouTube",
+  "tiktok.com": "TikTok",
+  "note.com": "note",
+  "line.me": "LINE",
+  "github.com": "GitHub",
+};
+
+/**
+ * 運営者の SNS などのリンク（`.env` の `SITE_SOCIAL_LINKS`。カンマ区切りの URL）。
+ * 任意の項目（無ければ出さない）。https の URL だけを使い、ほかは捨てる。呼んだときに読む
+ */
+export function siteSocialLinks(): SocialLink[] {
+  const raw = process.env.SITE_SOCIAL_LINKS ?? "";
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .flatMap((s) => {
+      let url: URL;
+      try {
+        url = new URL(s);
+      } catch {
+        return [];
+      }
+      if (url.protocol !== "https:") return [];
+      const host = url.hostname.replace(/^(www|m)\./, "");
+      return [{ label: SOCIAL_LABELS[host] ?? host, url: url.href }];
+    });
+}

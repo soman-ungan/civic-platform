@@ -4,7 +4,12 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
-import { SITE_FIELDS, type SiteField, siteValue } from "@/lib/site";
+import {
+  SITE_FIELDS,
+  type SiteField,
+  siteSocialLinks,
+  siteValue,
+} from "@/lib/site";
 
 /**
  * このサービスについて・利用規約・プライバシーポリシー・アカウントのページの枠。
@@ -148,4 +153,42 @@ async function SiteValueAtRequest({
 /** 問い合わせ先のメールアドレス（`.env` の `SITE_CONTACT_EMAIL`） */
 export function ContactEmail() {
   return <SiteValue field="contactEmail" />;
+}
+
+/**
+ * 運営者の SNS などのリンク（`.env` の `SITE_SOCIAL_LINKS`）。無ければ何も出さない。
+ * リクエストのときに読むので、足したり外したりしても作り直さなくてよい
+ */
+export function SocialLinks() {
+  return (
+    <Suspense fallback={null}>
+      <SocialLinksAtRequest />
+    </Suspense>
+  );
+}
+
+async function SocialLinksAtRequest() {
+  await connection();
+  const links = siteSocialLinks();
+  if (links.length === 0) return null;
+  return (
+    <p>
+      SNS:{" "}
+      {links.map((link, i) => (
+        <span key={link.url}>
+          {i > 0 && "・"}
+          {/* rel="me": Mastodon などで、このサイトと同じ運営者だと示せる */}
+          <a
+            href={link.url}
+            target="_blank"
+            rel="me noopener noreferrer"
+            className="font-medium underline underline-offset-2"
+          >
+            {link.label}
+          </a>
+        </span>
+      ))}
+      （お知らせも出します。意見の削除の依頼など、個人に関わるご連絡はメールでお願いします）
+    </p>
+  );
 }
