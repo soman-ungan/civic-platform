@@ -176,23 +176,53 @@ body {
 }
 
 /* その日に初めて開いたときだけのカバー（components/layout/cover.tsx）。
-   ロゴを少し大きくしながら出し、1.2 秒後に 0.4 秒で消える。消えたあとはタップを邪魔しない */
+   ロゴを少し大きくしながら出し、タップで薄くなって消える。消えたあとはタップを邪魔しない。
+   文字の色は、ロゴの緑と橙を暗くしたもの（背景のクリーム色に対してコントラスト 4.5 以上） */
 .cover {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: #fff2cc url("/cover.webp") center / min(60vw, 280px) no-repeat;
-  animation:
-    cover-in 500ms ease-out both,
-    cover-out 400ms ease-in 1200ms forwards;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: #fff2cc;
+  cursor: pointer;
+  user-select: none;
+  animation: cover-in 500ms ease-out both;
+}
+.cover-logo {
+  width: min(60vw, 280px);
+  aspect-ratio: 1;
+  background: url("/cover.webp") center / contain no-repeat;
+}
+.cover-tagline {
+  max-width: 20em;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.7;
+  color: #2f5a4e;
+  text-wrap: balance;
+}
+.cover-hint {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  color: #8a4a1c;
+  animation: cover-hint 1.6s ease-in-out 800ms infinite;
+}
+html[data-cover="closing"] .cover {
+  animation: cover-out 300ms ease-in forwards;
 }
 html[data-cover="seen"] .cover {
   display: none;
 }
 @keyframes cover-in {
   from {
-    background-size: min(54vw, 252px);
     opacity: 0.6;
+    transform: scale(0.96);
   }
 }
 @keyframes cover-out {
@@ -201,10 +231,16 @@ html[data-cover="seen"] .cover {
     visibility: hidden;
   }
 }
-/* 動きを減らす設定では、大きくする動きをやめ、薄くなって消えるだけにする */
+@keyframes cover-hint {
+  50% {
+    opacity: 0.45;
+  }
+}
+/* 動きを減らす設定では、大きくする動きと「タップ」の点滅をやめる */
 @media (prefers-reduced-motion: reduce) {
-  .cover {
-    animation: cover-out 400ms ease-in 1200ms forwards;
+  .cover,
+  .cover-hint {
+    animation: none;
   }
 }
 @media print {

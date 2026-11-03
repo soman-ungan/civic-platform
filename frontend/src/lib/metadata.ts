@@ -11,6 +11,9 @@ import { municipalityApi } from "@/lib/api/paths";
 import type { MunicipalityDetail } from "@/lib/api/types/municipalities";
 
 export const SITE_NAME = "まちのこえ";
+/** カバー（最初の画面）でロゴの下に出す一言 */
+export const SITE_TAGLINE =
+  "まちの議会とお金を知って、みんなの合意点を見つける場所";
 export const SITE_DESCRIPTION =
   "自治体の議会・予算・決算を分かりやすく見せ、市民の合意点を見つける場";
 
