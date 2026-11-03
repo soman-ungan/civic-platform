@@ -73,3 +73,9 @@ Caddy・Litestream は Apache-2.0。ベースのイメージは採用すると�
 - 送ってくる本文の上限は 64KB（`DefaultBodyLimit`）
 - 確かめ: 手元の compose で、ヘッダー・偽の `X-Forwarded-For` を付けても31回目で 429・アクセスの記録で Authorization が `REDACTED`・食い違った設定で backend が起動しない・本番で `seed --dev` が拒まれる、を確かめた
 
+
+### 7c
+- Litestream は v0.5.17 の公式のイメージ（Apache-2.0）を、backend と同じ uid 10001 で動かす（`-shm` などを backend が書けるように）
+- 起動の前に1回だけ動く `restore` を足した。DB が無ければ R2 の最新から戻し（`-if-db-not-exists -if-replica-exists`）、backend はその成功を待つ。新しいサーバーへの移行やボリュームを失ったときに手で戻さなくてよく、R2 の値が空や間違いなら backend が起動しない（空の DB で始めない）。新しいボリュームは root の持ち主で作られるので、root で戻してから `chown`
+- まるごとの写しは1日1回、`LITESTREAM_RETENTION`（既定 168h = 7日）残す。消した情報がバックアップに残ることをプライバシーポリシーに書いた（`SITE_BACKUP`・`SITE_BACKUP_RETENTION`。残る最長は保存の期間＋1日で、既定なら8日）
+- 確かめ: R2 の代わりに `rclone serve s3` を compose の上書きで足し、手元で、複製・ボリュームを消したあとの自動の復元（API の応答が同じ）・戻したあとの書き込みの複製・ある時点への復元（`-timestamp`）とそのあとの書き込み → ボリュームを消して最新から戻す（件数が合い `integrity_check` が ok）・R2 の値が空や届かないときに `restore` が失敗すること、を確かめた。本物の R2 での確かめは 7e で

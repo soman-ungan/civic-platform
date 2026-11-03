@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 #
-# 本番の構成（ADR 0001）: backend・frontend・Caddy。値は deploy/.env（deploy/.env.example を写して作る。
+# 本番の構成（ADR 0001）: backend・frontend・Caddy・Litestream。値は deploy/.env（deploy/.env.example を写して作る。
 # リポジトリに入れない）。イメージは CI が GHCR に置いたものを使う。手元で作るときは --build
 #   docker compose -f deploy/compose.yaml --env-file deploy/.env up -d
 # 手順は docs/operations/deploy.md
@@ -40,6 +40,41 @@ services:
       RUST_LOG: ${RUST_LOG:-info}
     volumes:
       - db:/data
+    depends_on:
+      restore:
+        condition: service_completed_successfully
+
+  # 起動の前に1回だけ動く。DB が無いとき（新しいサーバー・ボリュームを消したあと）は、バックアップがあれば戻す。
+  # DB があれば何もしない。バックアップがまだ無ければ何もしない（初めてのデプロイ）。
+  # R2 の値が間違っていると失敗し、backend は起動しない（空の DB で始めて、バックアップを上書きしないように）
+  restore:
+    image: litestream/litestream:${LITESTREAM_VERSION:-0.5.17}
+    environment: &litestream-env
+      LITESTREAM_BUCKET: ${LITESTREAM_BUCKET:-}
+      LITESTREAM_ENDPOINT: ${LITESTREAM_ENDPOINT:-}
+      LITESTREAM_ACCESS_KEY_ID: ${LITESTREAM_ACCESS_KEY_ID:-}
+      LITESTREAM_SECRET_ACCESS_KEY: ${LITESTREAM_SECRET_ACCESS_KEY:-}
+      LITESTREAM_RETENTION: ${LITESTREAM_RETENTION:-168h}
+    # 戻したファイルを backend（uid 10001）が書けるように、root で戻してから持ち主を変える
+    entrypoint: ["sh", "-c"]
+    command:
+      - litestream restore -if-db-not-exists -if-replica-exists /data/civic.db && chown -R 10001:10001 /data
+    volumes: &litestream-volumes
+      - ./litestream.yml:/etc/litestream.yml:ro
+      - db:/data
+
+  # SQLite の変更を R2 に常に複製する（1秒ごと。まるごとの写しは1日1回）
+  litestream:
+    image: litestream/litestream:${LITESTREAM_VERSION:-0.5.17}
+    restart: unless-stopped
+    logging: *logging
+    # backend と同じ持ち主でファイルを作る（-shm など）
+    user: "10001:10001"
+    command: ["replicate"]
+    environment: *litestream-env
+    volumes: *litestream-volumes
+    depends_on:
+      - backend
 
   frontend:
     image: ghcr.io/soman-ungan/civic-platform-frontend:${IMAGE_TAG:-latest}
@@ -58,6 +93,8 @@ services:
       SITE_FINANCE_REPORT_URL: ${SITE_FINANCE_REPORT_URL:-}
       SITE_JURISDICTION_COURT: ${SITE_JURISDICTION_COURT:-}
       SITE_ACCESS_LOG_RETENTION: ${SITE_ACCESS_LOG_RETENTION:-}
+      SITE_BACKUP: ${SITE_BACKUP:-}
+      SITE_BACKUP_RETENTION: ${SITE_BACKUP_RETENTION:-}
       SITE_HOSTING: ${SITE_HOSTING:-}
       SITE_AI_DATA_HANDLING: ${SITE_AI_DATA_HANDLING:-}
       SITE_CONTACT_EMAIL: ${SITE_CONTACT_EMAIL:-}

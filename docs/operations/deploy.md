@@ -1,13 +1,14 @@
 # 本番の動かし方（デプロイ）
 
-本番は、サーバー1台の上で docker compose が4つ（予定）のコンテナを動かします（ADR 0001。計画は `docs/plans/2026-11-01-phase7-release.md`）。
+本番は、サーバー1台の上で docker compose が4つのコンテナ（と、起動の前の1つ）を動かします（ADR 0001。計画は `docs/plans/2026-11-01-phase7-release.md`）。
 
 | コンテナ | 中身 |
 |---|---|
 | `caddy` | 入口。HTTPS の証明書を自動で取り、`/api` を backend へ、ほかを frontend へ。公開の前はベーシック認証 |
 | `backend` | API サーバーと運営のコマンド（同じバイナリ）。DB（SQLite）はボリューム `db` の `/data/civic.db` |
 | `frontend` | Next.js（`server.js`） |
-| `litestream` | SQLite を Cloudflare R2 に常に複製する（7c で足す） |
+| `litestream` | SQLite を Cloudflare R2 に常に複製する |
+| `restore` | 起動の前に1回だけ動く。DB が無ければバックアップから戻す（下の「バックアップと復元」） |
 
 設定は `deploy/` にあります（`compose.yaml`・`Caddyfile`・`.env.example`）。
 
@@ -45,7 +46,48 @@ docker compose pull            # IMAGE_TAG のイメージを取ってくる
 docker compose up -d           # 入れ替える（backend は起動のときにマイグレーションを当てる）
 ```
 - 戻すときは、`deploy/.env` の `IMAGE_TAG` を前のコミットの SHA にして `pull` と `up -d` をし直します
-- **マイグレーションは戻りません。** DB の形を変える更新の前には、バックアップから戻せることを確かめておきます（7c）
+- **マイグレーションは戻りません。** DB の形を変える更新の前には、その時刻を控えておきます。戻すときはイメージと一緒に、DB もその時刻に戻します（下の「ある時点に戻す」）
+
+## バックアップと復元（フェーズ7c）
+Litestream が SQLite の変更を1秒ごとに Cloudflare R2 に送ります。まるごとの写しは1日1回で、`LITESTREAM_RETENTION`（既定 `168h` = 7日）のあいだ残り、その期間の中の時点に戻せます（直近ほど細かく選べます）。設定は `deploy/litestream.yml`。
+
+### R2 の準備（初めに1回）
+1. Cloudflare の R2 でバケットを作る（公開のアクセスはオフのまま）。場所の指定（location hint）はアジア太平洋に
+2. 「API トークンを管理」で、**そのバケットだけ**に「オブジェクトの読み取りと書き込み」の権限のトークンを作る
+3. `deploy/.env` に `LITESTREAM_BUCKET`・`LITESTREAM_ENDPOINT`（`https://<アカウント ID>.r2.cloudflarestorage.com`）・`LITESTREAM_ACCESS_KEY_ID`・`LITESTREAM_SECRET_ACCESS_KEY` を入れる
+4. プライバシーポリシーに出す `SITE_BACKUP`（例: `Cloudflare, Inc.（米国）の R2（アジア太平洋）`）と `SITE_BACKUP_RETENTION` を埋める。消した情報は、`LITESTREAM_RETENTION` に写しの間隔（1日）を足した期間までバックアップに残るので、`168h` なら `8日`
+
+R2 の値が空や間違いだと、`restore` が失敗して backend は起動しません（空の DB で始めないように）。
+
+### 動いているかを見る
+```sh
+docker compose logs litestream | tail      # replicating to …・snapshot complete・compaction complete が出ていれば動いている
+docker compose ps -a restore               # Exited (0)
+```
+
+### 新しいサーバーへ移す・ボリュームを失ったとき
+何もしなくてよいです。`docker compose up -d` のとき、`restore` が DB の無いことを見て、R2 の最新から戻します（DB があるときと、バックアップがまだ無い初めてのデプロイでは何もしません）。**古いサーバーの litestream は先に止めます**（2台から同じ場所に送らないように）。
+
+### ある時点に戻す（誤った操作・壊れた更新のあと）
+時刻は UTC で書きます（日本時間から9時間引く）。今の DB は `/data/before-restore/` に残します。
+
+```sh
+cd deploy
+docker compose stop backend litestream
+# 1. 指定の時刻の DB を別の名前で作る
+docker compose run --rm --no-deps restore \
+  'litestream restore -timestamp 2026-11-03T02:00:00Z -o /data/restored.db /data/civic.db'
+# 2. 入れ替える（Litestream の手元の記録も消す）
+docker compose run --rm --no-deps restore \
+  'mkdir -p /data/before-restore && mv /data/civic.db /data/civic.db-wal /data/civic.db-shm /data/before-restore/ 2>/dev/null; mv /data/restored.db /data/civic.db && rm -rf /data/.civic.db-litestream && chown -R 10001:10001 /data'
+docker compose up -d
+```
+- `-timestamp` を外すと最新に戻ります
+- 戻したあとの書き込みは、そのまま R2 に送られ、続きとして残ります（手元で、戻したあとに書き込み、ボリュームを消して最新から戻し、書き込みが残っていること・`integrity_check` が ok なことを確かめました）
+- 確かめが済んだら `/data/before-restore/` を消します（`docker compose run --rm --no-deps restore 'rm -rf /data/before-restore'`）
+
+### 戻せることを確かめる
+公開の前（7e）にサーバーで一度、上の「ボリュームを失ったとき」を試します（`docker compose down` のあと `docker volume rm civic-platform_db`、`up -d`）。その後も、DB の形を変える大きな更新の前などに時々試します。
 
 ## 運営のコマンド
 CLI は backend のコンテナの中で動かします（`docs/operations/cli.md` の `cargo run --` の代わりに `backend`）。
@@ -70,7 +112,7 @@ SESSION_SECRET=...
 
 docker compose -f deploy/compose.yaml --env-file <試し用の値> up -d --build
 ```
+バックアップの送り先も要ります。R2 を使わずに試すときは、S3 互換のサーバーを compose の上書きで足します（例: `rclone serve s3`。`LITESTREAM_ENDPOINT=http://s3:8080`）。
 
 ## まだ書いていないこと
 - サーバーの準備（SSH・ファイアウォール・自動の更新・Docker）と、初めてのデプロイ（7e）
-- バックアップと復元（7c）

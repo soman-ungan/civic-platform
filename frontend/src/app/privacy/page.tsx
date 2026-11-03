@@ -99,7 +99,9 @@ export default function PrivacyPage() {
         <p>
           法令に基づく場合を除き、集めた情報を第三者に渡しません。本サービスを動かすサーバーは
           <SiteValue field="hosting" />
-          にあります。
+          にあります。データを失わないためのバックアップは
+          <SiteValue field="backup" />
+          に暗号化した通信で送って保存します。
         </p>
       </Section>
 
@@ -121,6 +123,11 @@ export default function PrivacyPage() {
           も消します。
           それまでの投票と意見は、誰のものか分からないまま残ります（分析の結果が変わらないようにするため）。
           意見そのものを消したいとき、パスキーを作っていない方が情報の削除を求めるときは、問い合わせからご連絡ください。
+        </p>
+        <p>
+          消した情報も、バックアップには最長で
+          <SiteValue field="backupRetention" />
+          残り、そのあと自動で消えます。
         </p>
         <p>
           ブラウザの Cookie を消すと、その端末の参加者の ID
