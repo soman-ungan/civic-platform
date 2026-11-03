@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+use backend::interface::api::rate_limit::RateLimiter;
 use backend::interface::api::{AppState, app};
 use backend::interface::cli;
 use backend::process::moderation::{self, Moderation};
@@ -42,6 +43,7 @@ async fn serve(ctx: cli::Ctx) -> anyhow::Result<()> {
         tagger,
         ..
     } = ctx;
+    config.check_for_serving()?;
 
     if config.analysis_interval_secs > 0 {
         analysis::store::spawn_worker(
@@ -71,13 +73,18 @@ async fn serve(ctx: cli::Ctx) -> anyhow::Result<()> {
 
     let state = AppState::new(pool, &config.session_secret, config.cookie_secure)?
         .with_moderation(moderation)
-        .with_webauthn(&config.webauthn_rp_id, &config.webauthn_origin)?;
+        .with_webauthn(&config.webauthn_rp_id, &config.webauthn_origin)?
+        .with_rate_limiter(RateLimiter::new(config.trust_forwarded_for));
     let listener = TcpListener::bind(&config.bind_addr).await?;
     tracing::info!("listening on http://{}", listener.local_addr()?);
 
-    axum::serve(listener, app(state))
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    // 接続元のアドレス（回数の制限で、X-Forwarded-For を使わないとき）
+    axum::serve(
+        listener,
+        app(state).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
     Ok(())
 }
 

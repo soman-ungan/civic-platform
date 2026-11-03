@@ -156,6 +156,11 @@ pub async fn run(ctx: &Ctx, command: Command) -> anyhow::Result<()> {
         Command::Classify(args) => process::classify(ctx, args).await,
         Command::Analyze(args) => process::analyze(ctx, args).await,
         Command::Seed { dev } => {
+            if dev && ctx.config.is_production() {
+                anyhow::bail!(
+                    "本番（WEBAUTHN_RP_ID が localhost 以外）では --dev（【サンプル】の架空のデータ）を入れません"
+                );
+            }
             let mut dirs = vec![ctx.config.seeds_dir.as_str()];
             if dev {
                 dirs.push(ctx.config.dev_seeds_dir.as_str());

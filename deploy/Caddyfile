@@ -18,6 +18,30 @@
 
 	encode zstd gzip
 
+	# セキュリティのヘッダー（フェーズ7b）
+	header {
+		# HTTPS だけで開く（1年）
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# ほかのサイトに埋め込ませない（なりすましの画面に重ねられないように）
+		Content-Security-Policy "frame-ancestors 'none'"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# アクセスの記録（IP アドレス・日時・ブラウザの種類など）。障害の対応と不正な利用を防ぐためだけに使い、
+	# ACCESS_LOG_KEEP（既定 90日）を過ぎたら消す。プライバシーポリシーの SITE_ACCESS_LOG_RETENTION と合わせる。
+	# Cookie と Authorization の値は Caddy が記録しない
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep_for {$ACCESS_LOG_KEEP:2160h}
+		}
+		format json
+	}
+
 	handle /api/* {
 		reverse_proxy backend:8080
 	}

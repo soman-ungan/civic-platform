@@ -20,6 +20,7 @@ mod api {
     mod participant;
     mod participation;
     mod proposals;
+    mod rate_limit;
     mod topics;
 }
 

@@ -14,9 +14,11 @@ pub mod operator;
 pub mod participant;
 pub mod participation;
 pub mod proposals;
+pub mod rate_limit;
 pub mod topics;
 
 use axum::Router;
+use axum::extract::DefaultBodyLimit;
 use axum::extract::FromRef;
 use axum::routing::{get, patch, post, put};
 use axum_extra::extract::cookie::Key;
@@ -166,6 +168,8 @@ pub struct AppState {
     pub moderation: Moderation,
     /// パスキーの登録・ログイン（ADR 0006）
     pub webauthn: std::sync::Arc<webauthn_rs::Webauthn>,
+    /// 書き込みの回数の制限（本番では main が有効にする。テストでは数えない）
+    pub rate_limiter: std::sync::Arc<rate_limit::RateLimiter>,
 }
 
 impl AppState {
@@ -186,6 +190,7 @@ impl AppState {
             moderation: Moderation::default(),
             // 開発用の既定（localhost）。main では設定（WEBAUTHN_RP_ID・WEBAUTHN_ORIGIN）で差し替える
             webauthn: auth::webauthn("localhost", "http://localhost:3000")?,
+            rate_limiter: std::sync::Arc::new(rate_limit::RateLimiter::disabled()),
         })
     }
 }
@@ -194,6 +199,12 @@ impl AppState {
     /// 投稿の判定方式を差し替える（API キーがあるときの LLM、テストの偽の LLM）
     pub fn with_moderation(mut self, moderation: Moderation) -> Self {
         self.moderation = moderation;
+        self
+    }
+
+    /// 書き込みの回数の制限を差し替える
+    pub fn with_rate_limiter(mut self, limiter: rate_limit::RateLimiter) -> Self {
+        self.rate_limiter = std::sync::Arc::new(limiter);
         self
     }
 
@@ -223,7 +234,17 @@ pub(crate) async fn ensure_topic(
     }
 }
 
+/// 送ってくる本文の上限。どの API の入力も小さい（意見は140字、パスキーの応答も数KB）
+const BODY_LIMIT_BYTES: usize = 64 * 1024;
+
 /// ルーターを組み立てる。main とテストの両方から使う。
 pub fn app(state: AppState) -> Router {
-    router().layer(TraceLayer::new_for_http()).with_state(state)
+    router()
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit::limit,
+        ))
+        .layer(DefaultBodyLimit::max(BODY_LIMIT_BYTES))
+        .layer(TraceLayer::new_for_http())
+        .with_state(state)
 }
