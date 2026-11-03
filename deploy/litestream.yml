@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Litestream: SQLite（ボリューム db の /data/civic.db）を Cloudflare R2 に常に複製する（ADR 0001・フェーズ7c）。
+# 値は compose が環境変数で渡す（deploy/.env の LITESTREAM_*）。${...} は Litestream が読むときに展開する。
+# 復元の手順は docs/operations/deploy.md の「バックアップと復元」
+
+dbs:
+  - path: /data/civic.db
+    replica:
+      type: s3
+      bucket: ${LITESTREAM_BUCKET}
+      path: civic.db
+      # R2 の S3 互換の入口（https://<アカウント ID>.r2.cloudflarestorage.com）
+      endpoint: ${LITESTREAM_ENDPOINT}
+      region: auto
+      access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+      secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+
+# まるごとの写し（スナップショット）を1日1回取り、LITESTREAM_RETENTION のあいだ残す。
+# 戻せるのはこの期間の中の好きな時点。消した情報は、この期間と写しの間隔（1日）を足した期間まで
+# バックアップに残る。プライバシーポリシーの SITE_BACKUP_RETENTION をそれに合わせる
+snapshot:
+  interval: 24h
+  retention: ${LITESTREAM_RETENTION}

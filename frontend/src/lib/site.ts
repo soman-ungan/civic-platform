@@ -17,6 +17,10 @@ export const SITE_FIELDS = {
   accessLogRetention: "SITE_ACCESS_LOG_RETENTION",
   /** サーバーの事業者と国・地域（例: 〇〇株式会社（日本）） */
   hosting: "SITE_HOSTING",
+  /** バックアップの保存先の事業者と国・地域（例: Cloudflare, Inc.（米国）の R2） */
+  backup: "SITE_BACKUP",
+  /** 消した情報がバックアップに残る最長の期間（例: 8日） */
+  backupRetention: "SITE_BACKUP_RETENTION",
   /** AI の事業者でのデータの扱い（保存の期間・学習に使わないことなど。確かめて書く） */
   aiDataHandling: "SITE_AI_DATA_HANDLING",
   /** 問い合わせのメールアドレス */

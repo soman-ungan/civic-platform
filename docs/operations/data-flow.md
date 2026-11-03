@@ -80,7 +80,7 @@ flowchart LR
 | リポジトリ（`backend/` `frontend/` `data/seeds/` `docs/`） | コード、マスタの seed、ドキュメント | 管理する（公開） | 同じものを動かす（AGPL） |
 | `data/private/` | 会議録・PDF の原本、共同作業の prompt と JSON。`fetched/` は `fetch` で取った原本（`import` が済んだら消える） | **管理しない** | 取り込みの作業のときだけ置く |
 | `data/dev-seeds/` | 【サンプル】の架空のデータ | 管理する | **入れない** |
-| DB（開発は `data/civic.db`） | すべてのデータ | 管理しない | バックアップする（フェーズ7） |
+| DB（開発は `data/civic.db`。本番はボリューム `db`） | すべてのデータ | 管理しない | 本番は Litestream で R2 に常に複製（`docs/operations/deploy.md`） |
 | `.env` | API キー、署名の鍵、連絡先 | **管理しない** | サーバーにだけ置く |
 
 ## 資料ごとの流れ
