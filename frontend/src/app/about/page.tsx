@@ -9,6 +9,7 @@ import {
   List,
   Section,
   SiteValue,
+  SocialLinks,
 } from "@/components/info/prose";
 import { pageMetadata } from "@/lib/metadata";
 import { GIT_SHA, runningSourceUrl } from "@/lib/source";
@@ -139,6 +140,7 @@ export default function AboutPage() {
         <p>
           次のようなご連絡は、メールでお送りください: <ContactEmail />
         </p>
+        <SocialLinks />
         <List>
           <li>
             引用や数字の誤りの訂正（議員・自治体の方からのご連絡も含みます）

@@ -98,6 +98,7 @@ services:
       SITE_HOSTING: ${SITE_HOSTING:-}
       SITE_AI_DATA_HANDLING: ${SITE_AI_DATA_HANDLING:-}
       SITE_CONTACT_EMAIL: ${SITE_CONTACT_EMAIL:-}
+      SITE_SOCIAL_LINKS: ${SITE_SOCIAL_LINKS:-}
     depends_on:
       - backend
 
