@@ -56,7 +56,7 @@ export default function PrivacyPage() {
           </li>
         </List>
         <p>
-          ほかに、ブラウザの中（localStorage・sessionStorage）に「この端末でパスキーを作ったか」「ログインせずに投票すると選んだか」「最初の画面を見たか」の印だけを置きます。
+          ほかに、ブラウザの中（localStorage・sessionStorage）に「この端末でパスキーを作ったか」「ログインせずに投票すると選んだか」「最初の画面を最後に出した日」の印だけを置きます。
           広告や、利用状況を外部の会社に送る解析のツールは使っていません。
         </p>
       </Section>
