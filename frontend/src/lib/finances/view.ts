@@ -75,7 +75,7 @@ export function financesQuery(
   unit: Unit,
 ): string {
   return `?year=${year}${kind === "budget" ? "&view=budget" : ""}${
-    unit === "total" ? "&unit=total" : ""
+    unit === "per_capita" ? "&unit=per_capita" : ""
   }`;
 }
 
@@ -88,7 +88,7 @@ export function financesHref(
   return `/${slug}/finances${financesQuery(year, kind, unit)}`;
 }
 
-/** URL の ?unit= から単位を読む（既定は1人あたり） */
+/** URL の ?unit= から単位を読む（既定は総額。2026-11-08 に1人あたりから変えた） */
 export function parseUnit(value: unknown): Unit {
-  return value === "total" ? "total" : "per_capita";
+  return value === "per_capita" ? "per_capita" : "total";
 }
