@@ -32,6 +32,12 @@ export const UNIT_LABEL: Record<Unit, string> = {
   total: "総額",
 };
 
+/** 固定の欄の切り替えに出す短い名前（「総額」と同じ幅にして、金額を1行に収める） */
+export const UNIT_SHORT_LABEL: Record<Unit, string> = {
+  per_capita: "1人",
+  total: "総額",
+};
+
 /** 単位に合わせた金額の文字。`value` は千円、`perCapita` は円 */
 export function amountText(
   unit: Unit,
