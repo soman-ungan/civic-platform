@@ -10,7 +10,8 @@ export function SegmentedSwitch<K extends string>({
 }: {
   /** role="group" の aria-label */
   label: string;
-  options: { key: K; label: string; href: string }[];
+  /** `ariaLabel`: 見た目を短くしたときの、読み上げ用の名前 */
+  options: { key: K; label: string; href: string; ariaLabel?: string }[];
   current: K;
 }) {
   return (
@@ -26,6 +27,7 @@ export function SegmentedSwitch<K extends string>({
           scroll={false}
           replace
           aria-current={o.key === current ? "true" : undefined}
+          aria-label={o.ariaLabel}
           className={`inline-flex min-h-8 items-center rounded-full px-3 ${
             o.key === current
               ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"

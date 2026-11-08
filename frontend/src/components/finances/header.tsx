@@ -10,6 +10,7 @@ import {
 } from "@/lib/finances/view";
 import {
   UNIT_LABEL,
+  UNIT_SHORT_LABEL,
   type Unit,
   roughYen,
   thousandYen,
@@ -58,14 +59,15 @@ export function FinanceHeader({
               label="金額の見せ方"
               options={(["total", "per_capita"] as const).map((u) => ({
                 key: u,
-                label: UNIT_LABEL[u],
+                label: UNIT_SHORT_LABEL[u],
+                ariaLabel: UNIT_LABEL[u],
                 href: href(v.kind, u),
               }))}
               current={unit}
             />
           </span>
           <p className="min-w-0 leading-tight">
-            <span className="block text-2xl font-bold tabular-nums tracking-tight">
+            <span className="block whitespace-nowrap text-[clamp(1.125rem,6.4vw,1.5rem)] font-bold tabular-nums tracking-tight">
               {unit === "total" ? total : perCapita}
             </span>
             <span className="block text-[11px] text-zinc-500">
