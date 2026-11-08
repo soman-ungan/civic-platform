@@ -21,7 +21,10 @@ export type FinanceView = {
   kinds: FinanceKind[];
   total: number | null;
   population: number | null;
-  /** 予算のときの人口の年度（予算の年度の人口はまだ無いので、それ以前で最新のもの） */
+  /**
+   * 予算のときに、別の年度の人口で割っているならその年度（予算の年度の人口はまだ無いので、それ以前で最新のもの）。
+   * 決算が出ていて同じ年度の人口があるときは null（「（◯年度）」と断らなくてよい）
+   */
   populationYear: number | null;
   perCapita: number | null;
   purpose: FinanceAmount[];
@@ -55,7 +58,10 @@ export function financeView(
     kinds,
     total,
     population,
-    populationYear: b?.population_year ?? null,
+    populationYear:
+      b?.population_year != null && b.population_year !== f.fiscal_year
+        ? b.population_year
+        : null,
     perCapita:
       total !== null && population ? (total * 1000) / population : null,
     purpose: (s ?? b)?.expenditure_purpose ?? [],
