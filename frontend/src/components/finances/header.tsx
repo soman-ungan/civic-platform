@@ -11,7 +11,6 @@ import {
 import {
   UNIT_LABEL,
   type Unit,
-  fiscalYearLabel,
   roughYen,
   thousandYen,
 } from "@/lib/finances/money";
@@ -21,7 +20,8 @@ import type { FinanceKind, Finances } from "@/lib/api/types/finances";
 const BUDGET_MARK = `rounded px-1 ${BADGE_AMBER}`;
 
 /**
- * まちのお金の固定のヘッダー: 年度のチップ、「決算｜予算」と「1人あたり｜総額」の切り替え、大きな数字。
+ * まちのお金の固定のヘッダー: 年度のチップ、「決算｜予算」の切り替え、「1人あたり｜総額」の切り替えと大きな数字・人口。
+ * 縦の幅を取らないよう、年度の文字・金額の見出し・もう片方の金額は出さない（2026-11-08。docs/plans/2026-11-08-ui-chrome.md）。
  * 決算と予算の切り替えは、その年度に両方あるときだけ押せる（片方だけなら、ある方を文字で出す）。
  * 1人あたりと総額の切り替えは、すべての欄の金額に効く
  */
@@ -50,9 +50,32 @@ export function FinanceHeader({
           view={v.kind}
           unit={unit}
         />
-        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-500">
-          <span className="flex items-center gap-1.5">
-            {fiscalYearLabel(f.fiscal_year)}
+        {/* 1行に: 金額の見せ方の切り替え（見出しを兼ねる）・金額と、その下に小さく人口・右に決算か予算か。
+            年度はチップで分かるので、文字では出さない */}
+        <div className="mt-2 flex items-center gap-3">
+          <span className="shrink-0 text-xs">
+            <SegmentedSwitch
+              label="金額の見せ方"
+              options={(["per_capita", "total"] as const).map((u) => ({
+                key: u,
+                label: UNIT_LABEL[u],
+                href: href(v.kind, u),
+              }))}
+              current={unit}
+            />
+          </span>
+          <p className="min-w-0 leading-tight">
+            <span className="block text-2xl font-bold tabular-nums tracking-tight">
+              {unit === "total" ? total : perCapita}
+            </span>
+            <span className="block text-[11px] text-zinc-500">
+              人口 {v.population?.toLocaleString("ja-JP") ?? "—"}人
+              {v.kind === "budget" &&
+                v.populationYear &&
+                `（${v.populationYear}年度）`}
+            </span>
+          </p>
+          <span className="ml-auto shrink-0 text-xs text-zinc-500">
             {v.kinds.length > 1 ? (
               <SegmentedSwitch
                 label="決算と予算の切り替え"
@@ -69,29 +92,7 @@ export function FinanceHeader({
               </span>
             )}
           </span>
-          <SegmentedSwitch
-            label="金額の見せ方"
-            options={(["per_capita", "total"] as const).map((u) => ({
-              key: u,
-              label: UNIT_LABEL[u],
-              href: href(v.kind, u),
-            }))}
-            current={unit}
-          />
         </div>
-        <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
-          <span className="text-xs text-zinc-500">{UNIT_LABEL[unit]}</span>
-          <span className="text-2xl font-bold tabular-nums tracking-tight">
-            {unit === "total" ? total : perCapita}
-          </span>
-          <span className="text-xs text-zinc-500">
-            {unit === "total" ? `1人あたり ${perCapita}` : `総額 ${total}`}
-            ・人口 {v.population?.toLocaleString("ja-JP") ?? "—"}人
-            {v.kind === "budget" &&
-              v.populationYear &&
-              `（${v.populationYear}年度）`}
-          </span>
-        </p>
       </div>
     </div>
   );

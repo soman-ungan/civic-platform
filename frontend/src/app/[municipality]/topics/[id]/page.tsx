@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { OperatorLink } from "@/components/auth/operator-link";
+import { HeaderAccount } from "@/components/auth/header-account";
 import { TopicDetailView, TopicSkeleton } from "@/components/topics/detail";
 import { apiGet } from "@/lib/api/server";
 import type { TopicDetail } from "@/lib/api/types/topics";
@@ -55,7 +55,7 @@ async function TopicView({
           >
             ← {municipality.name}のトピック
           </Link>
-          <OperatorLink />
+          <HeaderAccount />
         </div>
       )}
     />

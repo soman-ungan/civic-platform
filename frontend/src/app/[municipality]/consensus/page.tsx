@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { OperatorLink } from "@/components/auth/operator-link";
+import { HeaderAccount } from "@/components/auth/header-account";
 import { TopicMapView } from "@/components/digest/map";
 import { MapTagList } from "@/components/digest/map-tags";
 import { ConsensusToggle } from "@/components/analysis/consensus-list";
@@ -86,7 +86,7 @@ async function ConsensusView({
             >
               ← {municipality.name}のトピック
             </Link>
-            <OperatorLink />
+            <HeaderAccount />
           </div>
           <h1 className="text-lg leading-snug font-bold">みんなの合意点</h1>
         </div>
