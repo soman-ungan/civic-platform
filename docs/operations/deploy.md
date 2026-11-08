@@ -98,6 +98,43 @@ docker compose exec backend backend add operator         # 運営者の招待の
 docker compose exec backend backend list topic -m otawara
 ```
 
+## 資料を本番に入れる
+本番のサーバーは、資料を自動では取り込みません（定期の実行は公開のあと）。入れ方は2つです。
+
+**決算カード**: サーバーが総務省から取ってきます。サーバーでコマンドを打ちます。
+```sh
+docker compose exec backend backend fetch settlement -m otawara
+docker compose exec backend backend import settlement -m otawara
+```
+
+**会議録・予算の概要**: 手元で原本から抽出の JSON を作り（共同作業の `--manual` か API。`docs/operations/cli.md`）、
+`deploy/upload.sh` で本番に送って取り込みます。スクリプトは、原本と隣の `<名前>.extraction.json`・`<名前>.meta.json` を
+backend のコンテナに送り、`import --dry-run` で検査します。`--apply` を付けると、検査のあとに下書きとして保存します。
+送ったファイルは、終わったらコンテナから消します（原本は保持しない）。
+
+```sh
+# 送り先（~/.ssh/config に Host machikoe を書いておく。下）
+export DEPLOY_SSH=machikoe DEPLOY_DIR='~/machikoe/deploy'
+
+deploy/upload.sh minutes data/private/minutes/2026R08_0616_02-02.txt -m otawara            # 検査だけ
+deploy/upload.sh --apply minutes data/private/minutes/2026R08_0616_02-02.txt -m otawara    # 下書きにする
+# 抽出の JSON の名前が原本と違うときは --extraction で
+deploy/upload.sh --apply --extraction data/private/budget/r8-extraction.json \
+  budget data/private/budget/R8yosangaiyou.pdf -m otawara -y 2026 --url https://...
+```
+- 本番の DB に書くのは、サーバーの上の `import` だけです。引用が原文にあるか・氏名・AI の審査（キーがあれば）などの検査は、本番でもう一度通ります
+- 下書きは、管理画面（`/operator`）で確かめて公開します。予算は `docker compose exec backend backend publish budget -m <slug> -y <年度>`
+- `DEPLOY_SSH` が空なら、サーバーの上で動かしているものとして ssh を使いません（`DEPLOY_DIR` の既定はスクリプトのあるフォルダ）
+
+`~/.ssh/config` の例（鍵はこのサーバーだけに使う）:
+```
+Host machikoe
+  HostName <サーバーの IP>
+  User ubuntu
+  IdentityFile ~/.ssh/machikoe_ed25519
+  IdentitiesOnly yes
+```
+
 ## 手元で本番と同じ組み方を試す
 443 以外のポートと `localhost` で動かせます（Caddy が手元用の証明書を作ります。ブラウザには警告が出ます）。
 
