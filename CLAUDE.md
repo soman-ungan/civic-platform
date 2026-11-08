@@ -138,7 +138,7 @@ civic-platform/
   - 書式は `010_municipality_092100_otawara.sql` に倣う。全 INSERT に `ON CONFLICT DO NOTHING` を付ける
   - 地区 ID は `<団体コード>-<ローマ字>`
   - 決算カードの収集先（`soumu_settlement_card`）を1行足して `fetch settlement -m <slug>` → `import settlement -m <slug>` すると、人口（`municipality_stats`）も決算カードから入る。設定は全市町村で同じ（大田原市の行をそのまま写し、id と municipality_id だけ変える）
-- 本番は `deploy/`（compose・Caddyfile・`.env.example`）と `backend/Dockerfile`・`frontend/Dockerfile`。動かし方は `docs/operations/deploy.md`。frontend のビルドに埋め込むのは公開してよい値（`NEXT_PUBLIC_*`）だけで、運営者ごとの値（`SITE_*`）はリクエストのときに読む
+- 本番は `deploy/`（compose・Caddyfile・`.env.example`）と `backend/Dockerfile`・`frontend/Dockerfile`。動かし方は `docs/operations/deploy.md`。手元で作った会議録・予算の抽出を本番に入れるのは `deploy/upload.sh`（既定は検査だけ、`--apply` で下書きに）。frontend のビルドに埋め込むのは公開してよい値（`NEXT_PUBLIC_*`）だけで、運営者ごとの値（`SITE_*`）はリクエストのときに読む
 - CI は `.github/workflows/ci.yml`（PostgreSQL へのマイグレーションと seed の互換も確かめる。依存の既知の脆弱性は audit ジョブで、週1回も回す。cargo audit の除外は `backend/.cargo/audit.toml` に理由つきで書く）
 
 ## 開発フェーズ

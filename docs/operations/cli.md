@@ -386,6 +386,6 @@ cargo run -- list settlement -m otawara
 3. `import ... --dry-run` で検査に通す（捨てたものを見て直す）
 4. `import ...` で下書きを保存し、`show topic` / `show budget` で確かめて公開する
 
-- 本番のサーバーで取り込むときは、手元で作った JSON と原本をサーバーに送り、サーバーで 3・4 を行います。サーバーに API キーが無くても取り込めます（キーは投稿のモデレーションのため）
+- 本番のサーバーで取り込むときは、手元で作った JSON と原本を `deploy/upload.sh` でサーバーに送り、3・4 を行います（`docs/operations/deploy.md` の「資料を本番に入れる」）。サーバーに API キーが無くても取り込めます（キーは投稿のモデレーションのため）
 - API キーが無いと、トピックの自動のタグ付けは動きません。`add tag` で付けます
 - どちらの方法で作ったかは、`documents.extraction`（`api` / `manual`）に残ります
