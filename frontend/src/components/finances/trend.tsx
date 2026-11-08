@@ -28,6 +28,10 @@ const TOP_SERIES = 7;
 const OTHER = "その他";
 /** 積み上げの段の間のすき間（px） */
 const GAP = 2;
+/** 既定で出す年度の数（直近から）。「全期間」で全部 */
+const RECENT_YEARS = 10;
+/** これより多いと、年度の目盛りを1つおきにする（重ならないように） */
+const MAX_LABELS = 12;
 
 /** 2015 → H27、2020 → R2（軸の目盛り用の短い表記） */
 function shortYear(year: number): string {
@@ -46,7 +50,9 @@ function niceStep(max: number): number {
  * 1人あたり（円）と総額は、ヘッダーの切り替え（`unit`）に従う。費目のチップで表示・非表示を切り替える（最初は全部 = 歳出の合計）。
  * 色は費目に付け、表示を切り替えても変えない。ヘッダーで選んだ年度をハイライトする。
  * 棒をタップすると、ヘッダーの年度もその年度に切り替える（URL の ?year= を変える。2つの年度の選び方を連動させる）。
- * 決算がまだ無い年度は当初予算の棒を、同じ積み上げで薄く斜線にして出し、目盛りの下に「予算」と書く
+ * 決算がまだ無い年度は当初予算の棒を、同じ積み上げで薄く斜線にして出し、目盛りの下に「予算」と書く。
+ * 既定は直近の10年度で、「全期間」に切り替えられる（横のスクロールは使わない。欄の切り替えのフリックとぶつかるため）。
+ * 人口の無い年度は、1人あたりのときだけ外す（総額には人口が要らない）
  */
 export function FinanceTrend({
   trend,
@@ -92,8 +98,18 @@ export function FinanceTrend({
     key,
     color: `var(--series-${i + 1})`,
   }));
-  const years = trend.filter((t) => t.population);
+  const usable =
+    mode === "per_capita" ? trend.filter((t) => t.population) : trend;
+  // 選んでいる年度が直近の範囲より前なら、最初から全期間で出す
+  const [range, setRange] = useState<"recent" | "all">(() =>
+    usable.findIndex((t) => t.fiscal_year === selectedYear) <
+    usable.length - RECENT_YEARS
+      ? "all"
+      : "recent",
+  );
+  const years = range === "recent" ? usable.slice(-RECENT_YEARS) : usable;
   if (years.length < 2) return null;
+  const canSwitchRange = usable.length > RECENT_YEARS;
 
   /** 年度・系列ごとの値（mode の単位） */
   const valueOf = (t: TrendYear, key: string): number => {
@@ -152,7 +168,37 @@ export function FinanceTrend({
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-end gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        {canSwitchRange ? (
+          <span
+            role="group"
+            aria-label="表示する期間"
+            className="inline-flex rounded-full border border-zinc-300 p-0.5 text-xs dark:border-zinc-700"
+          >
+            {(
+              [
+                ["recent", `${RECENT_YEARS}年`],
+                ["all", "全期間"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={range === key}
+                onClick={() => setRange(key)}
+                className={`inline-flex min-h-8 items-center rounded-full px-3 whitespace-nowrap ${
+                  range === key
+                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    : "text-zinc-600 dark:text-zinc-400"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </span>
+        ) : (
+          <span />
+        )}
         <div className="flex gap-1.5">
           <button
             type="button"
@@ -317,18 +363,23 @@ export function FinanceTrend({
                       予算
                     </text>
                   )}
-                  <text
-                    x={PAD_LEFT + band * i + band / 2}
-                    y={HEIGHT - 16}
-                    textAnchor="middle"
-                    className={`text-[9px] ${
-                      i === shownIndex
-                        ? "fill-zinc-900 font-semibold dark:fill-zinc-100"
-                        : "fill-zinc-500"
-                    }`}
-                  >
-                    {shortYear(s.year)}
-                  </text>
+                  {/* 年度が多いときは1つおき（選んでいる年度と最新の年度はいつも出す） */}
+                  {(stacks.length <= MAX_LABELS ||
+                    (stacks.length - 1 - i) % 2 === 0 ||
+                    i === shownIndex) && (
+                    <text
+                      x={PAD_LEFT + band * i + band / 2}
+                      y={HEIGHT - 16}
+                      textAnchor="middle"
+                      className={`text-[9px] ${
+                        i === shownIndex
+                          ? "fill-zinc-900 font-semibold dark:fill-zinc-100"
+                          : "fill-zinc-500"
+                      }`}
+                    >
+                      {shortYear(s.year)}
+                    </text>
+                  )}
                 </g>
               );
             })}
