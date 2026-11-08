@@ -18,9 +18,11 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --locked && cp target/release/backend /usr/local/bin/backend
 
 FROM debian:bookworm-slim
-# ca-certificates: 外部の HTTPS（Claude API・決算カードの取得）のため。libssl3: パスキー（webauthn-rs）
+# ca-certificates: 外部の HTTPS（Claude API・決算カードの取得）のため。libssl3: パスキー（webauthn-rs）。
+# poppler-utils: 予算の PDF のページごとの本文（pdftotext。別のコマンドとして呼ぶだけで組み込まない。GPL）。
+# poppler-data: 日本語の PDF の文字の対応表（無いと Adobe-Japan1 の文字を読めない）
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libssl3 \
+    && apt-get install -y --no-install-recommends ca-certificates libssl3 poppler-utils poppler-data \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --home /data app \
     && mkdir -p /data && chown app /data
