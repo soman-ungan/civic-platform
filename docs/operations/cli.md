@@ -91,7 +91,7 @@ Claude API を呼ぶのは、段階1では **`extract` だけ**です（`fetch` 
 |---|---|---|---|---|---|---|---|---|
 | [`list`](#list) | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 | [`show`](#show) | ○ | ○ | ○ | ○ | ○ | 無 | ○ | 無 |
-| [`edit`](#edit--add--remove) | 無 | 無 | 無 | ○ | ○ | 無 | 無 | 無 |
+| [`edit`](#edit--add--remove) | 無 | 無 | 無 | ○ | ○ | 無 | ○（取る年度） | 無 |
 | [`add` / `remove`](#edit--add--remove) | 無 | 無 | 無 | 無 | ○ | ○ | 無 | ○ |
 | [`publish` / `archive`](#publish--archive) | ○ | 無 | 無 | ○ | 無（`moderate` で） | 無 | 無 | 無 |
 
@@ -263,6 +263,7 @@ cargo run -- add queue --id <下書きの topic_id>                  # 公開待
 cargo run -- remove queue --id <topic_id>                         # 公開待ちから外す（下書きのまま）
 cargo run -- add slot -m otawara --at 07:00                       # 自動公開の時刻（日本時間。1つで1日1件）
 cargo run -- edit slot --id <時刻の id> --at 12:00
+cargo run -- edit source --id 092100-budget-overview --from-year 2006   # この年度より前は取らない（遡って取るときに下げる）
 cargo run -- remove slot --id <時刻の id>
 ```
 
@@ -273,7 +274,7 @@ cargo run -- remove slot --id <時刻の id>
 
 - 投票がある意見は、直せません（投票の意味が変わってしまうため）
 - 意見は140文字以内です
-- 資料から取り込んだ数字・原文（予算・決算・会議録）は手で直しません（`import --again` で作り直す）。タグの語彙と収集先は seed で管理します
+- 資料から取り込んだ数字・原文（予算・決算・会議録）は手で直しません（`import --again` で作り直す）。タグの語彙と収集先は seed で管理します（収集先で直せるのは、どの年度から取るか `--from-year` だけ）
 
 ### publish / archive
 

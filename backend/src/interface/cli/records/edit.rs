@@ -2,6 +2,7 @@
 
 //! edit / add / remove: 直す・足す・外す（その対象に要らないものは「何もしません」）
 
+use crate::ingest::collect;
 use crate::interface::cli::{Ctx, municipality_id, required, skip};
 use crate::process::{self, moderation};
 use crate::records::{accounts, publishing, topics};
@@ -37,11 +38,16 @@ pub async fn edit(ctx: &Ctx, args: EditArgs) -> anyhow::Result<()> {
             args.target,
             "タグの語彙は seed で管理する（data/seeds/020_field_tags.sql）",
         )?,
-        Target::Source => skip(
-            "edit",
-            args.target,
-            "収集先は seed で管理する（data/seeds/010_municipality_*.sql）",
-        )?,
+        Target::Source => {
+            // 収集先を足す・外すのは seed で。直せるのは、どの年度から取るかだけ
+            let usage = "edit source --id <id> --from-year <年度>";
+            let id = required(&args.id, usage)?;
+            let year = *required(&args.from_year, usage)?;
+            if !collect::set_from_fiscal_year(pool, id, year).await? {
+                anyhow::bail!("収集先が見つかりません: {id}（list source で見られる）");
+            }
+            println!("{id}: {year}年度から取ります");
+        }
         Target::Operator => skip(
             "edit",
             args.target,

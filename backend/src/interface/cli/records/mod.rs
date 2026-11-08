@@ -94,6 +94,9 @@ pub struct EditArgs {
     /// 本文（statement。140文字以内。投票がある意見は直せない）
     #[arg(long)]
     body: Option<String>,
+    /// この年度より前は取らない（source の from_fiscal_year。遡って取り込むときに下げる）
+    #[arg(long)]
+    from_year: Option<i32>,
 }
 
 #[derive(Debug, Args)]
