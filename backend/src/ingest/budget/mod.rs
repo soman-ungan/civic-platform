@@ -56,6 +56,30 @@ pub const NATURE_KEYS: &[&str] = &[
     "その他",
 ];
 
+/// 同じ事業の名前らしいか（語尾の「事業費」「費」「補助金」などを外して、4文字以上の共通の部分がある）。
+/// 「公害防止対策費」と「公害防止対策事業費」は同じ、「不登校対応相談員配置事業費」と
+/// 「学校図書館活性化推進員配置事業費」は別（共通は「員配置」の3文字）
+pub fn similar_names(a: &str, b: &str) -> bool {
+    const MIN_COMMON: usize = 4;
+    fn stem(s: &str) -> Vec<char> {
+        let mut s = s.trim();
+        for suffix in ["事業費補助金", "事業費", "補助金", "交付金", "事業", "費"]
+        {
+            if let Some(rest) = s.strip_suffix(suffix) {
+                s = rest;
+                break;
+            }
+        }
+        s.chars().collect()
+    }
+    let (a, b) = (stem(a), stem(b));
+    if a.len() < MIN_COMMON || b.len() < MIN_COMMON {
+        return a == b;
+    }
+    a.windows(MIN_COMMON)
+        .any(|w| b.windows(MIN_COMMON).any(|v| v == w))
+}
+
 /// 歳入の費目の名前を、決算カードの名前にそろえる（資料では「市税」「県支出金」などと書く）。
 /// 対応の無い名前は、そのまま返す（歳入は自治体ごとの費目があり得るので捨てない）
 pub fn revenue_key(name: &str) -> String {
@@ -308,12 +332,13 @@ pub fn check(raw: Raw, pages: &[String], tags: &HashMap<String, String>) -> Chec
             .take(2)
             .collect::<Vec<_>>();
         // 概要によっては、一覧のあとに重点事業を1件ずつ説明するページがあり、同じ事業を少し違う名前で
-        // もう一度拾う（大田原市の令和6年度）。金額が同じで分野が重なる事業は、先に出たほうだけを残す
-        if let Some(first) = out
-            .projects
-            .iter()
-            .find(|q| q.amount == p.amount && q.tag_ids.iter().any(|t| tag_ids.contains(t)))
-        {
+        // もう一度拾う（大田原市の令和6年度）。金額が同じで、分野が重なり、名前にも共通の部分がある事業は、
+        // 先に出たほうだけを残す（金額と分野だけだと、少額の別の事業を捨ててしまう。平成26〜28年度）
+        if let Some(first) = out.projects.iter().find(|q| {
+            q.amount == p.amount
+                && q.tag_ids.iter().any(|t| tag_ids.contains(t))
+                && similar_names(&q.name, &p.name)
+        }) {
             out.notes.push(format!(
                 "事業「{}」（{} 千円、{}ページ）: 「{}」（{}ページ）と同じ事業とみなして捨てた",
                 p.name, p.amount, page, first.name, first.page

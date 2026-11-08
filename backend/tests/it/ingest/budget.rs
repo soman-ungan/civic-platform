@@ -193,6 +193,50 @@ fn same_project_on_a_detail_page_is_dropped() {
     );
 }
 
+#[test]
+fn same_amount_and_field_but_different_names_are_kept() {
+    let mut pages = pages();
+    pages.push(
+        "不登校対応相談員配置事業費 15,152\n学校図書館活性化推進員配置事業費 15,152\n".into(),
+    );
+    let mut r = raw();
+    r.projects = vec![
+        project("不登校対応相談員配置事業費", 15152, 4, &["子育て・教育"]),
+        project(
+            "学校図書館活性化推進員配置事業費",
+            15152,
+            4,
+            &["子育て・教育"],
+        ),
+    ];
+    let checked = budget::check(r, &pages, &tags());
+    assert_eq!(checked.projects.len(), 2, "{:?}", checked.notes);
+}
+
+#[test]
+fn similar_names() {
+    assert!(budget::similar_names(
+        "公害防止対策費",
+        "公害防止対策事業費"
+    ));
+    assert!(budget::similar_names(
+        "小中学校給食費、学校給食センター費",
+        "小中学校給食費及び学校給食センター費"
+    ));
+    assert!(!budget::similar_names(
+        "不登校対応相談員配置事業費",
+        "学校図書館活性化推進員配置事業費"
+    ));
+    assert!(!budget::similar_names(
+        "那須神社国指定関連事業",
+        "日本ペンクラブ交流事業開催費"
+    ));
+    assert!(!budget::similar_names(
+        "住宅用省エネ機器設置費補助金",
+        "クリーンエネルギー自動車購入費補助金"
+    ));
+}
+
 #[tokio::test]
 async fn draft_is_saved_replaced_and_published() {
     let pool = crate::common::test_pool().await;
