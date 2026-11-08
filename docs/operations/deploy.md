@@ -37,7 +37,7 @@ main に入ると、CI がイメージを作って GHCR に置きます（`.gith
 
 - `ghcr.io/soman-ungan/civic-platform-backend:<コミットの SHA>` と `:latest`（frontend も同じ）
 - frontend には、ビルドのときにソースの URL・サイトの URL（リポジトリの Actions の変数 `SITE_URL`）・コミットの SHA を埋め込みます。フッターの「ソースコード（AGPL）」は、動いているコミットのソースを開きます（AGPL 第13条）
-- backend のイメージに入れるのは、バイナリと `data/seeds/` だけです（マイグレーションはバイナリに埋め込み済み。evals・docs・テスト・開発用の seed は入れません）
+- backend のイメージに入れるのは、バイナリと `data/seeds/`、予算の PDF を読む `pdftotext`（poppler-utils と日本語の文字の対応表 poppler-data）だけです（マイグレーションはバイナリに埋め込み済み。evals・docs・テスト・開発用の seed は入れません）
 
 ## 更新とロールバック
 ```sh
