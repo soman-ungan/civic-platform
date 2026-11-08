@@ -11,7 +11,7 @@ const LINK =
  * 全ページ共通のフッター。AGPL 第13条に基づきソースコードへのリンクを全ページに出す
  * （すべてのページに出るのはフッターだけなので、ここに置く）。
  * 利用規約・プライバシーポリシー・問い合わせは「このサービスについて」から。ログインはヘッダー（auth/header-account.tsx）。
- * 下にスクロールするとたたむ（`.chrome`。layout/chrome-autohide.tsx）。上にスクロールするか、一番下まで来ると出る
+ * 下にスクロールするとたたむ（`.chrome`。layout/chrome-autohide.tsx）。上にスクロールするか、一番上に戻ると出る
  */
 export function SiteFooter() {
   // 動いているコミットのソースへ（AGPL 第13条）

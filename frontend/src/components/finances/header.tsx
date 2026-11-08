@@ -56,7 +56,7 @@ export function FinanceHeader({
           <span className="shrink-0 text-xs">
             <SegmentedSwitch
               label="金額の見せ方"
-              options={(["per_capita", "total"] as const).map((u) => ({
+              options={(["total", "per_capita"] as const).map((u) => ({
                 key: u,
                 label: UNIT_LABEL[u],
                 href: href(v.kind, u),

@@ -9,12 +9,13 @@ import { useEffect } from "react";
 const THRESHOLD_PX = 32;
 /** 切り替えたあと、たたむ動き（globals.css の .chrome）が終わるまでは次の切り替えをしない */
 const LOCK_MS = 300;
-/** 端（一番上・一番下）とみなす近さ */
+/** 一番上とみなす近さ */
 const EDGE_PX = 4;
 
 /**
  * 下にスクロールしたらヘッダーとフッター（`.chrome` で包んだもの）をたたみ、上にスクロールしたら出す。
- * 一番上と一番下に来たときも出す（フッターのソースコードのリンク（AGPL 第13条）にいつでもたどり着けるように）。
+ * 一番上に来たときも出す。一番下では出さない（2026-11-08。読んでいる途中で画面が動かないように）。
+ * フッターのソースコードのリンク（AGPL 第13条）は、上にスクロールすればいつでも出る。
  * スクロールの枠はページごとに違うので、document で scroll を capture して、どの枠の縦のスクロールも拾う。
  * 状態は `<html data-chrome="hidden">` だけ（ページを移ったら出す）。何も描かない
  */
@@ -49,10 +50,7 @@ export function ChromeAutoHide() {
       // たたむ・広げる動きで枠の高さが変わり、位置が動いた分は数えない
       if (performance.now() < lockedUntil) return;
 
-      if (
-        top <= EDGE_PX ||
-        top + el.clientHeight >= el.scrollHeight - EDGE_PX
-      ) {
+      if (top <= EDGE_PX) {
         set(false);
         return;
       }
