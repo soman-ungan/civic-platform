@@ -116,6 +116,10 @@ backend のコンテナに送り、`import --dry-run` で検査します。`--ap
 # 送り先（~/.ssh/config に Host machikoe を書いておく。下）
 export DEPLOY_SSH=machikoe DEPLOY_DIR='~/machikoe/deploy'
 
+# 会議録は、先に本番で指示文を作って持ってくる（本番の既存のトピックとの統合が効くように。API は使わない）
+deploy/upload.sh --prompt minutes data/private/minutes/2026R08_0616_02-02.txt -m otawara \
+  --title "令和８年第２回大田原市議会定例会（第２号）" --held-on 2026-06-16 --url https://...
+# 指示文に従って <名前>.extraction.json を作ったら
 deploy/upload.sh minutes data/private/minutes/2026R08_0616_02-02.txt -m otawara            # 検査だけ
 deploy/upload.sh --apply minutes data/private/minutes/2026R08_0616_02-02.txt -m otawara    # 下書きにする
 # 抽出の JSON の名前が原本と違うときは --extraction で
