@@ -93,6 +93,32 @@ pub async fn sources(pool: &SqlitePool) -> Result<Vec<Source>, sqlx::Error> {
     .await
 }
 
+/// 収集先の `from_fiscal_year`（この年度より前は取らない）を変える。config のほかの項目はそのまま。
+/// 遡って取り込むと決めたとき（AI の費用と、共同作業の手間を見て）に使う。
+/// 無い収集先なら Ok(false)
+pub async fn set_from_fiscal_year(pool: &SqlitePool, id: &str, year: i32) -> anyhow::Result<bool> {
+    let Some((config,)): Option<(String,)> =
+        sqlx::query_as("SELECT config FROM collector_sources WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?
+    else {
+        return Ok(false);
+    };
+    let mut value: Value = serde_json::from_str(&config)
+        .map_err(|e| anyhow::anyhow!("収集先 {id} の config が JSON ではありません: {e}"))?;
+    let Some(map) = value.as_object_mut() else {
+        anyhow::bail!("収集先 {id} の config が JSON のオブジェクトではありません");
+    };
+    map.insert("from_fiscal_year".into(), Value::from(year));
+    sqlx::query("UPDATE collector_sources SET config = $1 WHERE id = $2")
+        .bind(value.to_string())
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(true)
+}
+
 /// 規約の確認の記録（`terms_url`・`terms_checked_at`）。無ければ取得しない。
 /// 確認から1年を過ぎていたら、警告を返す
 pub fn check_terms(config: &Value, today: NaiveDate) -> Result<Option<String>, String> {

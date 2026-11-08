@@ -200,3 +200,35 @@ async fn sources_without_terms_record_do_not_run() {
     std::fs::remove_dir_all(dir).unwrap();
     assert!(err.to_string().contains("利用規約"), "{err}");
 }
+
+#[tokio::test]
+async fn edit_source_changes_only_from_fiscal_year() {
+    let pool = crate::common::test_pool().await;
+    crate::common::seed_fixture(&pool).await;
+    sqlx::query(
+        "INSERT INTO collector_sources (id, municipality_id, kind, adapter, base_url, config, is_enabled)
+         VALUES ('b', '092100', 'budget', 'html_link_list', 'http://127.0.0.1:9/',
+                 '{\"link_pattern\": \"^当初予算の概要\", \"from_fiscal_year\": 2026, \"min_interval_secs\": 5}', TRUE)",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    assert!(
+        collect::set_from_fiscal_year(&pool, "b", 2006)
+            .await
+            .unwrap()
+    );
+    let config = source(&pool, "b").await.config_json().unwrap();
+    assert_eq!(config["from_fiscal_year"], 2006);
+    // ほかの項目はそのまま
+    assert_eq!(config["link_pattern"], "^当初予算の概要");
+    assert_eq!(config["min_interval_secs"], 5);
+
+    // 無い収集先
+    assert!(
+        !collect::set_from_fiscal_year(&pool, "none", 2006)
+            .await
+            .unwrap()
+    );
+}
