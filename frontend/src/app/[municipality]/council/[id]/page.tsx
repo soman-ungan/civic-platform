@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { OperatorLink } from "@/components/auth/operator-link";
+import { HeaderAccount } from "@/components/auth/header-account";
 import { OfficialRecord } from "@/components/officials/record";
 import { municipalityApi, officialApi } from "@/lib/api/paths";
 import { apiGet } from "@/lib/api/server";
@@ -70,7 +70,7 @@ async function OfficialView({
             >
               ← {m.name}の議会
             </Link>
-            <OperatorLink />
+            <HeaderAccount />
           </div>
           <p className="mt-1 text-xs text-zinc-500">
             {roleTitle(m.name, official.role)}

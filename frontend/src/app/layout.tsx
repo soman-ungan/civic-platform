@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 
 import {
   COVER_NOSCRIPT_STYLE,
   COVER_SCRIPT,
   Cover,
 } from "@/components/layout/cover";
+import { ChromeAutoHide } from "@/components/layout/chrome-autohide";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SITE_DESCRIPTION, SITE_NAME, pageMetadata } from "@/lib/metadata";
 import "./globals.css";
@@ -43,6 +45,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Cover />
         {children}
         <SiteFooter />
+        {/* ページの URL を読むので、静的な枠の外に（何も描かない） */}
+        <Suspense fallback={null}>
+          <ChromeAutoHide />
+        </Suspense>
       </body>
     </html>
   );

@@ -248,3 +248,30 @@ html[data-cover="seen"] .cover {
     display: none;
   }
 }
+
+/* 下にスクロールしたらたたむヘッダーとフッター（components/layout/chrome-autohide.tsx が
+   <html data-chrome="hidden"> を付ける）。中の1つの要素の高さを 0 にたたむ。
+   出ているあいだは中身がはみ出してよい（自治体の切り替えの一覧など）。広げる動きのあいだだけ切り取る */
+.chrome {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 200ms ease;
+}
+.chrome > * {
+  min-height: 0;
+  overflow: visible;
+  transition: overflow 0s 200ms allow-discrete;
+}
+html[data-chrome="hidden"] .chrome {
+  grid-template-rows: 0fr;
+}
+html[data-chrome="hidden"] .chrome > * {
+  overflow: hidden;
+  transition-delay: 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chrome,
+  .chrome > * {
+    transition: none;
+  }
+}

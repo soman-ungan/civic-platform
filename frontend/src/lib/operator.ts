@@ -4,33 +4,15 @@
 
 import type { QueueStatement } from "@/lib/api/types/operator";
 
-/** タブ。`group` で「トピック」と「意見」の2段に分けて出す（並びは段の中の順） */
+/** タブ（1つの切り替えに、この順で並べる）。トピックの作業のあとに、意見の確認待ち */
 export const OPERATOR_TABS = [
-  { key: "drafts", label: "下書き", group: "topics" },
-  { key: "scheduled", label: "公開待ち", group: "topics" },
-  { key: "published", label: "公開中", group: "topics" },
-  { key: "queue", label: "確認待ち", group: "statements" },
+  { key: "drafts", label: "下書き" },
+  { key: "scheduled", label: "公開待ち" },
+  { key: "published", label: "公開中" },
+  { key: "queue", label: "確認待ち" },
 ] as const;
 
 export type OperatorTab = (typeof OPERATOR_TABS)[number]["key"];
-
-/** タブの上の段（何についての作業か） */
-export const OPERATOR_GROUPS = [
-  { key: "topics", label: "トピック" },
-  { key: "statements", label: "意見" },
-] as const;
-
-export type OperatorGroup = (typeof OPERATOR_GROUPS)[number]["key"];
-
-/** 段の中のタブ（並びのとおり） */
-export function tabsOf(group: OperatorGroup) {
-  return OPERATOR_TABS.filter((t) => t.group === group);
-}
-
-/** タブの段 */
-export function groupOf(tab: OperatorTab): OperatorGroup {
-  return OPERATOR_TABS.find((t) => t.key === tab)?.group ?? "topics";
-}
 
 /** /operator?m={slug}&tab={tab} */
 export function operatorHref(slug: string, tab: OperatorTab): string {

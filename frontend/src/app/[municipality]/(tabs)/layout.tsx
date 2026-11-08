@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { OperatorLink } from "@/components/auth/operator-link";
+import { HeaderAccount } from "@/components/auth/header-account";
 import { SwipeNav } from "@/components/layout/swipe-nav";
 import { TabNav, TabNavFallback } from "@/components/layout/tab-nav";
 import { MunicipalitySwitcher } from "@/components/layout/municipality-switcher";
@@ -16,7 +16,7 @@ import type {
 } from "@/lib/api/types/municipalities";
 
 /**
- * 自治体のトップ（トピック・まちのお金）の共通の枠。自治体名とタブを固定のヘッダーとして常に表示し、
+ * 自治体のトップ（トピック・議会・まちのお金）の共通の枠。自治体名・ログイン・タブを固定のヘッダーに出し（下にスクロールするとたたむ）、
  * 本体は左右のスワイプで切り替える。URL はタブごとに別（共有された URL だけで開ける）。
  * `sheet` は、ここから開いたトピック詳細を上に重ねるレイヤ（`@sheet/(.)topics/[id]`。開いていなければ何も出さない）
  */
@@ -27,20 +27,23 @@ export default function TabsLayout({
 }: LayoutProps<"/[municipality]">) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="mx-auto w-full max-w-md px-4 pt-3">
-          <div
-            id={MUNICIPALITY_NAME_ID}
-            className="flex items-start justify-between gap-4"
-          >
-            <Suspense fallback={<NameSkeleton />}>
-              <MunicipalityName params={params} />
+      {/* 下にスクロールするとたたむ（.chrome。layout/chrome-autohide.tsx） */}
+      <header className="chrome shrink-0">
+        <div className="border-b border-zinc-200 dark:border-zinc-800">
+          <div className="mx-auto w-full max-w-md px-4 pt-3">
+            <div
+              id={MUNICIPALITY_NAME_ID}
+              className="flex items-start justify-between gap-4"
+            >
+              <Suspense fallback={<NameSkeleton />}>
+                <MunicipalityName params={params} />
+              </Suspense>
+              <HeaderAccount />
+            </div>
+            <Suspense fallback={<TabNavFallback />}>
+              <TabNav />
             </Suspense>
-            <OperatorLink />
           </div>
-          <Suspense fallback={<TabNavFallback />}>
-            <TabNav />
-          </Suspense>
         </div>
       </header>
       <SwipeNav>{children}</SwipeNav>

@@ -14,11 +14,11 @@ import {
 } from "@/lib/auth/passkey";
 
 /**
- * フッターの「パスキーでログイン」「ログアウト」（ADR 0006）。読むことと投票はログインなしでできるので、目立たせない。
+ * ヘッダーの「パスキーでログイン」「ログアウト」（ADR 0006。header-account.tsx）。読むことと投票はログインなしでできるので、目立たせない。
  * ログイン・ログアウトのあとは、参加の状態が変わるのでページを読み込み直す。
  * 投稿フォームでパスキーを作ったときは、`useMe` が読み直して「ログイン中」になる
  */
-/** フッターに失敗を出しておく時間 */
+/** 失敗を出しておく時間 */
 const ERROR_SHOWN_MS = 3000;
 
 export function AccountLinks() {
@@ -26,7 +26,7 @@ export function AccountLinks() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 失敗の表示は3秒で消し、いつものフッターに戻す（フッターは常に出ていて、狭いため）
+  // 失敗の表示は3秒で消し、いつもの表示に戻す（ヘッダーの右上は狭いため）
   useEffect(() => {
     if (!error) return;
     const timer = window.setTimeout(() => setError(null), ERROR_SHOWN_MS);
