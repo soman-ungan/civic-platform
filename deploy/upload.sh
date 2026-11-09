@@ -8,6 +8,11 @@
 #
 # 使い方:
 #   deploy/upload.sh [--apply] [--extraction <JSON>] <対象> <原本> [import の引数...]
+#   deploy/upload.sh --prompt <対象> <原本> [extract の引数...]
+#
+#   --prompt    取り込む前に、本番のサーバーで共同作業の指示文を作り（extract --manual。API は使わない）、
+#               原本の隣に <名前>.prompt.md と <名前>.meta.json を持ってくる。本番の既存のトピックが
+#               指示文に入るので、同じ論点の統合（same_as）が本番のトピックに対して効く
 #
 #   <対象>      minutes（会議録）・budget（予算の概要）など、import が --file を受け取る対象
 #   <原本>      会議録の UTF-8 のテキスト・予算の PDF など。隣の <名前>.extraction.json と <名前>.meta.json も送る
@@ -35,10 +40,12 @@ usage() {
 }
 
 apply=false
+prompt=false
 extraction=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --apply) apply=true; shift ;;
+    --prompt) prompt=true; shift ;;
     --extraction) [[ $# -ge 2 ]] || usage; extraction="$2"; shift 2 ;;
     -h|--help) usage ;;
     --*) echo "知らないオプション: $1" >&2; usage ;;
@@ -68,7 +75,7 @@ if [[ -n "$extraction" ]]; then
   cp "$extraction" "$stage/$stem.extraction.json"
 elif [[ -f "$dir/$stem.extraction.json" ]]; then
   cp "$dir/$stem.extraction.json" "$stage/"
-else
+elif ! $prompt; then
   echo "抽出の JSON がありません（$dir/$stem.extraction.json）。--extraction で指定してください" >&2
   exit 1
 fi
@@ -107,6 +114,16 @@ echo "送ります: $(cd "$stage" && ls | tr '\n' ' ')→ backend:$inbox/"
 tar -C "$stage" -cf - --owner=0 --group=0 . | on_server \
   "docker compose exec -T backend sh -c $(quote "mkdir -p '$inbox' && tar -C '$inbox' -xf - --no-same-owner")"
 trap 'rm -rf "$stage"; cleanup_remote' EXIT
+
+if $prompt; then
+  echo "=== 指示文を作る（extract --manual。API は使わない）"
+  on_server "docker compose exec -T backend backend extract $(quote "$target" --file "$in_container" "${import_args[@]}" --manual)"
+  # 作った指示文と記録を、原本の隣に持ってくる
+  on_server "docker compose exec -T backend sh -c $(quote "cd '$inbox' && tar -cf - '$stem.prompt.md' '$stem.meta.json'")" | tar -C "$dir" -xf -
+  echo "持ってきました: $dir/$stem.prompt.md・$dir/$stem.meta.json"
+  echo "次: 指示文に従って $dir/$stem.extraction.json を作り、deploy/upload.sh $target $original ... で検査する"
+  exit 0
+fi
 
 run_import() {
   on_server "docker compose exec -T backend backend import $(quote "$target" --file "$in_container" "${import_args[@]}" "$@")"

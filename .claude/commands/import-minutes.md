@@ -33,4 +33,6 @@ API は呼ばない。出力は API の時と同じ検査（`minutes::extract::c
 7. タグ: API キーが無ければ自動のタグ付けは動かない。分野の語彙（`cargo run -- list tag -m <slug>`、基準は `docs/design/tagging-criteria.md`）から案を出し、運営者の了承を得て `cargo run -- add tag --topic <topic_id> --id <tag_id>`
 8. 公開は運営者が `show topic --id <id>` で確かめてから `publish topic --id <id>`（ここでは公開しない）
 
+**本番に入れるとき**: 手順2の指示文は、本番で作る（`deploy/upload.sh --prompt minutes <パス> -m <slug> --title … --held-on … --url …`）。指示文の `<existing_topics>` が本番のトピックになり、`same_as` が本番に対して効く。手順4・6は `deploy/upload.sh minutes <パス> -m <slug>`（`--apply` で保存）。手元の DB の手順はそのまま使える（docs/operations/deploy.md の「資料を本番に入れる」）
+
 会議録の原本と、作った JSON・prompt・meta は `data/private/`（git の管理外）に置いたままにする（手でコピーした原本は import でも消えない）。
