@@ -210,7 +210,8 @@ body {
 .cover-hint {
   margin-top: 1rem;
   font-size: 0.875rem;
-  color: #8a4a1c;
+  /* 点滅のいちばん薄いとき（opacity 0.8）でも、背景との対比 4.5 以上 */
+  color: #6e3812;
   animation: cover-hint 1.6s ease-in-out 800ms infinite;
 }
 html[data-cover="closing"] .cover {
@@ -233,7 +234,7 @@ html[data-cover="seen"] .cover {
 }
 @keyframes cover-hint {
   50% {
-    opacity: 0.45;
+    opacity: 0.8;
   }
 }
 /* 動きを減らす設定では、大きくする動きと「タップ」の点滅をやめる */

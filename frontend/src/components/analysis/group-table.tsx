@@ -150,7 +150,7 @@ export function GroupTable({
                       }`}
                     >
                       {mine && (
-                        <span className="mb-1 inline-block rounded-full bg-sky-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                        <span className="mb-1 inline-block rounded-full bg-sky-700 px-2 py-0.5 text-[10px] font-bold text-white">
                           あなた
                         </span>
                       )}

@@ -47,7 +47,7 @@ export function YearChips({
             >
               {y}年度
               {/* 決算がまだ無く、予算だけの年度 */}
-              {!settlement && <span className="ml-1 opacity-70">予算</span>}
+              {!settlement && <span className="ml-1 opacity-80">予算</span>}
             </ChipLink>
           </li>
         );
