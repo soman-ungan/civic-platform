@@ -93,7 +93,8 @@ export function List({ children }: { children: React.ReactNode }) {
 
 /**
  * 運営者ごとの値（`lib/site.ts`。`.env` から、リクエストのときに読む）。
- * 未設定なら【要記入】の印を出す（公開の前に `.env` で埋める）。`href` があればリンクにする。
+ * 未設定なら【要記入】の印を出す（公開の前に `.env` で埋める）。`href` があり、値が https の URL ならリンクにする
+ * （「まだ公開していません」のような文章はそのまま出す）。
  * ページのほかの部分は静的に作り、ここだけをリクエストのときに埋める
  */
 export function SiteValue({
@@ -136,7 +137,7 @@ async function SiteValueAtRequest({
       </a>
     );
   }
-  return href ? (
+  return href && value.startsWith("https://") ? (
     <a
       href={value}
       target="_blank"
