@@ -18,7 +18,7 @@ docs の入口は `docs/README.md`。**設計判断で迷ったら、`docs/overv
 - 新規ソースファイルの先頭に SPDX ヘッダーを付ける: `// SPDX-License-Identifier: AGPL-3.0-only`（SQL は `--`）。
 - Polis（AGPL-3.0）由来のコードやロジックを取り込む場合は、元ファイルの出典と著作権表示を残し、`NOTICE` に記載する。
 - **AGPL 第13条への対応**: フロントの全ページのフッターに、ソースコード（公開リポジトリ）へのリンクを表示する。URL は環境変数 `NEXT_PUBLIC_SOURCE_URL` から読む。
-- **GitHub リポジトリは開発中は Private。本番公開の前に必ず Public に切り替える**（Private のままではフッターのソースリンクを利用者が開けず、第13条を満たせない）。
+- **GitHub リポジトリと GHCR のイメージは Public**（2026-11-10 の公開から。Private ではフッターのソースリンクを利用者が開けず、第13条を満たせない）。履歴も Actions のログも誰でも読めるので、秘密の値・サーバーの IP・メールアドレス・`data/private` の中身をコミットしない。
 - 本番で動かすコードは必ず公開リポジトリと一致させる。秘密情報（API キー、管理者向けの値）はコードに書かず `.env` に置く。
 - 依存ライブラリは AGPLv3 と両立するもの（MIT / Apache-2.0 / BSD / MPL-2.0 / LGPL / GPLv3 等）に限る。追加時にライセンスを確認し、両立しないもの（ライセンス不明、非商用限定など）は使わない。
 
@@ -139,10 +139,10 @@ civic-platform/
   - 地区 ID は `<団体コード>-<ローマ字>`
   - 決算カードの収集先（`soumu_settlement_card`）を1行足して `fetch settlement -m <slug>` → `import settlement -m <slug>` すると、人口（`municipality_stats`）も決算カードから入る。設定は全市町村で同じ（大田原市の行をそのまま写し、id と municipality_id だけ変える）
 - 本番は `deploy/`（compose・Caddyfile・`.env.example`）と `backend/Dockerfile`・`frontend/Dockerfile`。動かし方は `docs/operations/deploy.md`。手元で作った会議録・予算の抽出を本番に入れるのは `deploy/upload.sh`（既定は検査だけ、`--apply` で下書きに）。frontend のビルドに埋め込むのは公開してよい値（`NEXT_PUBLIC_*`）だけで、運営者ごとの値（`SITE_*`）はリクエストのときに読む
-- CI は `.github/workflows/ci.yml`（PostgreSQL へのマイグレーションと seed の互換も確かめる。依存の既知の脆弱性は audit ジョブで、週1回も回す。cargo audit の除外は `backend/.cargo/audit.toml` に理由つきで書く）
+- CI は `.github/workflows/ci.yml`（PostgreSQL へのマイグレーションと seed の互換も確かめる。依存の既知の脆弱性は audit ジョブで、週1回も回す。cargo audit の除外は `backend/.cargo/audit.toml` に理由つきで書く）。本番の死活監視は `.github/workflows/uptime.yml`（5分ごと・失敗は GitHub のメール）
 
 ## 開発フェーズ
 - 1 土台 → 2 コア → 3 分析 → 4 AI → 5 収集 → 6a パスキー・運営者 → 6b 参加の決まり → 6c 管理画面とトピックの期限 → 6d 市民からのトピックの提案 → タイムラインの流れ → 意見の取りまとめ（類似判定・トピックマップ・市民のまとめ） は済み（状況は `docs/overview.md`、各計画は `docs/plans/README.md`）
 - 6e 1人を見分ける目印（乱用が見えたら。SNS か SMS を1回だけ確かめ、鍵付きのハッシュだけを持つ。ADR 0006）
-- 7 リリース準備: 全機能がそろってから、デプロイ先の選定・契約、Dockerfile / 本番用 compose / Caddy / バックアップ、ドメイン、リポジトリの Public 化、本番公開をまとめて行う（`docs/adr/0001-docker-adoption.md` の改訂を参照）。収集の定期実行もここで整える
+- 7 リリース準備は済み（2026-11-10 に machikoe.jp で公開。`docs/plans/2026-11-01-phase7-release.md`）。公開のあとに回したもの: 運営者への知らせ（確認待ちが溜まったとき）、収集の定期実行、寄付の受け付け
 - 8 展開: 自治体選択 UI の有効化、近隣自治体の追加、自治体追加手順のドキュメント化
