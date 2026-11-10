@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# 本番の死活監視（外から確かめる）。失敗すると、GitHub がワークフローの失敗をメールで知らせる。
+# - 確かめる先はリポジトリの Actions の変数 SITE_URL（無ければ何もしない。フォークで動かないように）
+# - schedule は混んでいると10〜20分ほど遅れることがある。リポジトリに60日コミットが無いと止まる（docs/operations/deploy.md「死活監視」）
+name: Uptime
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: vars.SITE_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: API と画面が 200 を返す
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          # 一時的な通信の失敗で知らせないよう、3回まで間を置いてやり直す。/ は自治体のトップへ転送されるのでたどる
+          for path in /api/health /; do
+            code=$(curl -sSL -o /dev/null -w '%{http_code}' --max-time 20 \
+              --retry 3 --retry-delay 20 --retry-all-errors "${SITE_URL}${path}") || code=000
+            echo "${path}: ${code}"
+            [ "$code" = 200 ] || failed=1
+          done
+          [ -z "${failed:-}" ]

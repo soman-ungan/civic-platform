@@ -99,6 +99,12 @@ ssh machikoe 'bash ~/machikoe/deploy/restore-test.sh otawara'
 - 確かめが済んだら写しを消します（`sudo rm -rf ~/machikoe/pre-restore-test-<日時>`。持ち主が uid 10001 なので sudo が要ります）
 - 2026-11-10 に本番で試し、一覧（316行）が一致した
 
+## 死活監視
+GitHub Actions の `.github/workflows/uptime.yml` が、5分ごとに外から `/api/health` と `/`（自治体のトップへ転送される）を開き、200 でなければ失敗します。失敗は GitHub がメールで知らせます（ワークフローを最後に変えた人へ。GitHub の Settings → Notifications → Actions で「Only notify for failed workflows」を確かめておく）。
+- 確かめる先は、リポジトリの Actions の変数 `SITE_URL`。手で回すときは Actions の画面の「Run workflow」
+- 混んでいると、実行が10〜20分ほど遅れることがある。リポジトリに60日コミットが無いと、GitHub が定期の実行を止める（Actions の画面で有効に戻す）
+- サーバーの中から見ないのは、サーバーやさくらのVPS ごと落ちたときに知らせが来ないため
+
 ## 運営のコマンド
 CLI は backend のコンテナの中で動かします（`docs/operations/cli.md` の `cargo run --` の代わりに `backend`）。
 
