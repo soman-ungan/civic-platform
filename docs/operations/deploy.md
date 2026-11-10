@@ -88,23 +88,16 @@ docker compose up -d
 
 ### 戻せることを確かめる
 公開の前（7e）にサーバーで一度、上の「ボリュームを失ったとき」を試します。その後も、DB の形を変える大きな更新の前などに時々試します。
-消す前に、今の DB をボリュームの外に写し、中身の一覧を控えておきます（戻ったものと比べるため。戻らなかったときは写しから戻す）。
+`deploy/restore-test.sh` が、消す前に中身の一覧を控え、DB をボリュームの外に写し、ボリュームを消して起動し、戻った一覧と比べます（本番は数分止まります。途中で失敗したら起動し直します）。
 
 ```sh
-cd ~/machikoe/deploy
-for t in topic minutes budget settlement operator tag source; do
-  docker compose exec -T backend backend list $t -m otawara </dev/null 2>/dev/null
-done | grep -v 'migrations applied' > ~/fp-before.txt
-docker compose stop backend && sleep 15 && docker compose stop litestream   # 最後の変更を送り終えてから止める
-mkdir -p ~/machikoe/pre-restore-test
-docker compose run --rm --no-deps -v $HOME/machikoe/pre-restore-test:/b restore 'cp -a /data/. /b/'
-docker compose down
-docker volume rm civic-platform_db
-docker compose up -d
-docker compose logs restore                      # R2 から戻したことが出る
-# 同じように一覧を ~/fp-after.txt に取り、diff ~/fp-before.txt ~/fp-after.txt が空なら済み
+# 手元から送り、サーバーの上でファイルとして動かす（ssh 'bash -s' < … のように標準入力で渡さない。docker compose が残りを読んでしまう）
+scp deploy/restore-test.sh machikoe:machikoe/deploy/
+ssh machikoe 'bash ~/machikoe/deploy/restore-test.sh otawara'
 ```
-- 確かめが済んだら写しを消します（`sudo rm -rf ~/machikoe/pre-restore-test`。持ち主が uid 10001 なので sudo が要ります）
+- 「一致しました」と出れば済み。違いがあれば、写し（`~/machikoe/pre-restore-test-<日時>`）から戻します（上の「ある時点に戻す」の 2. と同じく、`restore` のコンテナで `/data/` に写して `chown`）
+- 確かめが済んだら写しを消します（`sudo rm -rf ~/machikoe/pre-restore-test-<日時>`。持ち主が uid 10001 なので sudo が要ります）
+- 2026-11-10 に本番で試し、一覧（316行）が一致した
 
 ## 運営のコマンド
 CLI は backend のコンテナの中で動かします（`docs/operations/cli.md` の `cargo run --` の代わりに `backend`）。
@@ -205,7 +198,7 @@ docker compose -f deploy/compose.yaml --env-file <試し用の値> up -d --build
 ```sh
 # 手元から
 ssh machikoe 'mkdir -p ~/machikoe/deploy && chmod 700 ~/machikoe'
-scp deploy/compose.yaml deploy/Caddyfile deploy/litestream.yml deploy/.env.example machikoe:machikoe/deploy/
+scp deploy/compose.yaml deploy/Caddyfile deploy/litestream.yml deploy/.env.example deploy/restore-test.sh machikoe:machikoe/deploy/
 # サーバーで
 cd ~/machikoe/deploy
 cp .env.example .env && chmod 600 .env    # 埋める（上の「値」）。BASIC_AUTH=on で始める
