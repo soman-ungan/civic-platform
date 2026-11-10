@@ -9,7 +9,7 @@
 export const SITE_FIELDS = {
   /** 運営者の名前（個人名または屋号） */
   operatorName: "SITE_OPERATOR_NAME",
-  /** 収支を公開するページの URL */
+  /** 収支を公開するページの URL（まだ無ければ、その旨の文章） */
   financeReportUrl: "SITE_FINANCE_REPORT_URL",
   /** 第一審の専属的合意管轄裁判所（例: 宇都宮地方裁判所） */
   jurisdictionCourt: "SITE_JURISDICTION_COURT",
