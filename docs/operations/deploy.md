@@ -17,7 +17,7 @@
 
 - `SITE_DOMAIN`: ドメイン。HTTPS の証明書・パスキー・共有したときの URL に使います。**パスキーはドメインに結び付くので、公開のあとは変えません**（ADR 0006）
 - `SESSION_SECRET`: `openssl rand -hex 32`
-- `BASIC_AUTH=on`・`BASIC_AUTH_USER`・`BASIC_AUTH_HASH`: 公開の前のベーシック認証。ハッシュは `docker run --rm caddy:2 caddy hash-password --plaintext '…'` で作り、**`$` をすべて `$$` に書き換えて**から入れます（compose が `$` を変数と読むため）
+- `BASIC_AUTH=on`・`BASIC_AUTH_USER`・`BASIC_AUTH_HASH`: 公開の前のベーシック認証（本番は 2026-11-10 の公開で `off` にした。外すときは `.env` を変えて `docker compose up -d caddy`）。ハッシュは `docker run --rm caddy:2 caddy hash-password --plaintext '…'` で作り、**`$` をすべて `$$` に書き換えて**から入れます（compose が `$` を変数と読むため）
 - `SITE_*`: このサービスについて・規約・プライバシーポリシーに載せる値。frontend が**リクエストのときに読む**ので、変えたら `docker compose up -d frontend` で入れ直すだけです（作り直しは要りません）
 - 空の値は「未設定」と同じに扱います
 
@@ -190,7 +190,7 @@ docker compose -f deploy/compose.yaml --env-file <試し用の値> up -d --build
    Unattended-Upgrade::Automatic-Reboot-Time "04:00";
    ```
 4. **Docker**: Docker の公式の apt リポジトリから `docker-ce` と `docker-compose-plugin` を入れ、`sudo usermod -aG docker ubuntu`（入り直すと sudo なしで使える）
-5. **イメージを取る権利**: リポジトリが Private のあいだは GHCR のイメージも Private。`read:packages` だけの GitHub のトークンを作り、サーバーで `docker login ghcr.io -u <GitHub のユーザー名>` に渡す。公開（7f）でリポジトリを Public にしたら、GHCR のパッケージ（backend・frontend）の公開範囲も Public に変える（リポジトリとは別の設定）
+5. **イメージを取る権利**: リポジトリと GHCR のイメージ（backend・frontend）は Public なので、ログインなしで `docker compose pull` できる（2026-11-10 から）。パッケージの公開範囲はリポジトリとは別の設定で、GitHub のプロフィールの Packages → 各パッケージ → Package settings → Change visibility で変える
 
 ## 初めてのデプロイ（7e）
 サーバーに置くのは `deploy/` の設定のファイルだけです（リポジトリは clone しない。コードはイメージに入っている）。
