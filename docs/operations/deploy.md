@@ -87,7 +87,17 @@ docker compose up -d
 - 確かめが済んだら `/data/before-restore/` を消します（`docker compose run --rm --no-deps restore 'rm -rf /data/before-restore'`）
 
 ### 戻せることを確かめる
-公開の前（7e）にサーバーで一度、上の「ボリュームを失ったとき」を試します（`docker compose down` のあと `docker volume rm civic-platform_db`、`up -d`）。その後も、DB の形を変える大きな更新の前などに時々試します。
+公開の前（7e）にサーバーで一度、上の「ボリュームを失ったとき」を試します。その後も、DB の形を変える大きな更新の前などに時々試します。
+`deploy/restore-test.sh` が、消す前に中身の一覧を控え、DB をボリュームの外に写し、ボリュームを消して起動し、戻った一覧と比べます（本番は数分止まります。途中で失敗したら起動し直します）。
+
+```sh
+# 手元から送り、サーバーの上でファイルとして動かす（ssh 'bash -s' < … のように標準入力で渡さない。docker compose が残りを読んでしまう）
+scp deploy/restore-test.sh machikoe:machikoe/deploy/
+ssh machikoe 'bash ~/machikoe/deploy/restore-test.sh otawara'
+```
+- 「一致しました」と出れば済み。違いがあれば、写し（`~/machikoe/pre-restore-test-<日時>`）から戻します（上の「ある時点に戻す」の 2. と同じく、`restore` のコンテナで `/data/` に写して `chown`）
+- 確かめが済んだら写しを消します（`sudo rm -rf ~/machikoe/pre-restore-test-<日時>`。持ち主が uid 10001 なので sudo が要ります）
+- 2026-11-10 に本番で試し、一覧（316行）が一致した
 
 ## 運営のコマンド
 CLI は backend のコンテナの中で動かします（`docs/operations/cli.md` の `cargo run --` の代わりに `backend`）。
@@ -155,5 +165,48 @@ docker compose -f deploy/compose.yaml --env-file <試し用の値> up -d --build
 ```
 バックアップの送り先も要ります。R2 を使わずに試すときは、S3 互換のサーバーを compose の上書きで足します（例: `rclone serve s3`。`LITESTREAM_ENDPOINT=http://s3:8080`）。
 
-## まだ書いていないこと
-- サーバーの準備（SSH・ファイアウォール・自動の更新・Docker）と、初めてのデプロイ（7e）
+## サーバーの準備（7e）
+今のサーバーは、さくらのVPS（2GB・3コア・SSD 200GB）の Ubuntu 26.04 LTS です。時刻は Asia/Tokyo。
+
+1. **SSH は鍵だけ**: 手元で、このサーバーだけに使う鍵を作り（`ssh-keygen -t ed25519 -f ~/.ssh/machikoe_ed25519`）、`ubuntu` の `~/.ssh/authorized_keys` に入れる。鍵で入れることを確かめてから、`/etc/ssh/sshd_config.d/00-machikoe.conf` に次を書き、`sudo systemctl reload ssh`
+   ```
+   PasswordAuthentication no
+   KbdInteractiveAuthentication no
+   PermitRootLogin no
+   ```
+   VPS の管理画面の「パケットフィルター」などは使わず、ファイアウォールはサーバーの ufw にまとめる
+2. **ファイアウォール**: 開けるのは SSH と Web だけ。443/udp は HTTP/3 のために開けてあるが、compose は 443 を TCP だけで出しているので、今は使われない
+   ```sh
+   sudo ufw allow 22/tcp comment ssh
+   sudo ufw allow 80/tcp comment http
+   sudo ufw allow 443/tcp comment https
+   sudo ufw allow 443/udp comment http3
+   sudo ufw enable
+   ```
+   Docker が公開するポートは ufw を通らない（iptables を直接書く）。compose で外に出しているのは caddy の 80・443 だけなので、ほかのコンテナは外から届かない
+3. **自動のセキュリティ更新**: `unattended-upgrades` を有効にし（`/etc/apt/apt.conf.d/20auto-upgrades` の2行が `"1"`）、再起動の要る更新のあとは 04:00 に自動で再起動する（`/etc/apt/apt.conf.d/52machikoe-reboot`）。コンテナは `restart: unless-stopped` で戻る
+   ```
+   Unattended-Upgrade::Automatic-Reboot "true";
+   Unattended-Upgrade::Automatic-Reboot-Time "04:00";
+   ```
+4. **Docker**: Docker の公式の apt リポジトリから `docker-ce` と `docker-compose-plugin` を入れ、`sudo usermod -aG docker ubuntu`（入り直すと sudo なしで使える）
+5. **イメージを取る権利**: リポジトリが Private のあいだは GHCR のイメージも Private。`read:packages` だけの GitHub のトークンを作り、サーバーで `docker login ghcr.io -u <GitHub のユーザー名>` に渡す。公開（7f）でリポジトリを Public にしたら、GHCR のパッケージ（backend・frontend）の公開範囲も Public に変える（リポジトリとは別の設定）
+
+## 初めてのデプロイ（7e）
+サーバーに置くのは `deploy/` の設定のファイルだけです（リポジトリは clone しない。コードはイメージに入っている）。
+
+```sh
+# 手元から
+ssh machikoe 'mkdir -p ~/machikoe/deploy && chmod 700 ~/machikoe'
+scp deploy/compose.yaml deploy/Caddyfile deploy/litestream.yml deploy/.env.example deploy/restore-test.sh machikoe:machikoe/deploy/
+# サーバーで
+cd ~/machikoe/deploy
+cp .env.example .env && chmod 600 .env    # 埋める（上の「値」）。BASIC_AUTH=on で始める
+docker compose pull
+docker compose up -d                      # バックアップがまだ無いので restore は何もしない
+docker compose exec backend backend seed
+docker compose exec backend backend add operator    # 出たリンクをスマホで開き、パスキーを登録
+```
+- DNS の A レコードを先にサーバーの IP に向けておく（Caddy が起動のときに証明書を取る）
+- 続けて、決算カードと会議録・予算を入れる（上の「資料を本番に入れる」）。下書きは `/operator` で確かめて公開し、自動の公開の時刻を `add slot` で足す
+- `compose.yaml`・`Caddyfile`・`litestream.yml` を変えたときは、同じ `scp` で送り直して `docker compose up -d`
