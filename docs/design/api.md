@@ -92,6 +92,7 @@ backend（`backend/src/interface/api/`）の API です。すべて `/api` の�
 | `GET` / `PATCH .../topics/{id}` | 1件（種類 `source_type`: assembly / citizen。提案した人は返さない。市民のまとめからなら元のトピック `parents`）/ タイトル・説明の手直し |
 | `POST .../topics/{id}/publish` / `archive` | 公開（初めてなら90日の期限が付く）/ 取り下げ（市民の提案なら、本人には「見送り」） |
 | `POST` / `DELETE .../topics/{id}/queue` | 公開待ちに入れる（下書きだけ。ほかは 409）/ 外す。公開待ちのものは下書きの一覧（`?status=draft`）に出ない |
+| `POST .../topics/{id}/queue/move` | 公開待ちの順を入れ替える `{direction: "up" \| "down"}`（隣の1件と入れ替え。公開待ちに無ければ 404、先頭・最後なら 409）。応答は `publishing` と同じ |
 | `GET .../{slug}/publishing` | 公開待ち `queue`（公開する順と予定 `planned_at`。時刻が無ければ null）と公開の時刻 `slots` |
 | `POST .../{slug}/publish-slots` / `PATCH` / `DELETE .../publish-slots/{id}` | 時刻 `{time_of_day}`（日本時間の HH:MM）を足す・変える・消す（今日の時刻を過ぎていれば明日から）。応答は `publishing` と同じ |
 | `PUT .../topics/{id}/closes-at` | `{closes_at?}` 期限の変更。省くと今（すぐ締め切る）。公開中だけ（ほかは 409） |

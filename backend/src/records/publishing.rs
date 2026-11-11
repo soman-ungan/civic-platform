@@ -54,7 +54,7 @@ pub async fn dequeue(
     .map(|r| r.rows_affected() > 0)
 }
 
-/// 自治体の公開待ち（公開する順。先に入れたものから）
+/// 自治体の公開待ち（公開する順。先に入れたものから。運営者が順を入れ替えられる）
 pub async fn queue(
     pool: &SqlitePool,
     municipality_id: &str,
@@ -67,6 +67,43 @@ pub async fn queue(
     .bind(municipality_id)
     .fetch_all(pool)
     .await
+}
+
+/// 公開待ちの中で1つ前（`up`）か1つ後ろへ動かす。隣の1件と `queued_at` を入れ替える
+/// （`queued_at` は入れた日時だが、公開する順のキーでもある）。
+/// 公開待ちに無ければ None、もう先頭（末尾）で動かせなければ Some(false)
+pub async fn move_in_queue(
+    pool: &SqlitePool,
+    municipality_id: &str,
+    topic_id: &str,
+    up: bool,
+) -> Result<Option<bool>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let queue: Vec<(String, String)> = sqlx::query_as(
+        "SELECT id, queued_at FROM topics
+         WHERE municipality_id = $1 AND status = 'draft' AND queued_at IS NOT NULL
+         ORDER BY queued_at, id",
+    )
+    .bind(municipality_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    let Some(i) = queue.iter().position(|(id, _)| id == topic_id) else {
+        return Ok(None);
+    };
+    let j = if up { i.checked_sub(1) } else { Some(i + 1) };
+    let Some(other) = j.and_then(|j| queue.get(j)) else {
+        return Ok(Some(false));
+    };
+    let current = &queue[i];
+    for (id, queued_at) in [(&current.0, &other.1), (&other.0, &current.1)] {
+        sqlx::query("UPDATE topics SET queued_at = $1 WHERE id = $2")
+            .bind(queued_at)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
+    Ok(Some(true))
 }
 
 /// 公開の時刻（1つで1日1件）
