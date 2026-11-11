@@ -30,7 +30,7 @@ const SMALL_BUTTON = `h-10 px-3 text-xs ${BUTTON_SECONDARY}`;
 
 /**
  * 公開待ち（docs/plans/2026-10-30-timeline-flow.md）: 公開の時刻（日本時間。1つで1日1件）と、
- * 公開する順（先に入れたものから）。時刻はトピックの数に合わせて足す・消す・変える
+ * 公開する順（先に入れたものから。上へ・下へで入れ替える）。時刻はトピックの数に合わせて足す・消す・変える
  */
 export function Scheduled({ slug }: { slug: string }) {
   const api = `${operatorApi(slug)}/publishing`;
@@ -70,8 +70,10 @@ export function Scheduled({ slug }: { slug: string }) {
                 key={topic.id}
                 slug={slug}
                 order={i + 1}
+                last={i === data.queue.length - 1}
                 topic={topic}
                 onChange={() => void reload()}
+                onMoved={(next) => update(() => next)}
               />
             ))}
           </ol>
@@ -222,17 +224,21 @@ function SlotRow({
   );
 }
 
-/** 公開待ちの1件: 予定・外す（下書きに戻す）・今すぐ公開 */
+/** 公開待ちの1件: 予定・順の入れ替え・外す（下書きに戻す）・今すぐ公開 */
 function QueuedCard({
   slug,
   order,
+  last,
   topic,
   onChange,
+  onMoved,
 }: {
   slug: string;
   order: number;
+  last: boolean;
   topic: Publishing["queue"][number];
   onChange: () => void;
+  onMoved: (next: Publishing) => void;
 }) {
   const api = operatorTopicApi(slug, topic.id);
   const { busy, error, run } = useAction();
@@ -252,6 +258,19 @@ function QueuedCard({
       onChange();
   }
 
+  async function move(direction: "up" | "down") {
+    await run(
+      async () =>
+        onMoved(
+          await apiFetch<Publishing>(`${api}/queue/move`, {
+            method: "POST",
+            body: { direction },
+          }),
+        ),
+      "入れ替えられませんでした",
+    );
+  }
+
   return (
     <li className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
       <p className="text-xs text-zinc-500">
@@ -262,7 +281,25 @@ function QueuedCard({
       </p>
       <p className="mt-1 font-semibold leading-snug">{topic.title}</p>
       {error && <p className={`mt-2 ${ERROR_TEXT}`}>{error}</p>}
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy || order === 1}
+          onClick={() => void move("up")}
+          aria-label={`「${topic.title}」を1つ前へ`}
+          className={SMALL_BUTTON}
+        >
+          ↑ 前へ
+        </button>
+        <button
+          type="button"
+          disabled={busy || last}
+          onClick={() => void move("down")}
+          aria-label={`「${topic.title}」を1つ後ろへ`}
+          className={SMALL_BUTTON}
+        >
+          ↓ 後ろへ
+        </button>
         <button
           type="button"
           disabled={busy}

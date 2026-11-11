@@ -650,6 +650,72 @@ async fn drafts_are_queued_and_publish_slots_are_managed_per_municipality() {
 }
 
 #[tokio::test]
+async fn queued_drafts_can_be_reordered() {
+    let pool = test_pool().await;
+    setup(&pool).await;
+    sqlx::raw_sql(
+        "UPDATE topics SET queued_at = '2026-10-27T00:00:00.000Z' WHERE id = 't1';
+         INSERT INTO topics (id, municipality_id, title, source_type, status, queued_at, created_at) VALUES
+            ('t3', '092100', '二つ目', 'assembly', 'draft', '2026-10-28T00:00:00.000Z', '2026-10-26T00:00:00Z'),
+            ('t4', '092100', '三つ目', 'assembly', 'draft', '2026-10-29T00:00:00.000Z', '2026-10-26T00:00:00Z');",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let state = test_state(pool);
+    let op = cookie_for(&state, "u1");
+    let order = |json: &serde_json::Value| -> Vec<String> {
+        json["queue"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|q| q["id"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    let move_to = |topic: &str, direction: &str| {
+        (
+            format!("{OTAWARA}/topics/{topic}/queue/move"),
+            json!({ "direction": direction }),
+        )
+    };
+
+    // 最後のものを前へ、先頭のものを後ろへ
+    let (path, body) = move_to("t4", "up");
+    let res = request(&state, "POST", &path, Some(&op), Some(body)).await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.json);
+    assert_eq!(order(&res.json), ["t1", "t4", "t3"]);
+    let (path, body) = move_to("t1", "down");
+    let res = request(&state, "POST", &path, Some(&op), Some(body)).await;
+    assert_eq!(order(&res.json), ["t4", "t1", "t3"]);
+
+    // 端からは動かせない（409）。公開待ちに無い・別の自治体のものは 404
+    let (path, body) = move_to("t4", "up");
+    let res = request(&state, "POST", &path, Some(&op), Some(body)).await;
+    assert_eq!(res.status, StatusCode::CONFLICT);
+    let (path, body) = move_to("t3", "down");
+    let res = request(&state, "POST", &path, Some(&op), Some(body)).await;
+    assert_eq!(res.status, StatusCode::CONFLICT);
+    let res = request(
+        &state,
+        "POST",
+        &format!("{NASU}/topics/t4/queue/move"),
+        Some(&op),
+        Some(json!({"direction": "down"})),
+    )
+    .await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+    let (path, body) = move_to("t2", "up");
+    let res = request(&state, "POST", &path, Some(&op), Some(body)).await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+
+    // 運営者でなければ 404
+    let citizen = cookie_for(&state, "u2");
+    let (path, body) = move_to("t3", "up");
+    let res = request(&state, "POST", &path, Some(&citizen), Some(body)).await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn drafts_show_similar_topics_in_the_same_municipality() {
     let pool = test_pool().await;
     setup(&pool).await;

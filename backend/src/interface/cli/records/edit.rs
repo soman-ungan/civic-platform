@@ -61,7 +61,7 @@ pub async fn edit(ctx: &Ctx, args: EditArgs) -> anyhow::Result<()> {
         Target::Queue => skip(
             "edit",
             args.target,
-            "公開待ちは入れた順（入れるか外すだけ。add / remove queue）",
+            "公開待ちは入れた順（入れるか外すだけ。add / remove queue。順の入れ替えは管理画面の公開待ち）",
         )?,
         Target::Slot => {
             let usage = "edit slot --id <id> --at <HH:MM>";

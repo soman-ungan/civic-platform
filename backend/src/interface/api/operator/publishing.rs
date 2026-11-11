@@ -56,6 +56,42 @@ pub async fn dequeue(
     reload(&state.pool, &topic_id).await
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Direction {
+    Up,
+    Down,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MoveInput {
+    pub direction: Direction,
+}
+
+/// POST .../topics/{topic_id}/queue/move — 公開待ちの順を1つ前（up）か後ろ（down）へ。
+/// 公開待ちに無ければ 404、先頭（末尾）なら 409。応答は `publishing` と同じ
+pub async fn move_queued(
+    _: Operator,
+    State(state): State<AppState>,
+    Path((slug, topic_id)): Path<(String, String)>,
+    ApiJson(body): ApiJson<MoveInput>,
+) -> Result<Json<Publishing>, ApiError> {
+    let municipality = municipalities::resolve_any(&state.pool, &slug).await?;
+    let up = matches!(body.direction, Direction::Up);
+    match queue_records::move_in_queue(&state.pool, &municipality.id, &topic_id, up).await? {
+        None => Err(ApiError::NotFound),
+        Some(false) => Err(ApiError::conflict(
+            "cannot_move",
+            if up {
+                "もう先頭です"
+            } else {
+                "もう最後です"
+            },
+        )),
+        Some(true) => publishing_view(&state.pool, &municipality).await,
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct QueuedTopic {
     pub id: String,

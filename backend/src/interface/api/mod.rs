@@ -115,6 +115,10 @@ fn operator_routes() -> Router<AppState> {
             post(operator::publishing::enqueue).delete(operator::publishing::dequeue),
         )
         .route(
+            &format!("{M}/topics/{{topic_id}}/queue/move"),
+            post(operator::publishing::move_queued),
+        )
+        .route(
             &format!("{M}/publishing"),
             get(operator::publishing::publishing),
         )
