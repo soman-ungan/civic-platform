@@ -311,3 +311,50 @@ async fn topics_are_ordered_by_publish_date_with_new_marks_and_sessions() {
     let res = get(&state, "/api/municipalities/otawara/topics/t1").await;
     assert_eq!(res.json["session"], "令和8年 第2回定例会（6月）");
 }
+
+#[tokio::test]
+async fn voted_topics_come_last_for_that_participant() {
+    let (pool, state) = setup().await;
+    // 公開した日の新しい順は t1・t3・t4。u1 は t1 をすべて投票済み、t3 は途中
+    sqlx::raw_sql(
+        "UPDATE topics SET published_at = '2026-10-30T00:00:00.000Z' WHERE id = 't1';
+         INSERT INTO topics (id, municipality_id, title, source_type, created_at, published_at) VALUES
+             ('t3', '092100', '途中', 'citizen', '2026-10-26T00:00:00.000Z', '2026-10-29T00:00:00.000Z'),
+             ('t4', '092100', 'まだ', 'citizen', '2026-10-26T00:00:00.000Z', '2026-10-28T00:00:00.000Z');
+         INSERT INTO statements (id, topic_id, body, status, created_at) VALUES
+             ('a1', 't1', '意見1', 'approved', '2026-10-26T00:00:00Z'),
+             ('b1', 't3', '意見1', 'approved', '2026-10-26T00:00:00Z'),
+             ('b2', 't3', '意見2', 'approved', '2026-10-26T00:00:00Z'),
+             ('c1', 't4', '意見1', 'approved', '2026-10-26T00:00:00Z');
+         INSERT INTO votes (id, user_id, statement_id, vote_value, created_at) VALUES
+             ('v1', 'u1', 'a1', 1, '2026-10-30T00:00:00Z'),
+             ('v2', 'u1', 'b1', 1, '2026-10-30T00:00:00Z');",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let ids = |json: &serde_json::Value| -> Vec<String> {
+        json["topics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["id"].as_str().unwrap().to_owned())
+            .collect()
+    };
+
+    // 投票済みの t1 だけが後ろへ。途中の t3 は日付の順のまま
+    let cookie = crate::common::cookie_for(&state, "u1");
+    let res = request(
+        &state,
+        "GET",
+        "/api/municipalities/otawara/topics",
+        Some(&cookie),
+        None,
+    )
+    .await;
+    assert_eq!(ids(&res.json), ["t3", "t4", "t1"]);
+
+    // ほかの人には日付の順のまま
+    let res = get(&state, "/api/municipalities/otawara/topics").await;
+    assert_eq!(ids(&res.json), ["t1", "t3", "t4"]);
+}

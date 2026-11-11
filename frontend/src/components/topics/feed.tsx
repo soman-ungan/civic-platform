@@ -14,6 +14,7 @@ import type { Tag, Topic } from "@/lib/api/types/topics";
 
 /**
  * トピック一覧。タグのタップで、取得済みの一覧をその場で絞り込む（URL の ?tag= も更新）。
+ * 投票済みのものは API が後ろに並べるので、その前に見出しを置く
  * タグの列は固定し、カードの一覧だけがスクロールする（親は縦の flex で高さが決まっている）
  */
 export function TopicFeed({
@@ -44,6 +45,8 @@ export function TopicFeed({
   const visible = selected
     ? topics.filter((topic) => topic.tags.some((t) => t.id === selected))
     : topics;
+  const pending = visible.filter((t) => t.participation !== "completed");
+  const done = visible.filter((t) => t.participation === "completed");
 
   return (
     <>
@@ -87,13 +90,23 @@ export function TopicFeed({
               : "このタグのトピックはありません。"}
           </p>
         ) : (
-          <ul className="flex flex-col gap-3">
-            {visible.map((topic) => (
-              <li key={topic.id}>
-                <TopicCard slug={slug} topic={topic} />
-              </li>
-            ))}
-          </ul>
+          <>
+            <TopicCards slug={slug} topics={pending} />
+            {done.length > 0 && (
+              <section
+                aria-labelledby="voted-heading"
+                className={pending.length > 0 ? "mt-6" : undefined}
+              >
+                <h2
+                  id="voted-heading"
+                  className="mb-3 text-xs font-semibold text-zinc-500"
+                >
+                  投票済み（{done.length}件）
+                </h2>
+                <TopicCards slug={slug} topics={done} />
+              </section>
+            )}
+          </>
         )}
         {/* 市民からのトピックの提案（ADR 0005）。運営者が確かめてから公開する */}
         <Link
@@ -104,6 +117,19 @@ export function TopicFeed({
         </Link>
       </div>
     </>
+  );
+}
+
+function TopicCards({ slug, topics }: { slug: string; topics: Topic[] }) {
+  if (topics.length === 0) return null;
+  return (
+    <ul className="flex flex-col gap-3">
+      {topics.map((topic) => (
+        <li key={topic.id}>
+          <TopicCard slug={slug} topic={topic} />
+        </li>
+      ))}
+    </ul>
   );
 }
 
