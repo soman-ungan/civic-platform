@@ -203,6 +203,9 @@ fn into_topic(row: TopicRow, tags: Vec<Tag>, voted_count: i64) -> Topic {
 
 /// GET /api/municipalities/{slug}/topics?tag={tag_id} — 受付中のトピックを、公開した日の新しい順
 /// （少しずつ公開するので、作った日ではなく公開した日。期限の決まりより前に公開したものは作った日）。
+/// その参加者が投票済み（すべての意見に投票した）のものは後ろへ（まだのものが上に来るように）。
+/// 並びが変わるのは本人の画面だけで、参加者数や票の多さでは並べない（ADR 0005「表示の順番は誰でも同じ」は
+/// お金や影響力で変えないという意味。人気の順にすると声の大きい話題が上に来るので使わない）。
 /// 締め切ったトピックは返さない（合意点のページの地図から開く。一覧が年々増え続けないように）
 pub async fn list(
     State(state): State<AppState>,
@@ -245,7 +248,7 @@ pub async fn list(
     all_tags.sort_by(|a, b| (&a.kind, &a.name).cmp(&(&b.kind, &b.name)));
     all_tags.dedup_by(|a, b| a.id == b.id);
 
-    let topics = rows
+    let mut topics: Vec<Topic> = rows
         .into_iter()
         .map(|row| {
             let tags = tags_map.remove(&row.id).unwrap_or_default();
@@ -253,6 +256,8 @@ pub async fn list(
             into_topic(row, tags, voted_count)
         })
         .collect();
+    // 安定ソートなので、それぞれの中は公開した日の新しい順のまま
+    topics.sort_by_key(|t| t.participation == Participation::Completed);
 
     Ok(Json(TopicList {
         topics,
