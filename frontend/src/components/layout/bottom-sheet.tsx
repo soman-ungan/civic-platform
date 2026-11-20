@@ -5,8 +5,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-/** レイヤの高さ（画面に対する割合）。半分と全体の2段 */
-const HEIGHTS = { half: 0.55, full: 0.92 } as const;
+/** レイヤの高さ（画面に対する割合）。半分と全体の2段。全体は画面の最上部まで（ヘッダーも覆う） */
+const HEIGHTS = { half: 0.55, full: 1 } as const;
 export type Size = keyof typeof HEIGHTS;
 /** つまみをこれ以上動かしたら、段を変えるか閉じる（px） */
 const STEP_PX = 60;
@@ -20,39 +20,21 @@ const STEP_PX = 60;
 export function BottomSheet({
   label,
   initialSize = "half",
-  topAnchorId,
   children,
 }: {
   label: string;
   /** 開いたときの高さ */
   initialSize?: Size;
-  /** 全体の高さのとき、レイヤの上端をこの要素（固定のヘッダー）の下端にそろえる。無ければ画面の92% */
-  topAnchorId?: string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const [size, setSize] = useState<Size>(initialSize);
-  const [fullPx, setFullPx] = useState<number | null>(null);
   const [entered, setEntered] = useState(false);
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
   const start = useRef<number | null>(null);
   /** 引っ張ったあとの click では段を切り替えない */
   const moved = useRef(false);
-
-  // 全体の高さ（ヘッダーの下端から画面の下まで）を測る
-  useEffect(() => {
-    if (!topAnchorId) return;
-    const measure = () => {
-      const anchor = document.getElementById(topAnchorId);
-      if (anchor) {
-        setFullPx(window.innerHeight - anchor.getBoundingClientRect().bottom);
-      }
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [topAnchorId]);
 
   // 開いたときに下から伸ばす
   useEffect(() => {
@@ -91,10 +73,9 @@ export function BottomSheet({
     }
   }
 
-  const height =
-    size === "full" && fullPx !== null
-      ? `${fullPx}px`
-      : `${HEIGHTS[size] * 100}dvh`;
+  const height = `${HEIGHTS[size] * 100}dvh`;
+  // 全体の高さのときは、上に引っ張っても画面の上へはみ出さない
+  const maxUp = size === "full" ? 0 : -STEP_PX * 2;
   return (
     <div className="fixed inset-0 z-40 print:hidden">
       <button
@@ -110,11 +91,11 @@ export function BottomSheet({
         style={{
           height,
           transform: entered
-            ? `translateY(${Math.max(drag, -STEP_PX * 2)}px)`
+            ? `translateY(${Math.max(drag, maxUp)}px)`
             : "translateY(100%)",
           transition: dragging ? "none" : "transform 200ms, height 200ms",
         }}
-        className="absolute inset-x-0 bottom-0 mx-auto flex max-w-md flex-col rounded-t-3xl bg-white shadow-2xl dark:bg-zinc-950"
+        className={`absolute inset-x-0 bottom-0 mx-auto flex max-w-md flex-col bg-white shadow-2xl transition-[border-radius] dark:bg-zinc-950 ${size === "full" ? "rounded-none" : "rounded-t-3xl"}`}
       >
         <div className="flex shrink-0 items-center justify-between px-2">
           <span className="w-10" />

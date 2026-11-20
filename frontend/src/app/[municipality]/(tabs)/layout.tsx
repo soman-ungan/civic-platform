@@ -9,7 +9,6 @@ import { SwipeNav } from "@/components/layout/swipe-nav";
 import { TabNav, TabNavFallback } from "@/components/layout/tab-nav";
 import { MunicipalitySwitcher } from "@/components/layout/municipality-switcher";
 import { MUNICIPALITIES_API, municipalityApi } from "@/lib/api/paths";
-import { MUNICIPALITY_NAME_ID } from "@/lib/tabs";
 import { apiGet } from "@/lib/api/server";
 import type {
   Municipality,
@@ -32,10 +31,7 @@ export default function TabsLayout({
       <header className="chrome shrink-0">
         <div className="border-b border-zinc-200 dark:border-zinc-800">
           <div className="mx-auto w-full max-w-md px-4 pt-3">
-            <div
-              id={MUNICIPALITY_NAME_ID}
-              className="flex items-start justify-between gap-4"
-            >
+            <div className="flex items-start justify-between gap-4">
               <Suspense fallback={<NameSkeleton />}>
                 <MunicipalityName params={params} />
               </Suspense>
