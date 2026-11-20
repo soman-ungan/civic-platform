@@ -19,7 +19,11 @@ export const metadata: Metadata = pageMetadata(
 
 export default function PrivacyPage() {
   return (
-    <InfoPage title="プライバシーポリシー" updated="2026年10月31日">
+    <InfoPage
+      title="プライバシーポリシー"
+      updated="2026年10月31日"
+      revised="2026年11月20日"
+    >
       <p className="mt-3">
         本サービスは、参加する方の情報をできるだけ集めない作りにしています。
         名前・メールアドレス・電話番号・年齢・性別・住んでいる地区は集めません。
@@ -56,7 +60,7 @@ export default function PrivacyPage() {
           </li>
         </List>
         <p>
-          ほかに、ブラウザの中（localStorage・sessionStorage）に「この端末でパスキーを作ったか」「ログインせずに投票すると選んだか」「最初の画面を最後に出した日」の印だけを置きます。
+          ほかに、ブラウザの中（localStorage・sessionStorage）に「この端末でパスキーを作ったか」「ログインせずに投票すると選んだか」「最初の画面を最後に出した日」「使い方を出したか」の印だけを置きます。
           広告や、利用状況を外部の会社に送る解析のツールは使っていません。
         </p>
       </Section>

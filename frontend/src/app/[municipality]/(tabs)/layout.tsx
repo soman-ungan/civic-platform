@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { HeaderAccount } from "@/components/auth/header-account";
+import { GuideOnFirstVisit } from "@/components/guide/first-visit";
 import { SwipeNav } from "@/components/layout/swipe-nav";
 import { TabNav, TabNavFallback } from "@/components/layout/tab-nav";
 import { MunicipalitySwitcher } from "@/components/layout/municipality-switcher";
@@ -48,6 +49,10 @@ export default function TabsLayout({
       </header>
       <SwipeNav>{children}</SwipeNav>
       {sheet}
+      {/* その端末で初めてなら使い方を開く */}
+      <Suspense fallback={null}>
+        <GuideOnFirstVisit />
+      </Suspense>
     </div>
   );
 }

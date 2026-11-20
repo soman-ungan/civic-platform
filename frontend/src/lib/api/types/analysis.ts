@@ -75,6 +75,9 @@ export type AnalysisView =
       residency: ResidencyRow[];
     };
 
+/** 分析ができているときの中身 */
+export type ReadyAnalysis = Extract<AnalysisView, { status: "ready" }>;
+
 /** タイムラインにピン留めする合意点 */
 export type MunicipalityConsensus = {
   topic_id: string;

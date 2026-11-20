@@ -12,7 +12,7 @@ import { STICKY_TITLE } from "./sticky";
 import { BUTTON_SECONDARY, ERROR_TEXT } from "@/components/ui/styles";
 import { topicApi } from "@/lib/api/paths";
 import { useApi } from "@/lib/api/use-api";
-import type { AnalysisView } from "@/lib/api/types/analysis";
+import type { AnalysisView, ReadyAnalysis } from "@/lib/api/types/analysis";
 
 /**
  * 「みんなの意見」: 意見マップ、合意点、グループと代表意見、居住地属性ごとの違い。
@@ -97,16 +97,13 @@ export function AnalysisPanel({
           {view.required}人）。
         </p>
       )}
-      {view?.status === "ready" && <ReadyView view={view} />}
+      {view?.status === "ready" && <AnalysisReady view={view} />}
     </section>
   );
 }
 
-function ReadyView({
-  view,
-}: {
-  view: Extract<AnalysisView, { status: "ready" }>;
-}) {
+/** 分析の中身（使い方のページの例でも同じ部品で見せる。components/guide/） */
+export function AnalysisReady({ view }: { view: ReadyAnalysis }) {
   return (
     <div className="flex flex-col gap-8">
       <div>

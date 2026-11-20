@@ -18,11 +18,14 @@ import {
 export function InfoPage({
   title,
   updated,
+  revised,
   children,
 }: {
   title: string;
   /** 制定・改定の日（例「2026年10月31日」） */
   updated?: string;
+  /** 改定の日（あれば制定の日のあとに出す） */
+  revised?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -39,7 +42,9 @@ export function InfoPage({
         </h1>
         {children}
         {updated && (
-          <p className="mt-10 text-xs text-zinc-500">{updated} 制定</p>
+          <p className="mt-10 text-xs text-zinc-500">
+            {updated} 制定{revised && `・${revised} 改定`}
+          </p>
         )}
         <nav
           aria-label="関連するページ"
