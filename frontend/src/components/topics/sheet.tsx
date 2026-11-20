@@ -13,19 +13,15 @@ import { TopicDetailView, TopicSkeleton } from "@/components/topics/detail";
 export function TopicSheet({
   params,
   initialSize,
-  topAnchorId,
 }: Pick<PageProps<"/[municipality]/topics/[id]">, "params"> & {
   /** 開いたときの高さ（既定は半分） */
   initialSize?: Size;
-  /** 全体の高さのとき、上端をそろえる固定のヘッダーの id */
-  topAnchorId?: string;
 }) {
   // params を読むのは Suspense の中（外で読むと、レイヤの枠ごと表示が止まる）
   return (
     <BottomSheet
       label="トピックの詳細"
       initialSize={initialSize}
-      topAnchorId={topAnchorId}
     >
       <Suspense fallback={<TopicSkeleton />}>
         <SheetContent params={params} />
