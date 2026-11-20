@@ -55,6 +55,13 @@ export default function AboutPage() {
             決算と当初予算を、分野ごと・1人あたりの金額で見られます
           </li>
         </List>
+        <p className="mt-3">
+          架空の例で流れを試せる
+          <Link href="/guide" className="underline underline-offset-2">
+            使い方
+          </Link>
+          もあります。
+        </p>
       </Section>
 
       <Section title="大切にしていること">
