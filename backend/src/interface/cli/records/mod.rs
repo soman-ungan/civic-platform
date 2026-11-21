@@ -43,6 +43,8 @@ pub enum Target {
     Slot,
     /// 似ているトピックの組（-m）、またはトピックの中の似ている意見の組（--topic）。費用 0（process::similarity）
     Similar,
+    /// AI（Claude API）の利用。日ごと・用途ごとの回数・トークン・推定の費用（llm_usage）
+    Usage,
 }
 
 #[derive(Debug, Args)]
@@ -60,6 +62,9 @@ pub struct ListArgs {
     /// トピックで絞る（statement）
     #[arg(long)]
     topic: Option<String>,
+    /// 直近の何日分か（usage。今日を含む。UTC）
+    #[arg(long, default_value_t = 7)]
+    days: u32,
 }
 
 #[derive(Debug, Args)]

@@ -16,7 +16,7 @@
 |---|---|---|---|---|
 | モデレーション | Claude Sonnet 5.5（`claude-sonnet-5-5`） | low | 投稿のたびに同期で | `MODERATION_MODEL` |
 | 自動タグ付け | Claude Sonnet 5.5（`claude-sonnet-5-5`） | low | 60秒ごとにバックグラウンドで | `TAGGING_MODEL` |
-| 行政資料の抽出（フェーズ5） | Claude Opus 5.5（`claude-opus-5-5`） | 未定 | Batch API（半額） | フェーズ5で決める |
+| 行政資料の抽出（フェーズ5） | Claude Opus 5.5（`claude-opus-5-5`） | 未定 | Batch API（半額） | フェーズ5で決める（2026-11-21 追記: 手元だけで使い、本番では動かさない。ADR 0009） |
 
 - 当初はタグ付けを Haiku 5.5 にする予定だったが、評価の結果（下記）を見て、どちらも Sonnet 5.5 にした
 - モデレーションは誤りの影響が大きい（正当な批判を消す、中傷を載せる）。境界のケースを Haiku 5.5 より慎重に扱った

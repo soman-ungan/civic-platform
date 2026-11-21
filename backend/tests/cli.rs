@@ -55,8 +55,17 @@ impl Env {
     /// バイナリを動かし、終了コードと標準出力を返す。.env は読まない（作業ディレクトリを使い捨てにする）。
     /// API キーは空にして、実際の API を呼ばないようにする
     async fn run(&self, args: &[&str]) -> (i32, String) {
+        self.run_with(args, &[]).await
+    }
+
+    /// `run` に環境変数を足して動かす
+    async fn run_with(&self, args: &[&str], envs: &[(&str, &str)]) -> (i32, String) {
         let dir = self.dir.clone();
         let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+        let envs: Vec<(String, String)> = envs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
         tokio::task::spawn_blocking(move || {
             let out = Command::new(env!("CARGO_BIN_EXE_backend"))
                 .args(&args)
@@ -67,6 +76,7 @@ impl Env {
                 .env("COLLECTOR_CONTACT", "test@example.jp")
                 .env("ANTHROPIC_API_KEY", "")
                 .env("RUST_LOG", "warn")
+                .envs(envs)
                 .output()
                 .unwrap();
             let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
@@ -341,4 +351,30 @@ async fn operators_are_invited_by_a_one_time_link() {
         .await
         .unwrap();
     assert_ne!(stored, token);
+}
+
+/// 本番（パスキーのドメインが localhost でない）では、API で資料を読む extract は止まる（ADR 0009）。
+/// 指示文を作る --manual と、確かめるだけの --dry-run は止めない
+#[tokio::test(flavor = "multi_thread")]
+async fn api_extraction_is_refused_in_production() {
+    let env = Env::new("prod-extract").await;
+    let production = [("WEBAUTHN_RP_ID", "machikoe.example")];
+    for target in ["minutes", "budget"] {
+        let args = [
+            "extract", target, "-m", "otawara", "-y", "2026", "--file", "missing",
+        ];
+        let (code, out) = env.run_with(&args, &production).await;
+        assert_ne!(code, 0, "{target}: {out}");
+        assert!(out.contains("ADR 0009"), "{target}: {out}");
+
+        // 手元では止めない（ここではファイルが無いので別の理由で止まる）
+        let (_, out) = env.run(&args).await;
+        assert!(!out.contains("ADR 0009"), "{target}: {out}");
+        for flag in ["--manual", "--dry-run"] {
+            let mut with_flag = args.to_vec();
+            with_flag.push(flag);
+            let (_, out) = env.run_with(&with_flag, &production).await;
+            assert!(!out.contains("ADR 0009"), "{target} {flag}: {out}");
+        }
+    }
 }

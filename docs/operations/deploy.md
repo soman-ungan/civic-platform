@@ -115,12 +115,12 @@ docker compose exec backend backend list topic -m otawara
 ```
 
 ## 資料を本番に入れる
-本番のサーバーは、資料を自動では取り込みません（定期の実行は公開のあと）。入れ方は2つです。
+本番のサーバーは、資料を自動では取り込みません（定期の収集はしない。ADR 0009）。会議録・予算は手元でデータ化し、本番は `import` で検査して保存するだけです。入れ方は2つです。
 
 **決算カード**: サーバーが総務省から取ってきます。サーバーでコマンドを打ちます。
 ```sh
-docker compose exec backend backend fetch settlement -m otawara
-docker compose exec backend backend import settlement -m otawara
+deploy/prod.sh fetch settlement -m otawara      # 手元から（下の「本番でコマンドを動かす」）
+deploy/prod.sh import settlement -m otawara
 ```
 
 **会議録・予算の概要**: 手元で原本から抽出の JSON を作り（共同作業の `--manual` か API。`docs/operations/cli.md`）、
@@ -143,7 +143,18 @@ deploy/upload.sh --apply --extraction data/private/budget/r8-extraction.json \
   budget data/private/budget/R8yosangaiyou.pdf -m otawara -y 2026 --url https://...
 ```
 - 本番の DB に書くのは、サーバーの上の `import` だけです。引用が原文にあるか・氏名・AI の審査（キーがあれば）などの検査は、本番でもう一度通ります
-- 下書きは、管理画面（`/operator`）で確かめて公開します。予算は `docker compose exec backend backend publish budget -m <slug> -y <年度>`
+- 下書きは、管理画面（`/operator`）で確かめて公開します。予算は `deploy/prod.sh publish budget -m <slug> -y <年度>`
+- 本番では API で資料を読みません（`extract` は `--manual`・`--dry-run` だけ動く）。抽出のモデルと費用の上限（`EXTRACTION_MODEL`・`LLM_EXTRACTION_DAILY_BUDGET_USD`）は本番の設定に要りません
+
+### 本番でコマンドを動かす
+`deploy/prod.sh <動詞> <対象> …` は、サーバーの compose のフォルダで `docker compose exec -T backend backend …` を動かします（送り先は `upload.sh` と同じ `DEPLOY_SSH`・`DEPLOY_DIR`）。サーバーの上では `DEPLOY_SSH` を空にして使えます。
+
+```sh
+export DEPLOY_SSH=machikoe DEPLOY_DIR='~/machikoe/deploy'
+deploy/prod.sh list topic -m otawara --drafts
+deploy/prod.sh list usage --days 3     # AI の利用（キーを差し替えたあと、呼べているか・失敗が増えていないか）
+```
+- コンテナには sqlite3 がありません。DB の中身はコマンドで見ます
 - `DEPLOY_SSH` が空なら、サーバーの上で動かしているものとして ssh を使いません（`DEPLOY_DIR` の既定はスクリプトのあるフォルダ）
 
 `~/.ssh/config` の例（鍵はこのサーバーだけに使う）:

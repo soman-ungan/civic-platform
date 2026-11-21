@@ -34,3 +34,8 @@
 ## 確かめ
 - `cargo test`（`EXTRACTION_API=off` で `extract` が止まること、`list usage` の集計のテストを足す）・clippy・fmt
 - `deploy/prod.sh` で本番の `list topic`・`list usage` を読む（読むだけ）
+
+## 実装時の変更点
+- 本番で API の `extract` を止める判断は、新しい環境変数 `EXTRACTION_API` ではなく、すでにある本番の判断（`Config::is_production`。パスキーのドメインが localhost でない。`seed --dev` を止めるのと同じ）にした。compose に書き忘れることが無く、設定が1つ減る。止めるのは `extract` の入口（`interface/cli/ingest.rs`）で、原本を読む前に止まる
+- `list usage` の SQL は `records/usage.rs`（段階2 DB を見る）に置いた。`show`・`edit`・`add`・`remove`・`publish`・`archive` の `usage` は「何もしません」
+- `.claude/commands/import-budget.md` は、指示文を手元で作る（予算の指示文は本番の DB に左右されない）。検査と保存だけを本番で行う

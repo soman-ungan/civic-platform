@@ -65,6 +65,7 @@ civic-platform/
 - AI に送るのは本文と、公開済みのトピックの内容（審査ではタイトル・説明・承認済みの意見の本文、タグ付けはタイトルと説明）だけ。参加者 ID・関わり方・トピックや意見の ID は送らない。
 - 首長・議員などの人物はタグにしない。議員ごとの記録（タブ「議会」。ADR 0008）は、会議録の発言者の記載から機械的に対応付けたもの（`topic_sources.official_id`）だけを見せる（LLM に推測させない。順位・評価・立場の推測・市民の投票の結果の議員ごとの集計はしない）。投票の対象の意見の文には議員名を入れない。
 - 行政資料の収集は「エージェント」にせず、設定に従う決まった手順のコードにする。原本は保持しない（`docs/design/collection.md`）。
+- **資料（会議録・予算）は手元でデータ化し、本番は検査と保存だけ**（`docs/adr/0009-local-ingest.md`）。手元で共同作業（`--manual`）で JSON を作り、`deploy/upload.sh` で送って本番の `import` が検査する。本番では API で資料を読む `extract` は止まる。定期の収集はしない
 
 ## 会議録の原則（`docs/adr/0004-assembly-minutes.md`）
 - 名前を出すのは選挙で選ばれた公人（首長・議員）だけ。`public_officials` と会議録の発言者の記載から機械的に対応付ける。職員は職名だけ（AI にも氏名を渡さない）。
@@ -138,11 +139,11 @@ civic-platform/
   - 書式は `010_municipality_092100_otawara.sql` に倣う。全 INSERT に `ON CONFLICT DO NOTHING` を付ける
   - 地区 ID は `<団体コード>-<ローマ字>`
   - 決算カードの収集先（`soumu_settlement_card`）を1行足して `fetch settlement -m <slug>` → `import settlement -m <slug>` すると、人口（`municipality_stats`）も決算カードから入る。設定は全市町村で同じ（大田原市の行をそのまま写し、id と municipality_id だけ変える）
-- 本番は `deploy/`（compose・Caddyfile・`.env.example`）と `backend/Dockerfile`・`frontend/Dockerfile`。動かし方は `docs/operations/deploy.md`。手元で作った会議録・予算の抽出を本番に入れるのは `deploy/upload.sh`（既定は検査だけ、`--apply` で下書きに）。frontend のビルドに埋め込むのは公開してよい値（`NEXT_PUBLIC_*`）だけで、運営者ごとの値（`SITE_*`）はリクエストのときに読む
+- 本番は `deploy/`（compose・Caddyfile・`.env.example`）と `backend/Dockerfile`・`frontend/Dockerfile`。動かし方は `docs/operations/deploy.md`。手元で作った会議録・予算の抽出を本番に入れるのは `deploy/upload.sh`（既定は検査だけ、`--apply` で下書きに）。本番で運営のコマンドを動かすのは `deploy/prod.sh <動詞> <対象> …`（AI の利用は `list usage`）。frontend のビルドに埋め込むのは公開してよい値（`NEXT_PUBLIC_*`）だけで、運営者ごとの値（`SITE_*`）はリクエストのときに読む
 - CI は `.github/workflows/ci.yml`（PostgreSQL へのマイグレーションと seed の互換も確かめる。依存の既知の脆弱性は audit ジョブで、週1回も回す。cargo audit の除外は `backend/.cargo/audit.toml` に理由つきで書く）。本番の死活監視は `.github/workflows/uptime.yml`（5分ごと・失敗は GitHub のメール）
 
 ## 開発フェーズ
 - 1 土台 → 2 コア → 3 分析 → 4 AI → 5 収集 → 6a パスキー・運営者 → 6b 参加の決まり → 6c 管理画面とトピックの期限 → 6d 市民からのトピックの提案 → タイムラインの流れ → 意見の取りまとめ（類似判定・トピックマップ・市民のまとめ） は済み（状況は `docs/overview.md`、各計画は `docs/plans/README.md`）
 - 6e 1人を見分ける目印（乱用が見えたら。SNS か SMS を1回だけ確かめ、鍵付きのハッシュだけを持つ。ADR 0006）
-- 7 リリース準備は済み（2026-11-10 に machikoe.jp で公開。`docs/plans/2026-11-01-phase7-release.md`）。公開のあとに回したもの: 運営者への知らせ（確認待ちが溜まったとき）、収集の定期実行、寄付の受け付け
+- 7 リリース準備は済み（2026-11-10 に machikoe.jp で公開。`docs/plans/2026-11-01-phase7-release.md`）。公開のあとに回したもの: 運営者への知らせ（確認待ちが溜まったとき）、寄付の受け付け（収集の定期実行は ADR 0009 でしないことにした）
 - 8 展開: 自治体選択 UI の有効化、近隣自治体の追加、自治体追加手順のドキュメント化

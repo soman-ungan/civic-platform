@@ -58,6 +58,11 @@ pub async fn edit(ctx: &Ctx, args: EditArgs) -> anyhow::Result<()> {
             args.target,
             "似ているかは計算するだけで、保存しない（list similar で見る）",
         )?,
+        Target::Usage => skip(
+            "edit",
+            args.target,
+            "AI の利用は記録するだけで、直さない（list usage で見る）",
+        )?,
         Target::Queue => skip(
             "edit",
             args.target,
@@ -194,6 +199,7 @@ fn not_editable(target: Target) -> &'static str {
         Target::Topic => "トピックは会議録（import minutes）か、市民の提案（画面）から作る",
         Target::Source => "収集先は seed で管理する（data/seeds/010_municipality_*.sql）",
         Target::Similar => "似ているかは計算するだけで、保存しない（list similar で見る）",
+        Target::Usage => "AI の利用は記録するだけで、直さない（list usage で見る）",
         Target::Statement | Target::Tag | Target::Operator | Target::Queue | Target::Slot => "",
     }
 }
