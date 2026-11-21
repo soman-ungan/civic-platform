@@ -117,6 +117,7 @@ pub async fn show(ctx: &Ctx, args: ShowArgs) -> anyhow::Result<()> {
             args.target,
             "似ているかは計算するだけで、保存しない（list similar で見る）",
         )?,
+        Target::Usage => skip("show", args.target, "日ごとのまとめは list usage で見る")?,
         Target::Queue | Target::Slot => {
             return skip(
                 "show",

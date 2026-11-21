@@ -71,6 +71,7 @@ flowchart LR
 - **コマンドは `<動詞> <対象>` の形で、段階ごとに分かれています**（[operations/cli.md](cli.md)）。資料は3種類とも `fetch` → `extract` → `import` の同じ流れを通り、その資料に要らない処理（決算カードの `extract`、会議録の `fetch`）は何もせずに通ります
 - **下書き（draft）は API のどこにも出ません。** 画面に出るのは、運営者が `publish` したものだけです（決算カードは AI を使わない決まった形の表なので、取り込んだらそのまま公開されます）
 - **AI を呼ぶのは `extract` だけです。** Claude API（費用がかかる）か、管理者と Claude Code の共同作業（`--manual`。費用なし）。どちらの出力も `import` で同じ検査を通ります
+- **資料のデータ化は手元、本番は検査と保存だけです**（ADR 0009）。手元で作った JSON と原本を `deploy/upload.sh` で送り、本番の `import` が検査して保存します。本番では API の `extract` は動きません。決算カードは本番のサーバーが取ります
 - **原本は DB に入れません。** DB には数字・事業の名前・短い引用・出典（URL・ハッシュ）だけが入ります。`fetch` で取った原本は `import` が済んだら消えます
 
 ## データの置き場所
@@ -140,7 +141,7 @@ sequenceDiagram
     CLI->>DB: status = published（画面の「まちのお金」に出る）
 ```
 
-API で読むときは、`extract budget` を `--manual` なしで実行します（費用がかかる）。そのあとの `import` は同じです。
+API で読むときは、手元で `extract budget` を `--manual` なしで実行します（費用がかかる。本番では止まる）。そのあとの `import` は同じです。
 
 ### 会議録
 
@@ -191,7 +192,7 @@ API サーバー（引数なしで起動）は、次の処理をバックグラ�
 
 - 市民の投稿は、届いたその場で AI が判定します（承認・非公開・人が確かめる）。判定できなかった（通信の失敗・費用の上限）ものは pending のまま残り、上の処理でやり直します
 - 人が確かめる（flagged）ものは、管理画面（`/operator`）の「確認待ち」か、`list statement` → `moderate statement --id <id> --approve` / `--reject`
-- AI の使用量と推定の費用は `llm_usage` に記録され、1日の上限（`LLM_DAILY_BUDGET_USD`・`LLM_EXTRACTION_DAILY_BUDGET_USD`）を超えると呼びません
+- AI の使用量と推定の費用は `llm_usage` に記録され、1日の上限（`LLM_DAILY_BUDGET_USD`・手元の抽出は `LLM_EXTRACTION_DAILY_BUDGET_USD`）を超えると呼びません。日ごとのまとめは `list usage`（本番は `deploy/prod.sh list usage`）
 
 ## 状態の移り変わり
 

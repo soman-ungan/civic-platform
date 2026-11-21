@@ -39,6 +39,7 @@
 | [2026-10-28-manual-extraction](2026-10-28-manual-extraction.md) | API を使わない共同作業での取り込み | [design/collection.md](../design/collection.md)・`.claude/commands/` |
 | [2026-10-28-similar-topics](2026-10-28-similar-topics.md) | 似たトピック・意見の少ないトピックの扱い | [ADR 0005](../adr/0005-topic-lifecycle-and-funding.md)・[operations/cli.md](../operations/cli.md) |
 | [2026-10-28-revenue-keys](2026-10-28-revenue-keys.md) | 予算の歳入の費目名を決算カードにそろえる | [design/collection.md](../design/collection.md) |
+| [2026-11-21-local-ingest-ops](2026-11-21-local-ingest-ops.md) | 資料は手元でデータ化し、本番は検査と保存だけ（API の extract は手元だけ・定期の収集はしない・`deploy/prod.sh`・`list usage`） | [ADR 0009](../adr/0009-local-ingest.md)・[operations/deploy.md](../operations/deploy.md) |
 
 ## 画面
 | 計画 | 中身 |

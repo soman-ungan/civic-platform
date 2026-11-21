@@ -6,6 +6,7 @@ backend（Rust）は、API サーバーとしてだけでなく、運営のた�
 資料がどのコマンドで DB のどこに入るかの全体は、[operations/data-flow.md](data-flow.md) にあります。
 
 - 開発中は `backend/` で `cargo run -- <コマンド>` として実行します
+- 本番では `deploy/prod.sh <コマンド>` で、本番の backend のコンテナで動かします（`docs/operations/deploy.md`）
 - ビルドしたものは `./backend <コマンド>`（`cargo build --release` なら `target/release/backend`）でも同じです
 - 引数を付けずに実行すると、API サーバーが起動します
 - どのコマンドも、起動のたびに DB のマイグレーションを自動で適用します
@@ -46,7 +47,7 @@ cargo run                     # API サーバーを起動（http://127.0.0.1:808
 | もの | 使うコマンド | 無いとき |
 |---|---|---|
 | `SESSION_SECRET`（32バイト以上） | すべて | 起動しない |
-| `ANTHROPIC_API_KEY`（Claude API） | `extract`（`--manual`・`--dry-run` を除く）・`moderate`・`classify`・`eval` | AI を使わない。投稿は自動で承認され、タグ付けはしない。AI が要るコマンドはエラーになる |
+| `ANTHROPIC_API_KEY`（Claude API） | `extract`（`--manual`・`--dry-run` を除く。手元だけ）・`moderate`・`classify`・`eval` | AI を使わない。投稿は自動で承認され、タグ付けはしない。AI が要るコマンドはエラーになる |
 | `COLLECTOR_CONTACT`（運営者の連絡先） | `fetch` | 取得しない（取得先の User-Agent に入れるため） |
 | poppler-utils（`pdftotext`） | 予算の `extract`・`import` | 予算を取り込めない（`apt install poppler-utils`） |
 | `PRIVATE_DIR`（既定 `../data/private`） | `fetch`・`import` | 既定の場所を使う |
@@ -158,7 +159,7 @@ cargo run -- fetch budget --source 092100-budget-overview --dry-run   # 取得�
 
 ```sh
 # 予算（既定は置き場の <年度>.pdf。手で取った PDF は --file）
-cargo run -- extract budget -m otawara -y 2026                  # API で読む（費用がかかる）
+cargo run -- extract budget -m otawara -y 2026                  # API で読む（費用がかかる。手元だけ）
 cargo run -- extract budget -m otawara -y 2026 --manual         # 共同作業の指示文を書き出す（費用なし）
 cargo run -- extract budget -m otawara -y 2026 --dry-run        # ページ数を確かめるだけ（費用なし）
 
@@ -167,6 +168,8 @@ cargo run -- extract minutes -m otawara \
   --file ../data/private/minutes/2026R08_0226.txt \
   --title "令和8年第1回定例会（第2号）" --held-on 2026-02-26 --url "https://..." --dry-run
 ```
+
+- **本番では API で読みません**（ADR 0009）。本番（パスキーのドメインが localhost でない）で `--manual`・`--dry-run` なしの `extract` を動かすと、API を呼ばずにエラーで止まります。資料は手元でデータ化し、`deploy/upload.sh` で本番に送ります
 
 | オプション | 意味 |
 |---|---|
@@ -230,6 +233,7 @@ cargo run -- list tag -m otawara               # 分野の語彙と、その自�
 cargo run -- list source                       # 収集先・規約の確認日・最後の取得
 cargo run -- list operator                     # 運営者のアカウント（ID・登録日・パスキーの数）
 cargo run -- list queue -m otawara             # 公開待ち（公開する順と予定）
+cargo run -- list usage [--days 7]             # AI の利用（日ごと・用途ごとの回数・失敗・トークン・推定の費用。UTC）
 cargo run -- list slot [-m otawara]            # 自動公開の時刻
 cargo run -- list similar -m otawara           # 似ているトピックの組（度合いつき。費用 0）
 cargo run -- list similar --topic <id>         # トピックの中の似ている意見の組
@@ -366,7 +370,7 @@ cargo run -- list settlement -m otawara
 ### 今年度の予算を入れる
 
 1. `fetch budget -m <slug> -y <年度>`（または、手で取った PDF を `--file` で渡す）
-2. `extract budget -m <slug> -y <年度>`（費用がかかる）か、共同作業なら `--manual`
+2. 共同作業なら `extract budget -m <slug> -y <年度> --manual`（手元で API を使うなら `--manual` なし。費用がかかる）
 3. `import budget -m <slug> -y <年度> --dry-run` で確かめ、`--dry-run` を外して下書きを作る
 4. `show budget -m <slug> -y <年度>` で確かめて `publish budget -m <slug> -y <年度>`
 
@@ -374,7 +378,7 @@ cargo run -- list settlement -m otawara
 
 1. 会議録をコピーして `data/private/minutes/` に置く
 2. `extract minutes ... --dry-run` で、発言者と名簿を確かめる
-3. `extract minutes ...`（費用がかかる）か、共同作業なら `--manual`
+3. 共同作業なら `extract minutes ... --manual`（手元で API を使うなら `--manual` なし。費用がかかる）
 4. `import minutes -m <slug> --file <パス>` で下書きを作る
 5. `list topic --drafts` → `show topic --id <id>` → 必要なら `edit topic` など → `add queue --id <id>`（決まった時刻に公開。急ぐなら `publish topic --id <id>`）
 
@@ -387,6 +391,6 @@ cargo run -- list settlement -m otawara
 3. `import ... --dry-run` で検査に通す（捨てたものを見て直す）
 4. `import ...` で下書きを保存し、`show topic` / `show budget` で確かめて公開する
 
-- 本番のサーバーで取り込むときは、手元で作った JSON と原本を `deploy/upload.sh` でサーバーに送り、3・4 を行います（`docs/operations/deploy.md` の「資料を本番に入れる」）。サーバーに API キーが無くても取り込めます（キーは投稿のモデレーションのため）
+- **本番に入れるのが本筋です**（ADR 0009）。会議録の指示文は本番で作り（`deploy/upload.sh --prompt`。本番の既存のトピックとの統合が効く）、手元で作った JSON と原本を `deploy/upload.sh` で送って、本番の `import` で 3・4 を行います（`docs/operations/deploy.md` の「資料を本番に入れる」）。手元の DB に入れるのは、開発で試すときだけです（手元の DB は本番と別物）
 - API キーが無いと、トピックの自動のタグ付けは動きません。`add tag` で付けます
 - どちらの方法で作ったかは、`documents.extraction`（`api` / `manual`）に残ります

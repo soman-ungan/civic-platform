@@ -33,6 +33,11 @@ mod ingest {
     mod settlement_card;
 }
 
+/// DB を見る・直す（`src/records/`）
+mod records {
+    mod usage;
+}
+
 /// 判定・計算（`src/process/`）。参加のルールは API を通して確かめる
 mod process {
     mod analysis_store;

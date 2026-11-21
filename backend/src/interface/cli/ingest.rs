@@ -175,6 +175,17 @@ fn print_report(report: &collect::Report) {
 // ===== extract =====
 
 pub async fn extract(ctx: &Ctx, args: ExtractArgs) -> anyhow::Result<()> {
+    // 本番では API で資料を読まない（ADR 0009）。資料のデータ化は手元の共同作業で行い、本番は import で検査と保存だけ。
+    // 指示文を作る（--manual。本番の既存のトピックが入る）と、確かめるだけ（--dry-run）は本番でも使える
+    if !args.manual
+        && !args.dry_run
+        && ctx.config.is_production()
+        && args.target != Target::Settlement
+    {
+        anyhow::bail!(
+            "本番では API で資料を読みません（ADR 0009）。手元で --manual の共同作業で作り、deploy/upload.sh で送ってください"
+        );
+    }
     match args.target {
         Target::Settlement => skip(
             "extract",

@@ -41,6 +41,33 @@ async fn list_similar(ctx: &Ctx, args: &ListArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// AI の利用。日ごと（UTC）・用途ごと。キーを差し替えたあとに、呼べているか（失敗が増えていないか）を見る
+async fn list_usage(ctx: &Ctx, args: &ListArgs) -> anyhow::Result<()> {
+    let rows = records::usage::daily(&ctx.pool, args.days).await?;
+    if rows.is_empty() {
+        println!("直近 {} 日の AI の利用はありません", args.days);
+    }
+    for r in &rows {
+        println!(
+            "{}  {:<10}  {:>4} 回（失敗 {}）  入力 {} / 出力 {} トークン  約 {:.3} ドル",
+            r.day,
+            r.purpose,
+            r.calls,
+            r.failures,
+            r.input_tokens,
+            r.output_tokens,
+            r.cost_micro_usd as f64 / 1_000_000.0
+        );
+    }
+    let total: i64 = rows.iter().map(|r| r.cost_micro_usd).sum();
+    println!(
+        "合計 約 {:.3} ドル（直近 {} 日。推定）",
+        total as f64 / 1_000_000.0,
+        args.days
+    );
+    Ok(())
+}
+
 pub async fn list(ctx: &Ctx, args: ListArgs) -> anyhow::Result<()> {
     let pool = &ctx.pool;
     let by_slug = |slug: &str| args.municipality.as_deref().is_none_or(|m| m == slug);
@@ -145,6 +172,7 @@ pub async fn list(ctx: &Ctx, args: ListArgs) -> anyhow::Result<()> {
         }
         Target::Statement => list_statements(ctx, &args).await?,
         Target::Similar => list_similar(ctx, &args).await?,
+        Target::Usage => list_usage(ctx, &args).await?,
         Target::Tag => {
             let filter = match &args.municipality {
                 Some(slug) => Some(municipality_id(pool, slug).await?),

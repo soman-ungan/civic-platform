@@ -14,3 +14,4 @@ pub mod settlement;
 pub mod statements;
 pub mod tags;
 pub mod topics;
+pub mod usage;

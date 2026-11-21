@@ -57,6 +57,11 @@ pub async fn publish(ctx: &Ctx, args: PublishArgs, publish: bool) -> anyhow::Res
             args.target,
             "似ているかは計算するだけで、保存しない（list similar で見る）",
         )?,
+        Target::Usage => skip(
+            verb,
+            args.target,
+            "AI の利用は記録するだけで、直さない（list usage で見る）",
+        )?,
         Target::Queue | Target::Slot => skip(
             verb,
             args.target,
